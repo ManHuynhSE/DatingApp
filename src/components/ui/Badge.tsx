@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors, typography } from '@/theme';
+import { colors } from '@/theme';
 
 interface BadgeProps {
   count?: number;

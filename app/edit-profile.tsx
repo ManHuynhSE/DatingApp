@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,15 @@ import {
   Image,
   Dimensions,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
+import { colors, typography, spacing, borderRadius } from '../src/theme';
+import { useAuthStore } from '../src/store/authStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_GAP = spacing.sm;
@@ -27,23 +31,6 @@ interface DetailRow {
   icon: string;
 }
 
-const DETAIL_ROWS: DetailRow[] = [
-  { label: 'Occupation', value: 'Add', icon: 'briefcase-outline' },
-  { label: 'Gender & Pronouns', value: 'Male', icon: 'person-outline' },
-  { label: 'Education', value: 'Add', icon: 'school-outline' },
-  { label: 'Location', value: 'NV 89104', icon: 'location-outline' },
-];
-
-const EXTRA_DETAIL_ROWS: DetailRow[] = [
-  { label: 'Height', value: 'Add', icon: 'resize-outline' },
-  { label: 'Smoking', value: 'Add', icon: 'ban-outline' },
-  { label: 'Drinking', value: 'Add', icon: 'wine-outline' },
-  { label: 'Pets', value: 'Add', icon: 'paw-outline' },
-  { label: 'Children', value: 'Add', icon: 'people-outline' },
-  { label: 'Zodiac sign', value: 'Add', icon: 'star-outline' },
-  { label: 'Religion', value: 'Add', icon: 'leaf-outline' },
-];
-
 const LINKED_ACCOUNTS = [
   { name: 'Instagram', icon: 'logo-instagram', color: '#E1306C' },
   { name: 'Facebook', icon: 'logo-facebook', color: '#1877F2' },
@@ -52,13 +39,31 @@ const LINKED_ACCOUNTS = [
 
 export default function EditProfileScreen() {
   const router = useRouter();
-  const [aboutMe, setAboutMe] = useState('');
-  const [interests, setInterests] = useState<string[]>([
-    'Coffee brewing',
-    'Trekking',
-  ]);
-  const [languages, setLanguages] = useState<string[]>(['Finnish']);
-  const profileCompletion = 45;
+  const user = useAuthStore((state) => state.user);
+  const updateUser = useAuthStore((state) => state.updateUser);
+  const [name, setName] = useState(user?.name ?? '');
+  const [age, setAge] = useState(user?.age ? String(user.age) : '');
+  const [occupation, setOccupation] = useState(user?.occupation ?? '');
+  const [aboutMe, setAboutMe] = useState(user?.aboutMe ?? '');
+  const [interests, setInterests] = useState<string[]>(user?.interests ?? []);
+  const [languages, setLanguages] = useState<string[]>(user?.languages ?? []);
+  const [photos, setPhotos] = useState<string[]>(user?.photos ?? []);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const profileCompletion = useMemo(() => {
+    const fields = [name.trim(), age.trim(), occupation.trim(), aboutMe.trim(), interests.length, languages.length, photos.length];
+    return Math.round((fields.filter(Boolean).length / fields.length) * 100);
+  }, [aboutMe, age, interests.length, languages.length, name, occupation, photos.length]);
+
+  const isDirty = Boolean(
+    name !== (user?.name ?? '') ||
+      age !== (user?.age ? String(user.age) : '') ||
+      occupation !== (user?.occupation ?? '') ||
+      aboutMe !== (user?.aboutMe ?? '') ||
+      photos !== (user?.photos ?? []) ||
+      interests.join('|') !== (user?.interests ?? []).join('|') ||
+      languages.join('|') !== (user?.languages ?? []).join('|'),
+  );
 
   const removeInterest = (item: string) => {
     setInterests((prev) => prev.filter((i) => i !== item));
@@ -68,25 +73,93 @@ export default function EditProfileScreen() {
     setLanguages((prev) => prev.filter((l) => l !== item));
   };
 
-  const mainPhoto = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400';
-  const handlePhotoSlot = () => Alert.alert('Add photo', 'Photo picker will be connected in the native build. This slot is ready for upload.');
-  const handleDetail = (label: string) => Alert.alert(label, `Edit ${label.toLowerCase()} from this profile field.`);
+  const mainPhoto = photos[0] ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400';
+  const handlePhotoSlot = () => {
+    const mockPhoto = [
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400',
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+    ][photos.length % 3];
+    setPhotos((current) => [...current, mockPhoto].slice(0, 4));
+  };
+
+  const detailRows: DetailRow[] = [
+    { label: 'Occupation', value: occupation || 'Add', icon: 'briefcase-outline' },
+    { label: 'Gender & Pronouns', value: user?.pronouns || 'Add', icon: 'person-outline' },
+    { label: 'Education', value: user?.education || 'Add', icon: 'school-outline' },
+    { label: 'Location', value: user?.location || 'Add', icon: 'location-outline' },
+  ];
+
+  const extraDetailRows: DetailRow[] = [
+    { label: 'Height', value: user?.details.height || 'Add', icon: 'resize-outline' },
+    { label: 'Smoking', value: user?.details.smoking || 'Add', icon: 'ban-outline' },
+    { label: 'Drinking', value: user?.details.drinking || 'Add', icon: 'wine-outline' },
+    { label: 'Pets', value: user?.details.pets || 'Add', icon: 'paw-outline' },
+    { label: 'Children', value: user?.details.children || 'Add', icon: 'people-outline' },
+    { label: 'Zodiac sign', value: user?.details.zodiac || 'Add', icon: 'star-outline' },
+    { label: 'Religion', value: user?.details.religion || 'Add', icon: 'leaf-outline' },
+  ];
+
+  const handleDetail = (label: string) => Alert.alert(label, 'This detail editor is available in the prototype. Your current value is shown in this screen.');
+
+  const handleBack = () => {
+    if (!isDirty) {
+      router.back();
+      return;
+    }
+    Alert.alert('Discard changes?', 'Your unsaved profile changes will be lost.', [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+    ]);
+  };
+
+  const handleSave = () => {
+    if (!name.trim() || !age.trim() || Number(age) < 18 || Number(age) > 100) {
+      Alert.alert('Check your profile', 'Enter your name and an age between 18 and 100.');
+      return;
+    }
+    setIsSaving(true);
+    setTimeout(() => {
+      updateUser({
+        name: name.trim(),
+        age: Number(age),
+        occupation: occupation.trim(),
+        aboutMe: aboutMe.trim(),
+        interests,
+        languages,
+        photos,
+        profileCompletion,
+      });
+      setIsSaving(false);
+      Alert.alert('Profile saved', 'Your profile changes are now visible throughout the app.', [
+        { text: 'Done', onPress: () => router.back() },
+      ]);
+    }, 450);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+        <TouchableOpacity onPress={handleBack} style={styles.headerBtn} accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit profile</Text>
-        <View style={styles.headerBtn} />
+        <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving || !isDirty}>
+          {isSaving ? <ActivityIndicator size="small" color={colors.primary} /> : <Text style={[styles.saveText, (!isDirty || isSaving) && styles.saveTextDisabled]}>Save</Text>}
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <KeyboardAvoidingView
         style={styles.scrollView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       >
         {/* Profile completion */}
         <View style={styles.completionSection}>
@@ -124,12 +197,21 @@ export default function EditProfileScreen() {
             {/* Small photo slots */}
             <View style={styles.smallPhotosColumn}>
               {[0, 1, 2].map((i) => (
-                <TouchableOpacity key={i} style={styles.emptyPhotoSlot} onPress={handlePhotoSlot}>
-                  <Ionicons name="add" size={28} color={colors.textTertiary} />
+                <TouchableOpacity key={i} style={styles.emptyPhotoSlot} onPress={handlePhotoSlot} accessibilityLabel={`Add photo ${i + 2}`}>
+                  {photos[i + 1] ? <Image source={{ uri: photos[i + 1] }} style={styles.slotPhoto} /> : <Ionicons name="add" size={28} color={colors.textTertiary} />}
                 </TouchableOpacity>
               ))}
             </View>
           </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your name and age</Text>
+          <TextInput style={styles.textInput} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={colors.textTertiary} />
+          <TextInput style={styles.textInput} value={age} onChangeText={setAge} placeholder="Age" placeholderTextColor={colors.textTertiary} keyboardType="number-pad" maxLength={3} />
+          <TextInput style={styles.textInput} value={occupation} onChangeText={setOccupation} placeholder="Occupation" placeholderTextColor={colors.textTertiary} />
         </View>
 
         <View style={styles.divider} />
@@ -154,7 +236,7 @@ export default function EditProfileScreen() {
         {/* My details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My details</Text>
-          {DETAIL_ROWS.map((row, i) => (
+          {detailRows.map((row, i) => (
             <TouchableOpacity key={i} style={styles.detailRow} onPress={() => handleDetail(row.label)}>
               <Ionicons
                 name={row.icon as any}
@@ -182,7 +264,7 @@ export default function EditProfileScreen() {
             Most people also want to know:
           </Text>
 
-          {EXTRA_DETAIL_ROWS.map((row, i) => (
+          {extraDetailRows.map((row, i) => (
             <TouchableOpacity key={i} style={styles.detailRow} onPress={() => handleDetail(row.label)}>
               <Ionicons
                 name={row.icon as any}
@@ -302,8 +384,12 @@ export default function EditProfileScreen() {
           ))}
         </View>
 
-        <View style={{ height: 100 }} />
+        <TouchableOpacity style={[styles.bottomSaveButton, isSaving && styles.disabledButton]} onPress={handleSave} disabled={isSaving}>
+          {isSaving ? <ActivityIndicator color={colors.white} /> : <Text style={styles.bottomSaveText}>Save changes</Text>}
+        </TouchableOpacity>
+        <View style={{ height: 40 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -332,6 +418,20 @@ const styles = StyleSheet.create({
     fontSize: typography.h3.fontSize,
     fontWeight: typography.h3.fontWeight,
     color: colors.textPrimary,
+  },
+  saveButton: {
+    minWidth: 52,
+    minHeight: 40,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  saveText: {
+    color: colors.primary,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
+  },
+  saveTextDisabled: {
+    color: colors.textTertiary,
   },
   scrollView: {
     flex: 1,
@@ -390,6 +490,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  slotPhoto: {
+    width: '100%',
+    height: '100%',
+  },
   mainBadge: {
     position: 'absolute',
     bottom: spacing.sm,
@@ -434,6 +538,17 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     minHeight: 100,
     lineHeight: 22,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    fontSize: typography.body.fontSize,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
+    minHeight: 48,
   },
   detailRow: {
     flexDirection: 'row',
@@ -515,5 +630,22 @@ const styles = StyleSheet.create({
     fontSize: typography.body.fontSize,
     color: colors.primary,
     fontWeight: '500',
+  },
+  bottomSaveButton: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.base,
+    minHeight: 52,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  bottomSaveText: {
+    color: colors.white,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
 });

@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.31:3000/api';
+  process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.12:3000/api';
 
 export class ApiError extends Error {
   status: number;
@@ -38,11 +38,22 @@ async function request<T>(
     },
   });
 
-  const body = await response.json().catch(() => null);
+  const bodyText = await response.text();
+  let body: unknown = null;
+  try {
+    body = bodyText ? JSON.parse(bodyText) : null;
+  } catch {
+    body = null;
+  }
+  const errorMessage =
+    typeof body === 'object' &&
+    body !== null &&
+    'message' in body &&
+    typeof body.message === 'string'
+      ? body.message
+      : bodyText || response.statusText || 'Request failed';
   if (!response.ok) {
-    const message =
-      typeof body?.message === 'string' ? body.message : 'Request failed';
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, `${errorMessage} (${response.status})`);
   }
   return body as T;
 }
@@ -52,7 +63,7 @@ export const api = {
   getMyProfile: (idToken: string) =>
     request<BackendProfile | null>('/profile/me', {}, idToken),
   updateMyProfile: (idToken: string, profile: Record<string, unknown>) =>
-    request('/profile/me', {
+    request<BackendProfile>('/profile/me', {
       method: 'PUT',
       body: JSON.stringify(profile),
     }, idToken),

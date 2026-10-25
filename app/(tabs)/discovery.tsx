@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '@/theme';
+import { discoveryProfiles } from '@/data/mockData';
+import { useDiscoveryStore } from '@/store/discoveryStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
@@ -29,54 +31,15 @@ interface ProfileCard {
   isIntro?: boolean;
 }
 
-const MOCK_PROFILES: ProfileCard[] = [
-  {
-    id: '0',
-    name: 'Sophia',
-    age: 25,
-    pronouns: 'she/her/hers',
-    occupation: 'UX Designer at Google',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800',
-    isIntro: true,
-  },
-  {
-    id: '1',
-    name: 'Emma',
-    age: 27,
-    pronouns: 'she/her/hers',
-    occupation: 'Software Engineer at Meta',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800',
-  },
-  {
-    id: '2',
-    name: 'Olivia',
-    age: 24,
-    pronouns: 'she/her/hers',
-    occupation: 'Product Manager at Apple',
-    verified: false,
-    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800',
-  },
-  {
-    id: '3',
-    name: 'Ava',
-    age: 26,
-    pronouns: 'she/her/hers',
-    occupation: 'Data Scientist at Netflix',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800',
-  },
-  {
-    id: '4',
-    name: 'Isabella',
-    age: 28,
-    pronouns: 'she/her/hers',
-    occupation: 'Marketing Director',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=800',
-  },
-];
+const mapProfile = (profile: (typeof discoveryProfiles)[number]): ProfileCard => ({
+  id: profile.id,
+  name: profile.name,
+  age: profile.age,
+  pronouns: profile.pronouns,
+  occupation: profile.company ? `${profile.occupation} at ${profile.company}` : profile.occupation,
+  verified: profile.verified,
+  image: profile.photos[0],
+});
 
 const PROGRESS_SEGMENTS = 5;
 
@@ -85,7 +48,36 @@ export default function DiscoveryScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showLikeOverlay, setShowLikeOverlay] = useState(false);
   const [showPassOverlay, setShowPassOverlay] = useState(false);
+  const [decision, setDecision] = useState<'like' | 'pass' | null>(null);
   const [swipeFeedback, setSwipeFeedback] = useState('');
+  const feedbackOpacity = useRef(new Animated.Value(0)).current;
+  const feedbackScale = useRef(new Animated.Value(0.86)).current;
+  const decisionOpacity = useRef(new Animated.Value(0)).current;
+  const decisionScale = useRef(new Animated.Value(0.72)).current;
+  const cardEntrance = useRef(new Animated.Value(1)).current;
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const decisionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filters = useDiscoveryStore((state) => state.filters);
+  const swipeRight = useDiscoveryStore((state) => state.swipeRight);
+  const swipeLeft = useDiscoveryStore((state) => state.swipeLeft);
+  const undoSwipe = useDiscoveryStore((state) => state.undoSwipe);
+
+  const filteredProfiles = useMemo(() => {
+    const profiles = discoveryProfiles.filter((profile) => {
+      const distance = Number.parseInt(profile.distance, 10);
+      const genderMatches =
+        filters.gender === 'everyone' ||
+        (filters.gender === 'women' && profile.pronouns.toLowerCase().includes('she')) ||
+        (filters.gender === 'men' && profile.pronouns.toLowerCase().includes('he'));
+      const ageMatches = profile.age >= filters.ageRange[0] && profile.age <= filters.ageRange[1];
+      const distanceMatches = Number.isNaN(distance) || distance <= filters.distance;
+      const languageMatches =
+        filters.languages.length === 0 ||
+        filters.languages.some((language) => profile.languages.includes(language));
+      return genderMatches && ageMatches && distanceMatches && languageMatches;
+    }).map(mapProfile);
+    return [{ ...mapProfile(discoveryProfiles[0]), id: 'intro', isIntro: true }, ...profiles];
+  }, [filters]);
 
   const position = useRef(new Animated.ValueXY()).current;
   const isAnimating = useRef(false);
@@ -116,48 +108,132 @@ export default function DiscoveryScreen() {
     })
   ).current;
 
-  const currentProfile = MOCK_PROFILES[currentIndex];
-  const isLastCard = currentIndex >= MOCK_PROFILES.length;
+  const activeIndex = currentIndex < filteredProfiles.length ? currentIndex : 0;
+  const currentProfile = filteredProfiles[activeIndex];
+  const isLastCard = filteredProfiles.length > 1 && currentIndex >= filteredProfiles.length;
+  const currentProfileRef = useRef<ProfileCard | undefined>(currentProfile);
+  currentProfileRef.current = currentProfile;
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+      if (decisionTimer.current) clearTimeout(decisionTimer.current);
+    };
+  }, []);
+
+  const showSwipeFeedback = (message: string) => {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    setSwipeFeedback(message);
+    feedbackOpacity.setValue(0);
+    feedbackScale.setValue(0.86);
+    Animated.parallel([
+      Animated.timing(feedbackOpacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.spring(feedbackScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    feedbackTimer.current = setTimeout(() => {
+      Animated.timing(feedbackOpacity, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setSwipeFeedback('');
+      });
+    }, 1150);
+  };
 
   const goToNext = () => {
     position.setValue({ x: 0, y: 0 });
-    setCurrentIndex((prev) => Math.min(prev + 1, MOCK_PROFILES.length));
+    cardEntrance.setValue(0);
+    setCurrentIndex((prev) => Math.min(prev + 1, filteredProfiles.length));
+    Animated.spring(cardEntrance, {
+      toValue: 1,
+      friction: 8,
+      tension: 70,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const showDecision = (nextDecision: 'like' | 'pass') => {
+    if (decisionTimer.current) clearTimeout(decisionTimer.current);
+    setDecision(nextDecision);
+    decisionOpacity.setValue(0);
+    decisionScale.setValue(0.72);
+    Animated.parallel([
+      Animated.timing(decisionOpacity, {
+        toValue: 1,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+      Animated.spring(decisionScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    decisionTimer.current = setTimeout(() => {
+      Animated.timing(decisionOpacity, {
+        toValue: 0,
+        duration: 320,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setDecision(null);
+      });
+    }, 900);
   };
 
   const handleLike = () => {
-    if (isAnimating.current || !currentProfile) return;
+    const profile = currentProfileRef.current;
+    if (isAnimating.current || !profile) return;
     isAnimating.current = true;
+    showDecision('like');
     setShowLikeOverlay(true);
     Animated.timing(position, {
       toValue: { x: SCREEN_WIDTH + 100, y: 0 },
-      duration: 300,
+      duration: 430,
+      easing: (value) => value * (2 - value),
       useNativeDriver: true,
     }).start(() => {
       setShowLikeOverlay(false);
-      setSwipeFeedback('Interest sent');
+      showSwipeFeedback('Interest sent');
+      if (!profile.isIntro) swipeRight(profile.id);
       goToNext();
       isAnimating.current = false;
-      setTimeout(() => setSwipeFeedback(''), 1400);
     });
   };
 
   const handlePass = () => {
-    if (isAnimating.current || !currentProfile) return;
+    const profile = currentProfileRef.current;
+    if (isAnimating.current || !profile) return;
     isAnimating.current = true;
+    showDecision('pass');
     setShowPassOverlay(true);
     Animated.timing(position, {
       toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
-      duration: 300,
+      duration: 430,
+      easing: (value) => value * (2 - value),
       useNativeDriver: true,
     }).start(() => {
       setShowPassOverlay(false);
+      showSwipeFeedback('Passed');
+      if (!profile.isIntro) swipeLeft(profile.id);
       goToNext();
       isAnimating.current = false;
     });
   };
 
   const handleUndo = () => {
-    if (currentIndex > 0) {
+    if (currentIndex > 1) {
+      undoSwipe();
       setCurrentIndex((prev) => prev - 1);
     }
   };
@@ -172,6 +248,18 @@ export default function DiscoveryScreen() {
     transform: [
       { translateX: position.x },
       { rotate: cardRotation },
+      {
+        translateY: cardEntrance.interpolate({
+          inputRange: [0, 1],
+          outputRange: [18, 0],
+        }),
+      },
+      {
+        scale: cardEntrance.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.96, 1],
+        }),
+      },
     ],
   };
 
@@ -183,7 +271,7 @@ export default function DiscoveryScreen() {
             key={index}
             style={[
               styles.progressSegment,
-              index <= currentIndex && styles.progressSegmentActive,
+              index <= activeIndex && styles.progressSegmentActive,
             ]}
           />
         ))}
@@ -194,8 +282,12 @@ export default function DiscoveryScreen() {
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/(tabs)/profile')}>
-          <Ionicons name="menu-outline" size={24} color={colors.textPrimary} />
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push('/(tabs)/profile')}
+          accessibilityLabel="Open profile"
+        >
+          <Ionicons name="person-circle-outline" size={25} color={colors.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton} onPress={handleUndo}>
           <Ionicons name="arrow-undo-outline" size={22} color={colors.textPrimary} />
@@ -334,10 +426,39 @@ export default function DiscoveryScreen() {
       {renderHeader()}
       {renderProgressBar()}
       {swipeFeedback ? (
-        <View style={styles.swipeFeedback}>
+        <Animated.View
+          style={[
+            styles.swipeFeedback,
+            { opacity: feedbackOpacity, transform: [{ scale: feedbackScale }] },
+          ]}
+        >
           <Ionicons name="sparkles" size={16} color={colors.primary} />
           <Text style={styles.swipeFeedbackText}>{swipeFeedback}</Text>
-        </View>
+        </Animated.View>
+      ) : null}
+      {decision ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.decisionOverlay,
+            {
+              opacity: decisionOpacity,
+              transform: [
+                { scale: decisionScale },
+                { rotate: decision === 'like' ? '10deg' : '-10deg' },
+              ],
+            },
+          ]}
+        >
+          <Ionicons
+            name={decision === 'like' ? 'checkmark-circle' : 'close-circle'}
+            size={96}
+            color={decision === 'like' ? colors.success : colors.error}
+          />
+          <Text style={styles.decisionText}>
+            {decision === 'like' ? 'LIKE' : 'PASS'}
+          </Text>
+        </Animated.View>
       ) : null}
       <View style={styles.cardContainer}>
         {renderCard()}
@@ -388,7 +509,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     flex: 1,
     paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
+    paddingBottom: 84,
   },
   card: {
     flex: 1,
@@ -471,7 +592,7 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     position: 'absolute',
-    bottom: spacing.lg,
+    bottom: spacing.xl,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -595,5 +716,24 @@ const styles = StyleSheet.create({
   swipeFeedbackText: {
     ...typography.captionBold,
     color: colors.textPrimary,
+  },
+  decisionOverlay: {
+    position: 'absolute',
+    top: '38%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 40,
+  },
+  decisionText: {
+    marginTop: spacing.sm,
+    fontSize: typography.h3.fontSize,
+    fontWeight: '800',
+    letterSpacing: 2,
+    color: colors.white,
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });

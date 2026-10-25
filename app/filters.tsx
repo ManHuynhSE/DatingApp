@@ -7,26 +7,30 @@ import {
   TouchableOpacity,
   TextInput,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
+import { useDiscoveryStore } from '../src/store/discoveryStore';
 
 type GenderOption = 'Male' | 'Female' | 'Nonbinary';
 
 export default function FiltersScreen() {
   const router = useRouter();
+  const currentFilters = useDiscoveryStore((state) => state.filters);
+  const setFilters = useDiscoveryStore((state) => state.setFilters);
 
-  const [selectedGenders, setSelectedGenders] = useState<GenderOption[]>(['Female']);
-  const [ageMin, setAgeMin] = useState('18');
-  const [ageMax, setAgeMax] = useState('35');
-  const [distance, setDistance] = useState('15');
-  const [showExtraProfiles, setShowExtraProfiles] = useState(true);
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([
-    'English',
-    'Spanish',
-  ]);
+  const [selectedGenders, setSelectedGenders] = useState<GenderOption[]>(
+    currentFilters.gender === 'women' ? ['Female'] : currentFilters.gender === 'men' ? ['Male'] : [],
+  );
+  const [ageMin, setAgeMin] = useState(String(currentFilters.ageRange[0]));
+  const [ageMax, setAgeMax] = useState(String(currentFilters.ageRange[1]));
+  const [distance, setDistance] = useState(String(currentFilters.distance));
+  const [showExtraProfiles, setShowExtraProfiles] = useState(currentFilters.fallbackDistance > currentFilters.distance);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(currentFilters.languages);
 
   const genderOptions: GenderOption[] = ['Male', 'Female', 'Nonbinary'];
 
@@ -51,6 +55,27 @@ export default function FiltersScreen() {
     setSelectedLanguages([]);
   };
 
+  const applyFilters = () => {
+    const min = Math.max(18, Math.min(80, Number.parseInt(ageMin, 10) || 18));
+    const max = Math.max(min, Math.min(80, Number.parseInt(ageMax, 10) || 80));
+    const nextDistance = Math.max(10, Math.min(80, Number.parseInt(distance, 10) || 10));
+    const gender =
+      selectedGenders.length === 1 && selectedGenders[0] === 'Female'
+        ? 'women'
+        : selectedGenders.length === 1 && selectedGenders[0] === 'Male'
+          ? 'men'
+          : 'everyone';
+
+    setFilters({
+      gender,
+      ageRange: [min, max],
+      distance: nextDistance,
+      fallbackDistance: showExtraProfiles ? Math.max(nextDistance, 50) : nextDistance,
+      languages: selectedLanguages,
+    });
+    router.back();
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
@@ -62,10 +87,16 @@ export default function FiltersScreen() {
         <View style={styles.closeBtn} />
       </View>
 
-      <ScrollView
+      <KeyboardAvoidingView
         style={styles.scrollView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       >
         {/* Gender */}
         <View style={styles.section}>
@@ -231,6 +262,7 @@ export default function FiltersScreen() {
           </View>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Bottom buttons */}
       <View style={styles.bottomButtons}>
@@ -243,7 +275,7 @@ export default function FiltersScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.applyButton}
-          onPress={() => router.back()}
+          onPress={applyFilters}
           activeOpacity={0.7}
         >
           <Text style={styles.applyButtonText}>Apply filters</Text>

@@ -3,19 +3,27 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { firebaseAuth } from '../src/auth/firebase';
+import { api } from '../src/api/client';
 import { useAuthStore } from '../src/store/authStore';
 
 export default function RootLayout() {
   const setSession = useAuthStore((state) => state.setSession);
+  const setProfile = useAuthStore((state) => state.setProfile);
 
   useEffect(() => {
-    return firebaseAuth.subscribe(async (firebaseUser) => {
+    let isMounted = true;
+
+    const unsubscribe = firebaseAuth.subscribe(async (firebaseUser) => {
+      if (!isMounted) return;
+
       if (!firebaseUser) {
         setSession(null, null);
         return;
       }
 
       const idToken = await firebaseUser.getIdToken();
+      if (!isMounted) return;
+
       setSession(idToken, {
         id: firebaseUser.uid,
         name: firebaseUser.displayName ?? 'HeartSync member',
@@ -44,8 +52,22 @@ export default function RootLayout() {
         profileCompletion: 0,
         online: true,
       });
+
+      try {
+        const profile = await api.getMyProfile(idToken);
+        if (isMounted && profile) {
+          setProfile(profile);
+        }
+      } catch {
+        // Keep the Firebase session available if the profile API is temporarily unavailable.
+      }
     });
-  }, [setSession]);
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [setProfile, setSession]);
 
   return (
     <SafeAreaProvider>

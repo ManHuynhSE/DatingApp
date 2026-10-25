@@ -1,6 +1,26 @@
-import { Redirect } from 'expo-router';
+import { router, useRootNavigationState } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { InteractionManager } from 'react-native';
 
 export default function Index() {
-  // For MVP, always redirect to auth sign-in screen
-  return <Redirect href="/(auth)/sign-in" />;
+  const navigationState = useRootNavigationState();
+  const hasNavigated = useRef(false);
+
+  useEffect(() => {
+    if (!navigationState?.key || hasNavigated.current) return;
+
+    let isMounted = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (!isMounted || hasNavigated.current) return;
+      hasNavigated.current = true;
+      router.replace('/(auth)/sign-in');
+    });
+
+    return () => {
+      isMounted = false;
+      task.cancel();
+    };
+  }, [navigationState?.key]);
+
+  return null;
 }

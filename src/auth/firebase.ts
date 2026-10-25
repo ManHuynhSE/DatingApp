@@ -54,6 +54,10 @@ export const firebaseAuth = {
     if (!auth) throw new Error('Firebase is not configured');
     return sendPasswordResetEmail(auth, email);
   },
+  async signOut() {
+    if (!auth) return;
+    return auth.signOut();
+  },
   async signInWithGoogleToken(accessToken: string) {
     if (!auth) throw new Error('Firebase is not configured');
     return signInWithCredential(

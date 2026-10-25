@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -66,7 +66,6 @@ const MOCK_PROFILE = {
 export default function ProfileDetailScreen() {
   const router = useRouter();
   const profile = MOCK_PROFILE;
-  const [activeSegment] = useState(0);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

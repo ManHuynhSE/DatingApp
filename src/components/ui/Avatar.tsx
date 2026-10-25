@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Image, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, borderRadius } from '@/theme';
+import { colors } from '@/theme';
 
 type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 

@@ -14,22 +14,45 @@ import { colors, typography, spacing, borderRadius, shadows } from '../src/theme
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AVATAR_SIZE = 100;
+type CallState = 'connecting' | 'connected' | 'reconnecting' | 'ended';
 
 export default function VideoCallScreen() {
   const router = useRouter();
   const [dotIndex, setDotIndex] = useState(0);
   const [muted, setMuted] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [callState, setCallState] = useState<CallState>('connecting');
+  const [duration, setDuration] = useState(0);
 
-  // Animate calling dots
   useEffect(() => {
+    const connectTimer = setTimeout(() => setCallState('connected'), 2200);
     const interval = setInterval(() => {
       setDotIndex((prev) => (prev + 1) % 4);
     }, 500);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(connectTimer);
+      clearInterval(interval);
+    };
   }, []);
 
+  useEffect(() => {
+    if (callState !== 'connected') return;
+    const interval = setInterval(() => setDuration((value) => value + 1), 1000);
+    return () => clearInterval(interval);
+  }, [callState]);
+
   const callingDots = '.'.repeat(dotIndex);
+  const formattedDuration = `${Math.floor(duration / 60).toString().padStart(2, '0')}:${(duration % 60).toString().padStart(2, '0')}`;
+
+  const endCall = () => {
+    setCallState('ended');
+    setTimeout(() => router.back(), 700);
+  };
+
+  const simulateReconnect = () => {
+    setCallState('reconnecting');
+    setTimeout(() => setCallState('connected'), 1600);
+  };
 
   return (
     <View style={styles.container}>
@@ -57,7 +80,7 @@ export default function VideoCallScreen() {
           <Ionicons name="chevron-down" size={28} color={colors.white} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity style={styles.topBtn} onPress={() => setCameraEnabled((value) => !value)}>
+        <TouchableOpacity style={styles.topBtn} onPress={simulateReconnect} disabled={callState === 'ended'}>
           <Ionicons
             name="ellipsis-horizontal"
             size={24}
@@ -83,43 +106,48 @@ export default function VideoCallScreen() {
         <Text style={styles.callerName}>Ava Jones</Text>
 
         {/* Status */}
-        <Text style={styles.callingStatus}>Calling{callingDots}</Text>
+        <Text style={styles.callingStatus}>
+          {callState === 'connecting' && `Connecting${callingDots}`}
+          {callState === 'connected' && formattedDuration}
+          {callState === 'reconnecting' && `Reconnecting${callingDots}`}
+          {callState === 'ended' && 'Call ended'}
+        </Text>
 
         {/* Animated dots */}
-        <View style={styles.loadingDots}>
-          {[0, 1, 2].map((i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                {
-                  opacity: dotIndex % 3 === i ? 1 : 0.4,
-                  transform: [
-                    { scale: dotIndex % 3 === i ? 1.3 : 1 },
-                  ],
-                },
-              ]}
-            />
-          ))}
-        </View>
+        {(callState === 'connecting' || callState === 'reconnecting') && (
+          <View style={styles.loadingDots}>
+            {[0, 1, 2].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  {
+                    opacity: dotIndex % 3 === i ? 1 : 0.4,
+                    transform: [{ scale: dotIndex % 3 === i ? 1.3 : 1 }],
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        )}
       </View>
 
       {/* Bottom control bar */}
       <View style={styles.bottomBar}>
         <View style={styles.controlsContainer}>
-          <TouchableOpacity style={[styles.controlBtn, !cameraEnabled && styles.controlBtnActive]} onPress={() => setCameraEnabled((value) => !value)}>
+          <TouchableOpacity style={[styles.controlBtn, !cameraEnabled && styles.controlBtnActive]} onPress={() => setCameraEnabled((value) => !value)} disabled={callState === 'ended'}>
             <Ionicons
               name={cameraEnabled ? 'camera-reverse-outline' : 'videocam-off-outline'}
               size={24}
               color={colors.white}
             />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.controlBtn, muted && styles.controlBtnActive]} onPress={() => setMuted((value) => !value)}>
+          <TouchableOpacity style={[styles.controlBtn, muted && styles.controlBtnActive]} onPress={() => setMuted((value) => !value)} disabled={callState === 'ended'}>
             <Ionicons name={muted ? 'mic-off-outline' : 'mic-outline'} size={24} color={colors.white} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.controlBtn, styles.endCallBtn]}
-            onPress={() => router.back()}
+            onPress={endCall}
           >
             <Ionicons name="call" size={24} color={colors.white} />
           </TouchableOpacity>

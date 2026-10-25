@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, borderRadius } from '@/theme';
+import { colors, typography, spacing } from '@/theme';
 
 export default function SavedScreen() {
   return (

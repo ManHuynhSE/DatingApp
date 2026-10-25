@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors, typography, borderRadius, spacing } from '@/theme';
+import { colors, typography, spacing } from '@/theme';
 
 interface ProgressBarProps {
   progress: number; // 0-100

@@ -8,6 +8,8 @@ import {
   Image,
   Dimensions,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -84,7 +86,11 @@ export default function MatchFoundScreen() {
       ))}
 
       {/* Content */}
-      <View style={styles.content}>
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
         {/* Title */}
         <Text style={styles.matchTitle}>Match found!</Text>
 
@@ -182,7 +188,7 @@ export default function MatchFoundScreen() {
             />
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

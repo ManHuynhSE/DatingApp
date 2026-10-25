@@ -8,13 +8,14 @@ import {
   TextInput,
   Image,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme';
+import { useRouter } from 'expo-router';
+import { colors, typography, spacing, borderRadius } from '../../src/theme';
 
 interface Message {
   id: string;
@@ -65,12 +66,25 @@ const MOCK_MESSAGES: Message[] = [
 
 export default function ChatDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
   const scrollViewRef = useRef<ScrollView>(null);
 
   const profile = MOCK_PROFILE;
+
+  const scrollMessagesToBottom = (animated = true) => {
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollToEnd({ animated });
+    });
+  };
+
+  React.useEffect(() => {
+    const keyboardSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollMessagesToBottom(true), 80);
+    });
+
+    return () => keyboardSubscription.remove();
+  }, []);
 
   const handleSend = () => {
     if (!message.trim()) return;
@@ -88,9 +102,7 @@ export default function ChatDetailScreen() {
 
     setMessages((prev) => [...prev, newMessage]);
     setMessage('');
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    scrollMessagesToBottom(true);
   };
 
   const handleMediaAction = (label: string) => {
@@ -104,60 +116,42 @@ export default function ChatDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <View style={{ flex: 1 }} />
         <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => router.push('/video-call')}
+          style={styles.headerProfile}
+          onPress={() => router.push('/profile-detail')}
+          activeOpacity={0.75}
+          accessibilityLabel={`Open ${profile.name}'s profile`}
         >
-          <Ionicons name="videocam-outline" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => Alert.alert('Conversation menu', 'Unmatch, block and report actions are available for backend integration.')}>
-          <Ionicons
-            name="ellipsis-vertical"
-            size={22}
-            color={colors.textPrimary}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Profile info bar */}
-      <TouchableOpacity
-        style={styles.profileBar}
-        onPress={() => router.push('/profile-detail')}
-        activeOpacity={0.7}
-      >
-        <Image source={{ uri: profile.avatar }} style={styles.avatar} />
-        <View style={styles.profileInfo}>
-          <View style={styles.nameRow}>
-            <Text style={styles.profileName}>
-              {profile.name}, {profile.age}
-            </Text>
-            {profile.verified && (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark" size={10} color={colors.white} />
-              </View>
-            )}
-          </View>
-          <View style={styles.profileMeta}>
-            <View style={styles.pronounsChip}>
-              <Text style={styles.pronounsText}>{profile.pronouns}</Text>
+          <Image source={{ uri: profile.avatar }} style={styles.headerAvatar} />
+          <View style={styles.headerProfileInfo}>
+            <View style={styles.headerNameRow}>
+              <Text style={styles.headerProfileName} numberOfLines={1}>
+                {profile.name}, {profile.age}
+              </Text>
+              {profile.verified && (
+                <View style={styles.headerVerifiedBadge}>
+                  <Ionicons name="checkmark" size={9} color={colors.white} />
+                </View>
+              )}
             </View>
-            <Text style={styles.occupationText} numberOfLines={1}>
+            <Text style={styles.headerOccupation} numberOfLines={1}>
               {profile.occupation}
             </Text>
           </View>
-        </View>
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={colors.textTertiary}
-        />
-      </TouchableOpacity>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => router.push('/video-call')}
+          accessibilityLabel="Start video call"
+        >
+          <Ionicons name="videocam-outline" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.chatArea}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
         {/* Messages */}
         <ScrollView
@@ -165,8 +159,11 @@ export default function ChatDetailScreen() {
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          automaticallyAdjustContentInsets
           onContentSizeChange={() =>
-            scrollViewRef.current?.scrollToEnd({ animated: false })
+            scrollMessagesToBottom(false)
           }
         >
           {/* Date separator */}
@@ -237,6 +234,7 @@ export default function ChatDetailScreen() {
               placeholder="Type a message..."
               placeholderTextColor={colors.textTertiary}
               multiline
+              onFocus={() => scrollMessagesToBottom(true)}
             />
             <TouchableOpacity style={styles.emojiBtn} onPress={() => setMessage((value) => `${value} 😊`)}>
               <Ionicons
@@ -316,64 +314,50 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerBtn: {
-    padding: spacing.xs,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerProfile: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
     marginHorizontal: spacing.xs,
   },
-  profileBar: {
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  headerProfileInfo: {
+    minWidth: 0,
+    maxWidth: 180,
+  },
+  headerNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.md,
+    gap: 4,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: 2,
-  },
-  profileName: {
-    fontSize: typography.bodyBold.fontSize,
-    fontWeight: typography.bodyBold.fontWeight,
+  headerProfileName: {
+    ...typography.bodySmall,
     color: colors.textPrimary,
+    fontWeight: '700',
   },
-  verifiedBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+  headerVerifiedBadge: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#4A90D9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  pronounsChip: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-  },
-  pronounsText: {
-    fontSize: typography.caption.fontSize,
-    color: colors.primary,
-  },
-  occupationText: {
-    fontSize: typography.caption.fontSize,
+  headerOccupation: {
+    ...typography.caption,
     color: colors.textSecondary,
-    flex: 1,
   },
   chatArea: {
     flex: 1,

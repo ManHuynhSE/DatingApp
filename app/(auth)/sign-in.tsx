@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  ScrollView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -119,6 +121,17 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        showsVerticalScrollIndicator={false}
+      >
       {/* Logo Section */}
       <View style={styles.logoSection}>
         <View style={styles.eyebrow}>
@@ -195,6 +208,8 @@ export default function SignInScreen() {
           <Text style={styles.footerLink}>Privacy Policy</Text>
         </Text>
       </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -205,11 +220,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: spacing.xl,
   },
-  logoSection: {
+  keyboardView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.lg,
+  },
+  logoSection: {
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   eyebrow: {
     flexDirection: 'row',

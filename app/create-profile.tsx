@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, borderRadius, spacing, typography } from '../src/theme';
 import { api } from '../src/api/client';
+import { firebaseAuth } from '../src/auth/firebase';
 import { useAuthStore } from '../src/store/authStore';
 
 export default function CreateProfileScreen() {
@@ -24,36 +25,45 @@ export default function CreateProfileScreen() {
   const [about, setAbout] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const idToken = useAuthStore((state) => state.idToken);
+  const setProfile = useAuthStore((state) => state.setProfile);
 
   const finish = async () => {
     if (!name.trim() || !age.trim()) {
       Alert.alert('Complete your profile', 'Please add your name and age before continuing.');
       return;
     }
-    if (idToken) {
-      setIsSaving(true);
-      try {
-        await api.updateMyProfile(idToken, {
-          name: name.trim(),
-          age: Number(age),
-          occupation: occupation.trim() || undefined,
-          bio: about.trim() || undefined,
-          languages: ['English'],
-        });
-      } catch {
-        Alert.alert('Unable to save profile', 'Please check your connection and try again.');
-        setIsSaving(false);
-        return;
-      }
-      setIsSaving(false);
+    const token =
+      (await firebaseAuth.currentAuth?.currentUser?.getIdToken()) ?? idToken;
+    if (!token) {
+      Alert.alert('Unable to save profile', 'Your login session has expired. Please sign in again.');
+      return;
     }
+
+    setIsSaving(true);
+    try {
+      const profile = await api.updateMyProfile(token, {
+        name: name.trim(),
+        age: Number(age),
+        occupation: occupation.trim() || undefined,
+        bio: about.trim() || undefined,
+        languages: ['English'],
+      });
+      setProfile(profile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Please check your connection and try again.';
+      Alert.alert('Unable to save profile', message);
+      setIsSaving(false);
+      return;
+    }
+    setIsSaving(false);
     router.replace('/(tabs)/discovery');
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
     >
       <View style={styles.header}>
         <Pressable onPress={() => router.replace('/(auth)/sign-in')} hitSlop={12}>

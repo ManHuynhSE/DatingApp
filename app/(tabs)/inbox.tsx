@@ -9,6 +9,8 @@ import {
   FlatList,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -123,15 +125,19 @@ export default function InboxScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
+      <KeyboardAvoidingView
         style={styles.scrollView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+      <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.menuButton} onPress={() => router.push('/(tabs)/profile')}>
-            <Ionicons name="menu-outline" size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Messages</Text>
           <View style={styles.searchContainer}>
             <Ionicons name="search-outline" size={18} color={colors.textTertiary} />
             <TextInput
@@ -169,6 +175,7 @@ export default function InboxScreen() {
           {MOCK_CHATS.map(renderChatItem)}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -189,8 +196,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.md,
   },
-  menuButton: {
-    padding: spacing.xs,
+  headerTitle: {
+    ...typography.h2,
+    color: colors.textPrimary,
   },
   searchContainer: {
     flex: 1,

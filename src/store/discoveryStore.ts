@@ -52,7 +52,6 @@ export const useDiscoveryStore = create<DiscoveryState>((set) => ({
         ...state.swipeHistory,
         { profileId, direction: 'right' },
       ],
-      currentIndex: state.currentIndex + 1,
     })),
 
   swipeLeft: (profileId: string) =>
@@ -62,7 +61,6 @@ export const useDiscoveryStore = create<DiscoveryState>((set) => ({
         ...state.swipeHistory,
         { profileId, direction: 'left' },
       ],
-      currentIndex: state.currentIndex + 1,
     })),
 
   undoSwipe: () =>
@@ -73,7 +71,6 @@ export const useDiscoveryStore = create<DiscoveryState>((set) => ({
       const newHistory = state.swipeHistory.slice(0, -1);
 
       return {
-        currentIndex: state.currentIndex - 1,
         swipeHistory: newHistory,
         likedProfiles:
           lastSwipe.direction === 'right'

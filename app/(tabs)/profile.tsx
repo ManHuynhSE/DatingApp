@@ -12,12 +12,40 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius } from '@/theme';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '@/store/authStore';
+import { firebaseAuth } from '@/auth/firebase';
 
 type TabType = 'activity' | 'safety';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('activity');
+  const user = useAuthStore((state) => state.user);
+  const profileName = user?.name || 'HeartSync member';
+  const profileAge = user?.age ? `, ${user.age}` : '';
+  const profilePhoto = user?.photos[0];
+  const profileCompletion = user?.profileCompletion ?? 0;
+
+  const handleLogout = () => {
+    Alert.alert('Log out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await firebaseAuth.signOut();
+            router.replace('/(auth)/sign-in');
+          } catch (error) {
+            Alert.alert(
+              'Unable to log out',
+              error instanceof Error ? error.message : 'Please try again.',
+            );
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -28,11 +56,11 @@ export default function ProfileScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => Alert.alert('Plans', 'Subscription plans and premium features will be connected to checkout in the next phase.')}>
+          <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/subscription')} accessibilityLabel="Open subscription plans">
             <Ionicons name="diamond-outline" size={22} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={() => Alert.alert('Settings', 'Account settings will be connected to the backend in the next phase.')}>
-            <Ionicons name="settings-outline" size={22} color={colors.textPrimary} />
+          <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -40,15 +68,15 @@ export default function ProfileScreen() {
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
             <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400' }}
+              source={profilePhoto ? { uri: profilePhoto } : require('../../assets/icon.png')}
               style={styles.avatar}
             />
             <View style={styles.completeBadge}>
-              <Text style={styles.completeBadgeText}>45%</Text>
+              <Text style={styles.completeBadgeText}>{profileCompletion}%</Text>
             </View>
           </View>
           <View style={styles.nameContainer}>
-            <Text style={styles.profileName}>Joshua Edwards, 29</Text>
+            <Text style={styles.profileName}>{profileName}{profileAge}</Text>
             <Ionicons name="checkmark-circle" size={18} color="#4A90D9" />
           </View>
           <TouchableOpacity onPress={() => router.push('/edit-profile')}>
@@ -62,6 +90,7 @@ export default function ProfileScreen() {
             <View style={styles.verificationIconContainer}>
               <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
             </View>
+
             <View style={styles.verificationTextContainer}>
               <Text style={styles.verificationText}>
                 Verification adds an extra layer of trust and authenticity to your profile.
