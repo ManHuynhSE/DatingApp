@@ -13,9 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, typography, spacing, borderRadius } from '@/theme';
+import { colors, darkColors, typography, spacing, borderRadius, resolveThemeStyles } from '@/theme';
 import { discoveryProfiles } from '@/data/mockData';
 import { useDiscoveryStore } from '@/store/discoveryStore';
+import { useThemeStore } from '@/store/themeStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
@@ -61,6 +62,9 @@ export default function DiscoveryScreen() {
   const swipeRight = useDiscoveryStore((state) => state.swipeRight);
   const swipeLeft = useDiscoveryStore((state) => state.swipeLeft);
   const undoSwipe = useDiscoveryStore((state) => state.undoSwipe);
+  const mode = useThemeStore((state) => state.mode);
+  const theme = mode === 'dark' ? darkColors : colors;
+  const styles = resolveThemeStyles(baseStyles, theme);
 
   const filteredProfiles = useMemo(() => {
     const profiles = discoveryProfiles.filter((profile) => {
@@ -287,15 +291,15 @@ export default function DiscoveryScreen() {
           onPress={() => router.push('/(tabs)/profile')}
           accessibilityLabel="Open profile"
         >
-          <Ionicons name="person-circle-outline" size={25} color={colors.textPrimary} />
+          <Ionicons name="person-circle-outline" size={25} color={theme.headerIcon ?? theme.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton} onPress={handleUndo}>
-          <Ionicons name="arrow-undo-outline" size={22} color={colors.textPrimary} />
+          <Ionicons name="arrow-undo-outline" size={22} color={theme.headerIcon ?? theme.textPrimary} />
         </TouchableOpacity>
       </View>
-      <Text style={styles.headerTitle}>HeartSync</Text>
-      <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/filters')}>
-        <Ionicons name="options-outline" size={22} color={colors.primary} />
+      <Text style={[styles.headerTitle, { color: theme.headerTitle ?? theme.textPrimary }]}>HeartSync</Text>
+      <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/filters')} accessibilityLabel="Open filters">
+        <Ionicons name="options-outline" size={22} color={theme.primary} />
       </TouchableOpacity>
     </View>
   );
@@ -422,7 +426,7 @@ export default function DiscoveryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       {renderHeader()}
       {renderProgressBar()}
       {swipeFeedback ? (
@@ -467,7 +471,7 @@ export default function DiscoveryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

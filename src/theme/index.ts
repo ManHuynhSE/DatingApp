@@ -28,6 +28,60 @@ export const colors = {
   tabInactive: '#68717D',
   tabBorder: '#E5E1D8',
   notificationDot: '#EF4444',
+  headerIcon: '#18202A',
+  headerTitle: '#18202A',
+};
+
+export const darkColors = {
+  ...colors,
+  primaryLight: '#3B2527',
+  secondaryLight: '#29294A',
+  background: '#101114',
+  surface: '#1A1C21',
+  textPrimary: '#F6F7F9',
+  textSecondary: '#B3B8C2',
+  textTertiary: '#7D8490',
+  border: '#30343D',
+  borderLight: '#242831',
+  white: '#F6F7F9',
+  black: '#FFFFFF',
+  overlay: 'rgba(0,0,0,0.72)',
+  cardGradientStart: '#342325',
+  cardGradientEnd: '#252545',
+  tabInactive: '#B3B8C2',
+  tabBorder: '#30343D',
+  headerIcon: '#F6F7F9',
+  headerTitle: '#F6F7F9',
+};
+
+const lightPalette = { ...colors };
+const darkPalette = { ...darkColors };
+
+export const applyRuntimePalette = (mode: 'light' | 'dark') => {
+  return mode;
+};
+
+export const resolveThemeStyles = <T,>(styles: T, theme: typeof colors): T => {
+  const lightValues = lightPalette as Record<string, string>;
+  const darkValues = darkPalette as Record<string, string>;
+  const themeValues = theme as Record<string, string>;
+  const resolve = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      const paletteKey = Object.keys(lightValues).find(
+        (key) => lightValues[key] === value || darkValues[key] === value,
+      );
+      return paletteKey ? themeValues[paletteKey] : value;
+    }
+    if (Array.isArray(value)) return value.map(resolve);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, child]) => [key, resolve(child)]),
+      );
+    }
+    return value;
+  };
+
+  return resolve(styles) as T;
 };
 
 export const typography = {

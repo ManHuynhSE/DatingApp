@@ -15,7 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, typography, spacing, borderRadius } from '@/theme';
+import { colors, darkColors, typography, spacing, borderRadius } from '@/theme';
+import { useThemeStore } from '@/store/themeStore';
 
 interface Match {
   id: string;
@@ -93,6 +94,9 @@ const MOCK_CHATS: Chat[] = [
 
 export default function InboxScreen() {
   const router = useRouter();
+  const mode = useThemeStore((state) => state.mode);
+  const theme = mode === 'dark' ? darkColors : colors;
+  const styles = createStyles(theme);
   const renderMatchItem = ({ item }: { item: Match }) => (
     <TouchableOpacity style={styles.matchItem} onPress={() => router.push('/profile-detail')}>
       <View style={styles.matchAvatarContainer}>
@@ -124,7 +128,7 @@ export default function InboxScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.scrollView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -138,12 +142,12 @@ export default function InboxScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Messages</Text>
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={18} color={colors.textTertiary} />
+          <View style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Ionicons name="search-outline" size={18} color={theme.textTertiary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search messages..."
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={theme.textTertiary}
             />
           </View>
         </View>
@@ -167,7 +171,7 @@ export default function InboxScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Chats ({MOCK_CHATS.length})</Text>
           <TouchableOpacity onPress={() => Alert.alert('Chat filters', 'Unread and online filters will be connected to the backend in the next phase.')}>
-            <Ionicons name="filter-outline" size={20} color={colors.textSecondary} />
+            <Ionicons name="filter-outline" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -180,10 +184,10 @@ export default function InboxScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: typeof colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: theme.background,
   },
   scrollView: {
     flex: 1,
@@ -198,13 +202,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...typography.h2,
-    color: colors.textPrimary,
+    color: theme.textPrimary,
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -213,7 +217,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     ...typography.bodySmall,
-    color: colors.textPrimary,
+    color: theme.textPrimary,
     padding: 0,
   },
   // Section header
@@ -227,7 +231,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.h3,
-    color: colors.textPrimary,
+    color: theme.textPrimary,
   },
   // Matches list
   matchesList: {
@@ -248,7 +252,7 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: theme.primary,
   },
   onlineDot: {
     position: 'absolute',
@@ -259,11 +263,11 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: colors.online,
     borderWidth: 2,
-    borderColor: colors.white,
+    borderColor: theme.white,
   },
   matchName: {
     ...typography.caption,
-    color: colors.textPrimary,
+    color: theme.textPrimary,
     textAlign: 'center',
   },
   // Chats list
@@ -275,7 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: theme.border,
     gap: spacing.md,
   },
   chatAvatarContainer: {
@@ -295,7 +299,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colors.online,
     borderWidth: 2,
-    borderColor: colors.white,
+    borderColor: theme.white,
   },
   chatContent: {
     flex: 1,
@@ -308,15 +312,15 @@ const styles = StyleSheet.create({
   },
   chatName: {
     ...typography.body,
-    color: colors.textPrimary,
+    color: theme.textPrimary,
     fontWeight: '600',
   },
   chatTimestamp: {
     ...typography.caption,
-    color: colors.textTertiary,
+    color: theme.textTertiary,
   },
   chatLastMessage: {
     ...typography.bodySmall,
-    color: colors.textSecondary,
+    color: theme.textSecondary,
   },
 });

@@ -2,25 +2,30 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { colors } from '@/theme';
+import { colors, darkColors } from '@/theme';
+import { useThemeStore } from '@/store/themeStore';
 
 export default function TabLayout() {
+  const mode = useThemeStore((state) => state.mode);
+  const theme = mode === 'dark' ? darkColors : colors;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.tabActive,
-        tabBarInactiveTintColor: colors.tabInactive,
-        tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: theme.tabActive,
+        tabBarInactiveTintColor: theme.tabInactive,
+        tabBarStyle: [styles.tabBar, { borderColor: theme.border }],
+        tabBarIconStyle: styles.tabBarIcon,
         tabBarBackground: () => (
           <View pointerEvents="none" style={styles.glassBackground}>
             <BlurView
               intensity={72}
-              tint="light"
+              tint={mode === 'dark' ? 'dark' : 'light'}
               blurMethod="dimezisBlurView"
               style={StyleSheet.absoluteFill}
             />
-            <View style={styles.glassOverlay} />
+            <View style={[styles.glassOverlay, { backgroundColor: mode === 'dark' ? 'rgba(20,22,28,0.68)' : 'rgba(255,255,255,0.16)' }]} />
           </View>
         ),
         tabBarItemStyle: styles.tabBarItem,
@@ -90,8 +95,8 @@ const styles = StyleSheet.create({
     right: 14,
     bottom: 12,
     height: 64,
-    paddingBottom: 4,
-    paddingTop: 4,
+    paddingBottom: 0,
+    paddingTop: 0,
     borderTopWidth: 0,
     backgroundColor: 'transparent',
     elevation: 0,
@@ -114,8 +119,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
   tabBarItem: {
-    height: 56,
+    flex: 1,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 0,
     marginVertical: 0,
+  },
+  tabBarIcon: {
+    height: 40,
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+    marginBottom: 0,
+    transform: [{ translateY: 8 }],
   },
   iconPill: {
     width: 40,
@@ -123,6 +141,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    marginVertical: 0,
   },
   iconPillActive: {
     backgroundColor: 'rgba(255,255,255,0.82)',

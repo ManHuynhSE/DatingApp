@@ -5,10 +5,17 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { firebaseAuth } from '../src/auth/firebase';
 import { api } from '../src/api/client';
 import { useAuthStore } from '../src/store/authStore';
+import { useThemeStore } from '../src/store/themeStore';
 
 export default function RootLayout() {
   const setSession = useAuthStore((state) => state.setSession);
   const setProfile = useAuthStore((state) => state.setProfile);
+  const mode = useThemeStore((state) => state.mode);
+  const hydrateTheme = useThemeStore((state) => state.hydrate);
+
+  useEffect(() => {
+    void hydrateTheme();
+  }, [hydrateTheme]);
 
   useEffect(() => {
     let isMounted = true;
@@ -71,8 +78,8 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <Stack key={mode} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="match-found" options={{ presentation: 'fullScreenModal' }} />
@@ -81,6 +88,7 @@ export default function RootLayout() {
         <Stack.Screen name="chat/[id]" options={{ presentation: 'card' }} />
         <Stack.Screen name="video-call" options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name="edit-profile" options={{ presentation: 'card' }} />
+        <Stack.Screen name="profile-picker" options={{ presentation: 'card' }} />
         <Stack.Screen name="create-profile" options={{ presentation: 'card' }} />
       </Stack>
     </SafeAreaProvider>

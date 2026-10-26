@@ -15,7 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, typography, spacing, borderRadius } from '../../src/theme';
+import { colors, darkColors, typography, spacing, borderRadius, resolveThemeStyles } from '../../src/theme';
+import { useThemeStore } from '../../src/store/themeStore';
 
 interface Message {
   id: string;
@@ -66,6 +67,9 @@ const MOCK_MESSAGES: Message[] = [
 
 export default function ChatDetailScreen() {
   const router = useRouter();
+  const mode = useThemeStore((state) => state.mode);
+  const theme = mode === 'dark' ? darkColors : colors;
+  const styles = resolveThemeStyles(baseStyles, theme);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -110,11 +114,11 @@ export default function ChatDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerProfile}
@@ -125,7 +129,7 @@ export default function ChatDetailScreen() {
           <Image source={{ uri: profile.avatar }} style={styles.headerAvatar} />
           <View style={styles.headerProfileInfo}>
             <View style={styles.headerNameRow}>
-              <Text style={styles.headerProfileName} numberOfLines={1}>
+              <Text style={[styles.headerProfileName, { color: theme.textPrimary }]} numberOfLines={1}>
                 {profile.name}, {profile.age}
               </Text>
               {profile.verified && (
@@ -134,7 +138,7 @@ export default function ChatDetailScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.headerOccupation} numberOfLines={1}>
+            <Text style={[styles.headerOccupation, { color: theme.textSecondary }]} numberOfLines={1}>
               {profile.occupation}
             </Text>
           </View>
@@ -144,7 +148,7 @@ export default function ChatDetailScreen() {
           onPress={() => router.push('/video-call')}
           accessibilityLabel="Start video call"
         >
-          <Ionicons name="videocam-outline" size={24} color={colors.textPrimary} />
+          <Ionicons name="videocam-outline" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -186,7 +190,7 @@ export default function ChatDetailScreen() {
               <View
                 style={[
                   styles.messageBubble,
-                  msg.sent ? styles.sentBubble : styles.receivedBubble,
+                  msg.sent ? styles.sentBubble : [styles.receivedBubble, { backgroundColor: theme.surface }],
                 ]}
               >
                 <Text
@@ -225,14 +229,14 @@ export default function ChatDetailScreen() {
         </ScrollView>
 
         {/* Input area */}
-        <View style={styles.inputArea}>
+        <View style={[styles.inputArea, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
           <View style={styles.inputRow}>
             <TextInput
               style={styles.textInput}
               value={message}
               onChangeText={setMessage}
               placeholder="Type a message..."
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={theme.textTertiary}
               multiline
               onFocus={() => scrollMessagesToBottom(true)}
             />
@@ -300,7 +304,7 @@ export default function ChatDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

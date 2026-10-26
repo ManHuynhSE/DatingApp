@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.12:3000/api';
+  process.env.EXPO_PUBLIC_API_URL ?? 'http://YOUR_COMPUTER_LAN_IP:3000/api';
 
 export class ApiError extends Error {
   status: number;
