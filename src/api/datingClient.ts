@@ -9,7 +9,24 @@ const DATING_API_BASE_URL =
 
 const AUTH_API_BASE_URL =
   process.env.EXPO_PUBLIC_AUTH_API_URL ||
-  `http://${API_HOST}:3000`;
+  DATING_API_BASE_URL.replace(/\/api\/?$/, '');
+
+const REQUEST_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new DatingApiError(408, `Dating server did not respond within ${REQUEST_TIMEOUT_MS / 1000} seconds`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export interface DatingPhoto {
   id: string;
@@ -127,7 +144,7 @@ export class DatingApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${DATING_API_BASE_URL.replace(/\/+$/, '')}${path}`;
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -239,7 +256,7 @@ export const datingApi = {
 
   signInWithFirebase: (idToken: string) => {
     const url = `${AUTH_API_BASE_URL}/auth/firebase`;
-    return fetch(url, {
+    return fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),

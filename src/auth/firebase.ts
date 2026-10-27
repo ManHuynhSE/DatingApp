@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   initializeAuth,
+  getReactNativePersistence,
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithCredential,
@@ -34,12 +35,12 @@ if (isConfigured) {
     auth = getAuth(app);
   } else {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { getReactNativePersistence } = require('firebase/auth/react-native');
       auth = initializeAuth(app, {
         persistence: getReactNativePersistence(AsyncStorage),
       });
     } catch {
+      // Firebase can already hold an Auth instance during Fast Refresh.
+      // Reuse it; this fallback is not used for the first initialization.
       auth = getAuth(app);
     }
   }

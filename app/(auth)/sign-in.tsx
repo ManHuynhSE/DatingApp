@@ -17,7 +17,6 @@ import Constants, { AppOwnership } from 'expo-constants';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { firebaseAuth } from '../../src/auth/firebase';
 import { datingApi } from '../../src/api/datingClient';
-import { useAuthStore } from '../../src/store/authStore';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 
@@ -25,6 +24,18 @@ WebBrowser.maybeCompleteAuthSession();
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Please try again.';
+
+const withTimeout = <T,>(promise: Promise<T>, message: string, timeoutMs = 30_000) => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+};
 
 const completeAuthentication = async (
   router: ReturnType<typeof useRouter>,
@@ -40,38 +51,7 @@ const completeAuthentication = async (
   try {
     const response = await datingApi.signInWithFirebase(idToken);
     if (response.success && response.data) {
-      const { setSession } = useAuthStore.getState();
       const userId = response.data.user.id;
-      
-      // Save userId in auth store
-      setSession(idToken, {
-        id: userId,
-        name: '',
-        age: 0,
-        verified: false,
-        pronouns: '',
-        occupation: '',
-        distance: '',
-        location: '',
-        aboutMe: '',
-        photos: [],
-        details: {
-          height: '',
-          smoking: '',
-          drinking: '',
-          pets: '',
-          children: '',
-          zodiac: '',
-          religion: '',
-          education: '',
-          exercise: '',
-        },
-        interests: [],
-        languages: [],
-        relationshipGoal: '',
-        profileCompletion: 0,
-        online: true,
-      });
 
       // Store user ID for profile creation
       if (response.data.isNewUser) {
@@ -134,11 +114,10 @@ export default function SignInScreen() {
     }
     setIsLoading(true);
     try {
-      if (isCreateMode) {
-        await firebaseAuth.createAccount(email.trim(), password);
-      } else {
-        await firebaseAuth.signInWithEmail(email.trim(), password);
-      }
+      const authentication = isCreateMode
+        ? firebaseAuth.createAccount(email.trim(), password)
+        : firebaseAuth.signInWithEmail(email.trim(), password);
+      await withTimeout(authentication, 'Firebase did not respond. Check your connection and try again.');
       await completeAuthentication(router);
     } catch (error) {
       Alert.alert('Authentication failed', getErrorMessage(error));

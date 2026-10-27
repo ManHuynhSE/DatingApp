@@ -1,12 +1,11 @@
 import { create } from 'zustand';
-import { currentUser, UserProfile } from '@/data/mockData';
+import { UserProfile } from '@/data/mockData';
 
 interface AuthState {
   isAuthenticated: boolean;
   isOnboarded: boolean;
   user: UserProfile | null;
   idToken: string | null;
-  login: () => void;
   logout: () => void;
   completeOnboarding: () => void;
   updateUser: (updates: Partial<UserProfile>) => void;
@@ -19,12 +18,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   isOnboarded: false,
   user: null,
   idToken: null,
-
-  login: () =>
-    set({
-      isAuthenticated: true,
-      user: currentUser,
-    }),
 
   logout: () =>
     set({
