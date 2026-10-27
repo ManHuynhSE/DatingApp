@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -9,16 +9,25 @@ import {
   Animated,
   PanResponder,
   Pressable,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { colors, darkColors, typography, spacing, borderRadius, resolveThemeStyles } from '@/theme';
-import { discoveryProfiles } from '@/data/mockData';
-import { useDiscoveryStore } from '@/store/discoveryStore';
-import { useThemeStore } from '@/store/themeStore';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import {
+  colors,
+  darkColors,
+  typography,
+  spacing,
+  borderRadius,
+  resolveThemeStyles,
+} from "@/theme";
+import { discoveryProfiles } from "@/data/mockData";
+import { useDiscoveryStore } from "@/store/discoveryStore";
+import { useThemeStore } from "@/store/themeStore";
+import { useAuthStore } from "@/store/authStore";
+import { datingApi, type DatingProfile } from "@/api/datingClient";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 
 interface ProfileCard {
@@ -26,31 +35,99 @@ interface ProfileCard {
   name: string;
   age: number;
   pronouns: string;
+  gender: string;
   occupation: string;
+  distance: string;
+  city?: string;
+  languages: string[];
   verified: boolean;
   image: string;
+  photos?: string[];
+  bio?: string;
   isIntro?: boolean;
 }
 
-const mapProfile = (profile: (typeof discoveryProfiles)[number]): ProfileCard => ({
+const mapProfile = (
+  profile: (typeof discoveryProfiles)[number],
+): ProfileCard => ({
   id: profile.id,
   name: profile.name,
   age: profile.age,
   pronouns: profile.pronouns,
-  occupation: profile.company ? `${profile.occupation} at ${profile.company}` : profile.occupation,
+  gender: profile.pronouns.toLowerCase().includes("she")
+    ? "female"
+    : profile.pronouns.toLowerCase().includes("he")
+      ? "male"
+      : "other",
+  occupation: profile.company
+    ? `${profile.occupation} at ${profile.company}`
+    : profile.occupation,
+  distance: profile.distance,
+  city: profile.location,
+  languages: profile.languages,
   verified: profile.verified,
   image: profile.photos[0],
+  photos: profile.photos,
+  bio: profile.aboutMe,
 });
 
-const PROGRESS_SEGMENTS = 5;
+const calculateAge = (birthDate: string) => {
+  const date = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  if (
+    today.getMonth() < date.getMonth() ||
+    (today.getMonth() === date.getMonth() && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+  return age;
+};
+
+const mapDatingProfile = (profile: DatingProfile): ProfileCard => {
+  const photos = profile.users?.photos ?? [];
+  const sortedPhotos = [...photos].sort((a, b) => {
+    if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+    return a.position - b.position;
+  });
+  const primaryPhoto = sortedPhotos[0]?.url;
+
+  return {
+    id: profile.user_id,
+    name: profile.display_name,
+    age: calculateAge(profile.birth_date),
+    pronouns:
+      profile.gender === "female"
+        ? "She/Her"
+        : profile.gender === "male"
+          ? "He/Him"
+          : profile.gender,
+    gender: profile.gender,
+    occupation: profile.job_title ?? "Open to meeting someone new",
+    distance: profile.city ? `${profile.city}` : "",
+    city: profile.city ?? undefined,
+    languages: profile.languages ?? [],
+    verified: profile.is_verified,
+    image: primaryPhoto ?? "https://picsum.photos/seed/empty-discovery/700/900",
+    photos: sortedPhotos.map((p) => p.url),
+    bio: profile.bio ?? undefined,
+  };
+};
+
+const PROGRESS_SEGMENTS = 10;
 
 export default function DiscoveryScreen() {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showLikeOverlay, setShowLikeOverlay] = useState(false);
   const [showPassOverlay, setShowPassOverlay] = useState(false);
-  const [decision, setDecision] = useState<'like' | 'pass' | null>(null);
-  const [swipeFeedback, setSwipeFeedback] = useState('');
+  const [decision, setDecision] = useState<"like" | "pass" | null>(null);
+  const [swipeFeedback, setSwipeFeedback] = useState("");
+  const [remoteProfiles, setRemoteProfiles] = useState<ProfileCard[] | null>(
+    null,
+  );
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
   const feedbackOpacity = useRef(new Animated.Value(0)).current;
   const feedbackScale = useRef(new Animated.Value(0.86)).current;
   const decisionOpacity = useRef(new Animated.Value(0)).current;
@@ -63,25 +140,144 @@ export default function DiscoveryScreen() {
   const swipeLeft = useDiscoveryStore((state) => state.swipeLeft);
   const undoSwipe = useDiscoveryStore((state) => state.undoSwipe);
   const mode = useThemeStore((state) => state.mode);
-  const theme = mode === 'dark' ? darkColors : colors;
+  const theme = mode === "dark" ? darkColors : colors;
   const styles = resolveThemeStyles(baseStyles, theme);
+  const currentUser = useAuthStore((state) => state.user);
+  const userId = currentUser?.id;
+
+  const handleRefresh = () => {
+    setIsLoadingProfiles(true);
+    setProfileLoadError(null);
+    datingApi
+      .listProfiles({ limit: 50, includeUser: true, includePhotos: true })
+      .then((response) => {
+        setRemoteProfiles(response.data.map(mapDatingProfile));
+      })
+      .catch((error: unknown) => {
+        setProfileLoadError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load profiles from server",
+        );
+        setRemoteProfiles([]);
+      })
+      .finally(() => {
+        setIsLoadingProfiles(false);
+      });
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    // Load user's own profile data
+    if (userId) {
+      datingApi
+        .getUserProfile(userId)
+        .then((response) => {
+          if (active && response.success && response.data) {
+            const { setSession } = useAuthStore.getState();
+            const userState = useAuthStore.getState().user;
+            const profile = response.data;
+            const photos = profile.users?.photos ?? [];
+            const sortedPhotos = [...photos].sort((a, b) => {
+              if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+              return a.position - b.position;
+            });
+
+            // Update auth store with real profile data
+            setSession(userState?.id || userId, {
+              id: userId,
+              name: profile.display_name,
+              age: calculateAge(profile.birth_date),
+              verified: profile.is_verified,
+              pronouns:
+                profile.gender === "female"
+                  ? "She/Her"
+                  : profile.gender === "male"
+                    ? "He/Him"
+                    : profile.gender,
+              occupation: profile.job_title ?? '',
+              distance: profile.city ? `${profile.city}` : '',
+              location: profile.city ?? '',
+              aboutMe: profile.bio ?? '',
+              photos: sortedPhotos.map((p) => p.url),
+              details: {
+                height: profile.height_cm ? `${profile.height_cm}cm` : '',
+                smoking: '',
+                drinking: '',
+                pets: '',
+                children: '',
+                zodiac: '',
+                religion: '',
+                education: '',
+                exercise: '',
+              },
+              interests: [],
+              languages: profile.languages ?? [],
+              relationshipGoal: '',
+              profileCompletion: 100,
+              online: true,
+            });
+          }
+        })
+        .catch(() => {
+          // Silently fail - user profile data not critical
+        });
+    }
+
+    // Load other profiles
+    datingApi
+      .listProfiles({ limit: 50, includeUser: true, includePhotos: true })
+      .then((response) => {
+        if (active) setRemoteProfiles(response.data.map(mapDatingProfile));
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setProfileLoadError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load profiles from server",
+          );
+          setRemoteProfiles([]);
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingProfiles(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
   const filteredProfiles = useMemo(() => {
-    const profiles = discoveryProfiles.filter((profile) => {
+    const sourceProfiles =
+      remoteProfiles !== null
+        ? userId
+          ? remoteProfiles.filter((p) => p.id !== userId)
+          : remoteProfiles
+        : discoveryProfiles.map(mapProfile);
+
+    const profiles = sourceProfiles.filter((profile) => {
       const distance = Number.parseInt(profile.distance, 10);
       const genderMatches =
-        filters.gender === 'everyone' ||
-        (filters.gender === 'women' && profile.pronouns.toLowerCase().includes('she')) ||
-        (filters.gender === 'men' && profile.pronouns.toLowerCase().includes('he'));
-      const ageMatches = profile.age >= filters.ageRange[0] && profile.age <= filters.ageRange[1];
-      const distanceMatches = Number.isNaN(distance) || distance <= filters.distance;
+        filters.gender === "everyone" ||
+        (filters.gender === "women" && profile.gender === "female") ||
+        (filters.gender === "men" && profile.gender === "male");
+      const ageMatches =
+        profile.age >= filters.ageRange[0] &&
+        profile.age <= filters.ageRange[1];
+      const distanceMatches =
+        Number.isNaN(distance) || distance <= filters.distance;
       const languageMatches =
         filters.languages.length === 0 ||
-        filters.languages.some((language) => profile.languages.includes(language));
+        filters.languages.some((language) =>
+          profile.languages.includes(language),
+        );
       return genderMatches && ageMatches && distanceMatches && languageMatches;
-    }).map(mapProfile);
-    return [{ ...mapProfile(discoveryProfiles[0]), id: 'intro', isIntro: true }, ...profiles];
-  }, [filters]);
+    });
+    return profiles;
+  }, [filters, remoteProfiles, userId]);
 
   const position = useRef(new Animated.ValueXY()).current;
   const isAnimating = useRef(false);
@@ -109,12 +305,13 @@ export default function DiscoveryScreen() {
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   const activeIndex = currentIndex < filteredProfiles.length ? currentIndex : 0;
   const currentProfile = filteredProfiles[activeIndex];
-  const isLastCard = filteredProfiles.length > 1 && currentIndex >= filteredProfiles.length;
+  const isLastCard =
+    filteredProfiles.length > 1 && currentIndex >= filteredProfiles.length;
   const currentProfileRef = useRef<ProfileCard | undefined>(currentProfile);
   currentProfileRef.current = currentProfile;
 
@@ -149,7 +346,7 @@ export default function DiscoveryScreen() {
         duration: 260,
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (finished) setSwipeFeedback('');
+        if (finished) setSwipeFeedback("");
       });
     }, 1150);
   };
@@ -166,7 +363,7 @@ export default function DiscoveryScreen() {
     }).start();
   };
 
-  const showDecision = (nextDecision: 'like' | 'pass') => {
+  const showDecision = (nextDecision: "like" | "pass") => {
     if (decisionTimer.current) clearTimeout(decisionTimer.current);
     setDecision(nextDecision);
     decisionOpacity.setValue(0);
@@ -199,7 +396,7 @@ export default function DiscoveryScreen() {
     const profile = currentProfileRef.current;
     if (isAnimating.current || !profile) return;
     isAnimating.current = true;
-    showDecision('like');
+    showDecision("like");
     setShowLikeOverlay(true);
     Animated.timing(position, {
       toValue: { x: SCREEN_WIDTH + 100, y: 0 },
@@ -208,8 +405,39 @@ export default function DiscoveryScreen() {
       useNativeDriver: true,
     }).start(() => {
       setShowLikeOverlay(false);
-      showSwipeFeedback('Interest sent');
-      if (!profile.isIntro) swipeRight(profile.id);
+      if (!profile.isIntro) {
+        swipeRight(profile.id);
+        if (userId) {
+          datingApi
+            .createSwipe(userId, profile.id, "like")
+            .then((res) => {
+              if (res.isMatch) {
+                showSwipeFeedback("It's a Match! 🎉");
+                setTimeout(() => {
+                  router.push({
+                    pathname: "/match-found",
+                    params: {
+                      matchedUserId: profile.id,
+                      matchedName: profile.name,
+                      matchedPhoto: profile.image,
+                    },
+                  });
+                }, 350);
+              } else {
+                showSwipeFeedback("Interest sent");
+              }
+            })
+            .catch((error: unknown) => {
+              showSwipeFeedback(
+                error instanceof Error
+                  ? error.message
+                  : "Like could not be saved",
+              );
+            });
+        } else {
+          showSwipeFeedback("Interest sent");
+        }
+      }
       goToNext();
       isAnimating.current = false;
     });
@@ -219,7 +447,7 @@ export default function DiscoveryScreen() {
     const profile = currentProfileRef.current;
     if (isAnimating.current || !profile) return;
     isAnimating.current = true;
-    showDecision('pass');
+    showDecision("pass");
     setShowPassOverlay(true);
     Animated.timing(position, {
       toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
@@ -228,8 +456,25 @@ export default function DiscoveryScreen() {
       useNativeDriver: true,
     }).start(() => {
       setShowPassOverlay(false);
-      showSwipeFeedback('Passed');
-      if (!profile.isIntro) swipeLeft(profile.id);
+      if (!profile.isIntro) {
+        swipeLeft(profile.id);
+        if (userId) {
+          datingApi
+            .createSwipe(userId, profile.id, "pass")
+            .then(() => {
+              showSwipeFeedback("Passed");
+            })
+            .catch((error: unknown) => {
+              showSwipeFeedback(
+                error instanceof Error
+                  ? error.message
+                  : "Pass could not be saved",
+              );
+            });
+        } else {
+          showSwipeFeedback("Passed");
+        }
+      }
       goToNext();
       isAnimating.current = false;
     });
@@ -244,8 +489,8 @@ export default function DiscoveryScreen() {
 
   const cardRotation = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-    outputRange: ['-8deg', '0deg', '8deg'],
-    extrapolate: 'clamp',
+    outputRange: ["-8deg", "0deg", "8deg"],
+    extrapolate: "clamp",
   });
 
   const cardStyle = {
@@ -288,17 +533,36 @@ export default function DiscoveryScreen() {
       <View style={styles.headerLeft}>
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => router.push('/(tabs)/profile')}
+          onPress={() => router.push("/(tabs)/profile")}
           accessibilityLabel="Open profile"
         >
-          <Ionicons name="person-circle-outline" size={25} color={theme.headerIcon ?? theme.textPrimary} />
+          <Ionicons
+            name="person-circle-outline"
+            size={25}
+            color={theme.headerIcon ?? theme.textPrimary}
+          />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton} onPress={handleUndo}>
-          <Ionicons name="arrow-undo-outline" size={22} color={theme.headerIcon ?? theme.textPrimary} />
+          <Ionicons
+            name="arrow-undo-outline"
+            size={22}
+            color={theme.headerIcon ?? theme.textPrimary}
+          />
         </TouchableOpacity>
       </View>
-      <Text style={[styles.headerTitle, { color: theme.headerTitle ?? theme.textPrimary }]}>HeartSync</Text>
-      <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/filters')} accessibilityLabel="Open filters">
+      <Text
+        style={[
+          styles.headerTitle,
+          { color: theme.headerTitle ?? theme.textPrimary },
+        ]}
+      >
+        HeartSync
+      </Text>
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={() => router.push("/filters")}
+        accessibilityLabel="Open filters"
+      >
         <Ionicons name="options-outline" size={22} color={theme.primary} />
       </TouchableOpacity>
     </View>
@@ -309,12 +573,17 @@ export default function DiscoveryScreen() {
       <View style={styles.introSection}>
         <View style={styles.introRow}>
           <View style={styles.introIconContainer}>
-            <Ionicons name="arrow-forward-circle" size={32} color={colors.white} />
+            <Ionicons
+              name="arrow-forward-circle"
+              size={32}
+              color={colors.white}
+            />
           </View>
           <View style={styles.introTextContainer}>
             <Text style={styles.introTitle}>Swipe right if you like</Text>
             <Text style={styles.introDescription}>
-              Swipe right to express interest and potentially match with this person
+              Swipe right to express interest and potentially match with this
+              person
             </Text>
           </View>
         </View>
@@ -339,12 +608,69 @@ export default function DiscoveryScreen() {
   );
 
   const renderCard = () => {
-    if (isLastCard) {
+    if (isLoadingProfiles) {
       return (
         <View style={styles.emptyCard}>
-          <Ionicons name="heart-dislike-outline" size={64} color={colors.textTertiary} />
+          <Ionicons name="sync-outline" size={52} color={theme.primary} />
+          <Text style={styles.emptyTitle}>Loading profiles...</Text>
+          <Text style={styles.emptySubtitle}>Finding people near you</Text>
+        </View>
+      );
+    }
+
+    if (profileLoadError) {
+      return (
+        <View style={styles.emptyCard}>
+          <Ionicons
+            name="cloud-offline-outline"
+            size={52}
+            color={theme.error}
+          />
+          <Text style={styles.emptyTitle}>Unable to load profiles</Text>
+          <Text style={styles.emptySubtitle}>{profileLoadError}</Text>
+          <TouchableOpacity
+            style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
+            onPress={handleRefresh}
+          >
+            <Ionicons
+              name="reload"
+              size={16}
+              color="#fff"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.reloadBtnText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (!currentProfile || isLastCard) {
+      return (
+        <View style={styles.emptyCard}>
+          <Ionicons
+            name="heart-dislike-outline"
+            size={64}
+            color={theme.textTertiary}
+          />
           <Text style={styles.emptyTitle}>No more profiles</Text>
-          <Text style={styles.emptySubtitle}>Check back later for new matches!</Text>
+          <Text style={styles.emptySubtitle}>
+            You&apos;ve seen all active profiles!
+          </Text>
+          <TouchableOpacity
+            style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
+            onPress={() => {
+              setCurrentIndex(0);
+              handleRefresh();
+            }}
+          >
+            <Ionicons
+              name="reload"
+              size={16}
+              color="#fff"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.reloadBtnText}>Refresh</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -363,7 +689,11 @@ export default function DiscoveryScreen() {
         {/* Like / Pass overlays */}
         {showLikeOverlay && (
           <View style={[styles.swipeOverlay, styles.likeOverlay]}>
-            <Ionicons name="checkmark-circle" size={80} color={colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={80}
+              color={colors.success}
+            />
           </View>
         )}
         {showPassOverlay && (
@@ -381,7 +711,21 @@ export default function DiscoveryScreen() {
         {/* Profile info */}
         <Pressable
           style={styles.cardInfo}
-          onPress={() => router.push('/profile-detail')}
+          onPress={() =>
+            router.push({
+              pathname: "/profile-detail",
+              params: {
+                userId: currentProfile.id,
+                name: currentProfile.name,
+                age: String(currentProfile.age),
+                occupation: currentProfile.occupation,
+                city: currentProfile.city ?? "",
+                bio: currentProfile.bio ?? "",
+                image: currentProfile.image,
+                verified: String(currentProfile.verified),
+              },
+            })
+          }
         >
           <View style={styles.nameRow}>
             <Text style={styles.cardName}>
@@ -400,7 +744,9 @@ export default function DiscoveryScreen() {
 
           <View style={styles.occupationRow}>
             <Ionicons name="briefcase-outline" size={14} color={colors.white} />
-            <Text style={styles.occupationText}>{currentProfile.occupation}</Text>
+            <Text style={styles.occupationText}>
+              {currentProfile.occupation}
+            </Text>
           </View>
         </Pressable>
 
@@ -426,7 +772,10 @@ export default function DiscoveryScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={["top"]}
+    >
       {renderHeader()}
       {renderProgressBar()}
       {swipeFeedback ? (
@@ -449,24 +798,22 @@ export default function DiscoveryScreen() {
               opacity: decisionOpacity,
               transform: [
                 { scale: decisionScale },
-                { rotate: decision === 'like' ? '10deg' : '-10deg' },
+                { rotate: decision === "like" ? "10deg" : "-10deg" },
               ],
             },
           ]}
         >
           <Ionicons
-            name={decision === 'like' ? 'checkmark-circle' : 'close-circle'}
+            name={decision === "like" ? "checkmark-circle" : "close-circle"}
             size={96}
-            color={decision === 'like' ? colors.success : colors.error}
+            color={decision === "like" ? colors.success : colors.error}
           />
           <Text style={styles.decisionText}>
-            {decision === 'like' ? 'LIKE' : 'PASS'}
+            {decision === "like" ? "LIKE" : "PASS"}
           </Text>
         </Animated.View>
       ) : null}
-      <View style={styles.cardContainer}>
-        {renderCard()}
-      </View>
+      <View style={styles.cardContainer}>{renderCard()}</View>
     </SafeAreaView>
   );
 }
@@ -477,15 +824,15 @@ const baseStyles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
   },
   headerButton: {
@@ -496,7 +843,7 @@ const baseStyles = StyleSheet.create({
     color: colors.textPrimary,
   },
   progressContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: spacing.base,
     gap: 4,
     marginBottom: spacing.sm,
@@ -518,7 +865,7 @@ const baseStyles = StyleSheet.create({
   card: {
     flex: 1,
     borderRadius: borderRadius.lg,
-    overflow: 'hidden',
+    overflow: "hidden",
     backgroundColor: colors.surface,
     elevation: 4,
     shadowColor: colors.black,
@@ -528,36 +875,36 @@ const baseStyles = StyleSheet.create({
   },
   cardImage: {
     ...StyleSheet.absoluteFill,
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   cardGradient: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    height: '55%',
+    height: "55%",
     // RN doesn't support CSS gradients; use layers instead
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   // Manual gradient layers for React Native
   cardInfo: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 80,
     left: 0,
     right: 0,
     paddingHorizontal: spacing.lg,
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     marginBottom: spacing.xs,
   },
   cardName: {
     ...typography.h2,
     color: colors.white,
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
@@ -566,11 +913,11 @@ const baseStyles = StyleSheet.create({
     borderRadius: borderRadius.full,
     width: 22,
     height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   pronounsChip: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
@@ -580,35 +927,35 @@ const baseStyles = StyleSheet.create({
   pronounsText: {
     ...typography.caption,
     color: colors.white,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   occupationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   occupationText: {
     ...typography.bodySmall,
     color: colors.white,
-    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowColor: "rgba(0,0,0,0.4)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   actionButtons: {
-    position: 'absolute',
+    position: "absolute",
     bottom: spacing.xl,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: spacing.xl,
   },
   actionButton: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 3,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
@@ -623,13 +970,13 @@ const baseStyles = StyleSheet.create({
   },
   // Intro overlay
   introOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
     paddingHorizontal: spacing.xl,
     zIndex: 10,
   },
@@ -637,8 +984,8 @@ const baseStyles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   introRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.base,
   },
   introIconContainer: {
@@ -646,8 +993,8 @@ const baseStyles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   introIconPass: {
     backgroundColor: colors.error,
@@ -658,37 +1005,37 @@ const baseStyles = StyleSheet.create({
   introTitle: {
     ...typography.body,
     color: colors.white,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: spacing.xs,
   },
   introDescription: {
     ...typography.bodySmall,
-    color: 'rgba(255,255,255,0.8)',
+    color: "rgba(255,255,255,0.8)",
   },
   introDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   // Swipe overlays
   swipeOverlay: {
     ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 20,
   },
   likeOverlay: {
-    backgroundColor: 'rgba(16,185,129,0.15)',
+    backgroundColor: "rgba(16,185,129,0.15)",
   },
   passOverlay: {
-    backgroundColor: 'rgba(239,68,68,0.15)',
+    backgroundColor: "rgba(239,68,68,0.15)",
   },
   // Empty state
   emptyCard: {
     flex: 1,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.md,
   },
   emptyTitle: {
@@ -700,12 +1047,12 @@ const baseStyles = StyleSheet.create({
     color: colors.textSecondary,
   },
   swipeFeedback: {
-    position: 'absolute',
+    position: "absolute",
     top: 86,
-    alignSelf: 'center',
+    alignSelf: "center",
     zIndex: 30,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -722,22 +1069,34 @@ const baseStyles = StyleSheet.create({
     color: colors.textPrimary,
   },
   decisionOverlay: {
-    position: 'absolute',
-    top: '38%',
+    position: "absolute",
+    top: "38%",
     left: 0,
     right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 40,
   },
   decisionText: {
     marginTop: spacing.sm,
     fontSize: typography.h3.fontSize,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 2,
     color: colors.white,
-    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowColor: "rgba(0,0,0,0.45)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  reloadBtn: {
+    marginTop: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+  },
+  reloadBtnText: {
+    ...typography.captionBold,
+    color: colors.white,
   },
 });

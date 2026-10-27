@@ -12,6 +12,7 @@ import {
   sendPasswordResetEmail,
   User,
 } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -29,7 +30,19 @@ let auth: Auth | null = null;
 
 if (isConfigured) {
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  auth = Platform.OS === 'web' ? getAuth(app) : initializeAuth(app);
+  if (Platform.OS === 'web') {
+    auth = getAuth(app);
+  } else {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { getReactNativePersistence } = require('firebase/auth/react-native');
+      auth = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    } catch {
+      auth = getAuth(app);
+    }
+  }
 }
 
 export const firebaseAuth = {
@@ -62,5 +75,9 @@ export const firebaseAuth = {
       auth,
       GoogleAuthProvider.credential(null, accessToken),
     );
+  },
+  async getIdToken() {
+    if (!auth?.currentUser) throw new Error('No user signed in');
+    return auth.currentUser.getIdToken();
   },
 };

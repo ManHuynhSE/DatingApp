@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,63 +9,89 @@ import {
   Dimensions,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
+import { datingApi, type DatingProfile } from '../src/api/datingClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_HEIGHT = SCREEN_WIDTH * 1.1;
 
-const MOCK_PROFILE = {
-  id: '1',
-  name: 'Ava Jones',
-  age: 25,
-  verified: true,
-  pronouns: 'she/her/hers',
-  occupation: 'Business Analyst at Tech',
-  distance: '2.0 kilometres away',
-  location: 'Las Vegas, NV 89104',
-  bio: 'I love exploring new restaurants and trying different cuisines. On weekends, you can find me hiking in the mountains or reading a good book at a cozy café. I believe in living life to the fullest and making meaningful connections along the way.',
-  details: [
-    { icon: 'resize-outline', label: '5\'6" 168cm' },
-    { icon: 'ban-outline', label: 'Non-smoker' },
-    { icon: 'paw-outline', label: 'Cat lover' },
-    { icon: 'school-outline', label: 'Master degree' },
-    { icon: 'people-outline', label: 'Want two' },
-    { icon: 'wine-outline', label: 'Occasionally' },
-    { icon: 'star-outline', label: 'Virgo' },
-    { icon: 'heart-outline', label: 'Relationship/Friendship' },
-    { icon: 'leaf-outline', label: 'No religious affiliation' },
-  ],
-  interests: [
-    'Classical Music & Art',
-    'Thriller Films',
-    'Nature',
-    'Baking',
-    'Asian Food',
-    'Mathematics & Technology',
-  ],
-  languages: [
-    { name: 'English', level: 'Native' },
-    { name: 'Spanish', level: 'Fluent' },
-    { name: 'Tagalog', level: 'Verbal' },
-    { name: 'Mandarin Chinese', level: 'Verbal' },
-  ],
-  photos: [
-    'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600',
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600',
-    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600',
-    'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=600',
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600',
-  ],
+const calculateAge = (birthDate: string) => {
+  const date = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  if (
+    today.getMonth() < date.getMonth() ||
+    (today.getMonth() === date.getMonth() && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+  return age;
 };
 
 export default function ProfileDetailScreen() {
   const router = useRouter();
-  const profile = MOCK_PROFILE;
+  const params = useLocalSearchParams<{ userId?: string }>();
+  const [profile, setProfile] = useState<DatingProfile | null>(null);
+  const [loading, setLoading] = useState(!!params.userId);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (params.userId) {
+      datingApi
+        .getUserProfile(params.userId)
+        .then((response) => {
+          if (response.success && response.data) {
+            setProfile(response.data);
+          }
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : 'Failed to load profile');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [params.userId]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profile</Text>
+          <View style={styles.headerBtn} />
+        </View>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={styles.errorText}>{error || 'Profile not found'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const photos = profile.users?.photos ?? [];
+  const sortedPhotos = [...photos].sort((a, b) => {
+    if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+    return a.position - b.position;
+  });
+  const photoUrls = sortedPhotos.map((p) => p.url);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -93,7 +119,7 @@ export default function ProfileDetailScreen() {
         {/* Hero Photo */}
         <View style={styles.heroContainer}>
           <Image
-            source={{ uri: profile.photos[0] }}
+            source={{ uri: photoUrls[0] || 'https://picsum.photos/seed/profile/700/900' }}
             style={styles.heroImage}
             resizeMode="cover"
           />
@@ -101,18 +127,24 @@ export default function ProfileDetailScreen() {
           <View style={styles.heroOverlay}>
             <View style={styles.nameRow}>
               <Text style={styles.heroName}>
-                {profile.name}, {profile.age}
+                {profile.display_name}, {calculateAge(profile.birth_date)}
               </Text>
-              {profile.verified && (
+              {profile.is_verified && (
                 <View style={styles.verifiedBadge}>
                   <Ionicons name="checkmark" size={12} color={colors.white} />
                 </View>
               )}
             </View>
             <View style={styles.pronounsChip}>
-              <Text style={styles.pronounsText}>{profile.pronouns}</Text>
+              <Text style={styles.pronounsText}>
+                {profile.gender === 'female'
+                  ? 'She/Her'
+                  : profile.gender === 'male'
+                    ? 'He/Him'
+                    : profile.gender}
+              </Text>
             </View>
-            <Text style={styles.occupation}>{profile.occupation}</Text>
+            <Text style={styles.occupation}>{profile.job_title || 'Open to meeting someone new'}</Text>
           </View>
         </View>
 
@@ -120,9 +152,8 @@ export default function ProfileDetailScreen() {
         <View style={styles.section}>
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={18} color={colors.primary} />
-            <Text style={styles.locationDistance}>{profile.distance}</Text>
+            <Text style={styles.locationDistance}>{profile.city || 'Location not shared'}</Text>
           </View>
-          <Text style={styles.locationCity}>{profile.location}</Text>
         </View>
 
         <View style={styles.divider} />
@@ -130,7 +161,7 @@ export default function ProfileDetailScreen() {
         {/* About me */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About me</Text>
-          <Text style={styles.bioText}>{profile.bio}</Text>
+          <Text style={styles.bioText}>{profile.bio || 'No bio provided yet'}</Text>
         </View>
 
         <View style={styles.divider} />
@@ -139,64 +170,55 @@ export default function ProfileDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My details</Text>
           <View style={styles.chipsContainer}>
-            {profile.details.map((detail, i) => (
-              <View key={i} style={styles.detailChip}>
-                <Ionicons
-                  name={detail.icon as any}
-                  size={14}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.detailChipText}>{detail.label}</Text>
+            {profile.height_cm && (
+              <View style={styles.detailChip}>
+                <Ionicons name="resize-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.detailChipText}>{profile.height_cm}cm</Text>
               </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* I enjoy */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>I enjoy</Text>
-          <View style={styles.chipsContainer}>
-            {profile.interests.map((interest, i) => (
-              <View key={i} style={styles.interestChip}>
-                <Text style={styles.interestChipText}>{interest}</Text>
+            )}
+            {profile.languages && profile.languages.length > 0 && (
+              <View style={styles.detailChip}>
+                <Ionicons name="language-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.detailChipText}>{profile.languages.join(', ')}</Text>
               </View>
-            ))}
+            )}
           </View>
         </View>
 
         <View style={styles.divider} />
 
         {/* I communicate in */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>I communicate in</Text>
-          <View style={styles.chipsContainer}>
-            {profile.languages.map((lang, i) => (
-              <View key={i} style={styles.languageChip}>
-                <Text style={styles.languageChipText}>
-                  {lang.name} ({lang.level})
-                </Text>
+        {profile.languages && profile.languages.length > 0 && (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>I communicate in</Text>
+              <View style={styles.chipsContainer}>
+                {profile.languages.map((lang, i) => (
+                  <View key={i} style={styles.languageChip}>
+                    <Text style={styles.languageChipText}>{lang}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.divider} />
+            </View>
+            <View style={styles.divider} />
+          </>
+        )}
 
         {/* Photo gallery */}
-        <View style={styles.section}>
-          <View style={styles.photoGrid}>
-            {profile.photos.slice(1).map((photo, i) => (
-              <Image
-                key={i}
-                source={{ uri: photo }}
-                style={styles.galleryPhoto}
-                resizeMode="cover"
-              />
-            ))}
+        {photoUrls.length > 1 && (
+          <View style={styles.section}>
+            <View style={styles.photoGrid}>
+              {photoUrls.slice(1).map((photo, i) => (
+                <Image
+                  key={i}
+                  source={{ uri: photo }}
+                  style={styles.galleryPhoto}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Action buttons */}
         <View style={styles.actionButtons}>
@@ -243,6 +265,11 @@ const styles = StyleSheet.create({
     fontSize: typography.h3.fontSize,
     fontWeight: typography.h3.fontWeight,
     color: colors.textPrimary,
+  },
+  errorText: {
+    fontSize: typography.body.fontSize,
+    color: colors.error,
+    textAlign: 'center',
   },
   progressBar: {
     flexDirection: 'row',

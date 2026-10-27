@@ -16,7 +16,8 @@ import { useRouter } from 'expo-router';
 import Constants, { AppOwnership } from 'expo-constants';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { firebaseAuth } from '../../src/auth/firebase';
-import { api } from '../../src/api/client';
+import { datingApi } from '../../src/api/datingClient';
+import { useAuthStore } from '../../src/store/authStore';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 
@@ -35,8 +36,59 @@ const completeAuthentication = async (
     throw new Error('Unable to establish an authenticated session.');
   }
 
-  const profile = await api.getMyProfile(idToken);
-  router.replace(profile ? '/(tabs)/discovery' : '/create-profile');
+  // Register user in dating-server backend
+  try {
+    const response = await datingApi.signInWithFirebase(idToken);
+    if (response.success && response.data) {
+      const { setSession } = useAuthStore.getState();
+      const userId = response.data.user.id;
+      
+      // Save userId in auth store
+      setSession(idToken, {
+        id: userId,
+        name: '',
+        age: 0,
+        verified: false,
+        pronouns: '',
+        occupation: '',
+        distance: '',
+        location: '',
+        aboutMe: '',
+        photos: [],
+        details: {
+          height: '',
+          smoking: '',
+          drinking: '',
+          pets: '',
+          children: '',
+          zodiac: '',
+          religion: '',
+          education: '',
+          exercise: '',
+        },
+        interests: [],
+        languages: [],
+        relationshipGoal: '',
+        profileCompletion: 0,
+        online: true,
+      });
+
+      // Store user ID for profile creation
+      if (response.data.isNewUser) {
+        // New user - redirect to profile creation
+        router.replace({
+          pathname: '/create-profile',
+          params: { userId },
+        });
+      } else {
+        // Existing user - go to discovery
+        router.replace('/(tabs)/discovery');
+      }
+    }
+  } catch (error) {
+    console.error('Failed to register with backend:', error);
+    throw error;
+  }
 };
 
 export default function SignInScreen() {
@@ -187,6 +239,14 @@ export default function SignInScreen() {
         >
           <Ionicons name="logo-google" size={20} color={colors.textPrimary} style={styles.buttonIcon} />
           <Text style={[styles.buttonText, styles.googleButtonText]}>Continue with Google</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, styles.demoButton]}
+          onPress={() => router.replace('/(tabs)/discovery')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="sparkles" size={18} color={colors.primary} style={styles.buttonIcon} />
+          <Text style={[styles.buttonText, styles.demoButtonText]}>Vào chế độ thử nghiệm (Bỏ qua login)</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setIsCreateMode((value) => !value)}
@@ -354,6 +414,15 @@ const styles = StyleSheet.create({
   },
   phoneButtonText: {
     color: colors.primary,
+  },
+  demoButton: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  demoButtonText: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   modeToggle: {
     alignItems: 'center',

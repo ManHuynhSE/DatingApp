@@ -11,52 +11,51 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, borderRadius, spacing, typography } from '../src/theme';
-import { api } from '../src/api/client';
+import { datingApi } from '../src/api/datingClient';
 import { firebaseAuth } from '../src/auth/firebase';
-import { useAuthStore } from '../src/store/authStore';
 
 export default function CreateProfileScreen() {
+  const { userId } = useLocalSearchParams<{ userId: string }>();
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
+  const [gender, setGender] = useState<'male' | 'female' | 'non_binary' | 'other'>('male');
   const [occupation, setOccupation] = useState('');
   const [about, setAbout] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const idToken = useAuthStore((state) => state.idToken);
-  const setProfile = useAuthStore((state) => state.setProfile);
 
   const finish = async () => {
-    if (!name.trim() || !age.trim()) {
+    if (!name.trim() || !age.trim() || !userId) {
       Alert.alert('Complete your profile', 'Please add your name and age before continuing.');
-      return;
-    }
-    const token =
-      (await firebaseAuth.currentAuth?.currentUser?.getIdToken()) ?? idToken;
-    if (!token) {
-      Alert.alert('Unable to save profile', 'Your login session has expired. Please sign in again.');
       return;
     }
 
     setIsSaving(true);
     try {
-      const profile = await api.updateMyProfile(token, {
-        name: name.trim(),
-        age: Number(age),
-        occupation: occupation.trim() || undefined,
-        bio: about.trim() || undefined,
-        languages: ['English'],
+      // Calculate birth_date from age
+      const birthYear = new Date().getFullYear() - parseInt(age);
+      const birth_date = new Date(birthYear, 0, 1).toISOString().split('T')[0];
+
+      const profile = await datingApi.createProfile({
+        user_id: userId,
+        display_name: name.trim(),
+        birth_date,
+        gender,
+        bio: about.trim() || null,
+        job_title: occupation.trim() || null,
       });
-      setProfile(profile);
+
+      if (profile.success) {
+        router.replace('/(tabs)/discovery');
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Please check your connection and try again.';
       Alert.alert('Unable to save profile', message);
+    } finally {
       setIsSaving(false);
-      return;
     }
-    setIsSaving(false);
-    router.replace('/(tabs)/discovery');
   };
 
   return (

@@ -3,13 +3,11 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { firebaseAuth } from '../src/auth/firebase';
-import { api } from '../src/api/client';
 import { useAuthStore } from '../src/store/authStore';
 import { useThemeStore } from '../src/store/themeStore';
 
 export default function RootLayout() {
   const setSession = useAuthStore((state) => state.setSession);
-  const setProfile = useAuthStore((state) => state.setProfile);
   const mode = useThemeStore((state) => state.mode);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
 
@@ -59,22 +57,13 @@ export default function RootLayout() {
         profileCompletion: 0,
         online: true,
       });
-
-      try {
-        const profile = await api.getMyProfile(idToken);
-        if (isMounted && profile) {
-          setProfile(profile);
-        }
-      } catch {
-        // Keep the Firebase session available if the profile API is temporarily unavailable.
-      }
     });
 
     return () => {
       isMounted = false;
       unsubscribe();
     };
-  }, [setProfile, setSession]);
+  }, [setSession]);
 
   return (
     <SafeAreaProvider>

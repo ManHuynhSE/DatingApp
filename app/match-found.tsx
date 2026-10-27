@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -35,7 +35,20 @@ const CONFETTI_DOTS = [
 
 export default function MatchFoundScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    matchedName?: string;
+    matchedPhoto?: string;
+    userPhoto?: string;
+  }>();
   const [message, setMessage] = useState('');
+
+  const matchedName = params.matchedName ?? 'your match';
+  const matchedPhoto =
+    params.matchedPhoto ??
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';
+  const userPhoto =
+    params.userPhoto ??
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400';
 
   const handleSend = () => {
     if (message.trim()) {
@@ -106,7 +119,7 @@ export default function MatchFoundScreen() {
             >
               <Image
                 source={{
-                  uri: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400',
+                  uri: matchedPhoto,
                 }}
                 style={styles.matchPhoto}
                 resizeMode="cover"
@@ -131,7 +144,7 @@ export default function MatchFoundScreen() {
             >
               <Image
                 source={{
-                  uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+                  uri: userPhoto,
                 }}
                 style={styles.matchPhoto}
                 resizeMode="cover"
@@ -142,8 +155,7 @@ export default function MatchFoundScreen() {
 
         {/* Description */}
         <Text style={styles.description}>
-          You&apos;ve both shown interest in each other! Now go send that first
-          message. Don&apos;t wait too long!
+          You and {matchedName} have both shown interest in each other! Send a message to break the ice.
         </Text>
 
         {/* Conversation starters banner */}
