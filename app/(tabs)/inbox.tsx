@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -14,15 +14,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { colors, darkColors, typography, spacing, borderRadius } from '@/theme';
 import { useThemeStore } from '@/store/themeStore';
+import { datingApi, DatingMatchItem, ChatConversationSummary } from '@/api/datingClient';
+import { useAuthStore } from '@/store/authStore';
 
 interface Match {
   id: string;
   name: string;
   image: string;
   online: boolean;
+  matchId: string;
 }
 
 interface Chat {
@@ -35,70 +38,73 @@ interface Chat {
   unread: boolean;
 }
 
-const MOCK_MATCHES: Match[] = [
-  {
-    id: '1',
-    name: 'Maria White',
-    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200',
-    online: true,
-  },
-  {
-    id: '2',
-    name: 'Anna Fernandez',
-    image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
-    online: false,
-  },
-  {
-    id: '3',
-    name: 'Jennifer Brown',
-    image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200',
-    online: true,
-  },
-  {
-    id: '4',
-    name: 'Charlotte',
-    image: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200',
-    online: false,
-  },
-  {
-    id: '5',
-    name: 'Mia Davis',
-    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-    online: true,
-  },
-  {
-    id: '6',
-    name: 'Emily Clark',
-    image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200',
-    online: false,
-  },
-  {
-    id: '7',
-    name: 'Lily Martinez',
-    image: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200',
-    online: true,
-  },
-];
+const FALLBACK_AVATAR = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200';
 
-const MOCK_CHATS: Chat[] = [
-  {
-    id: '1',
-    name: 'Ava Jones',
-    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-    lastMessage: 'You: Hello!',
-    timestamp: '1 hours ago',
-    online: true,
+function formatTimestamp(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function mapMatch(match: DatingMatchItem): Match {
+  return {
+    id: match.partner.id,
+    matchId: match.id,
+    name: match.partner.profile?.display_name ?? 'Match',
+    image: match.partner.photo?.[0]?.url ?? FALLBACK_AVATAR,
+    online: false,
+  };
+}
+
+function mapConversation(conversation: ChatConversationSummary): Chat {
+  return {
+    id: conversation.conversationId,
+    name: conversation.partner.name,
+    image: conversation.partner.avatar ?? FALLBACK_AVATAR,
+    lastMessage: conversation.lastMessage ?? 'Say hello 👋',
+    timestamp: formatTimestamp(conversation.lastMessageAt),
+    online: false,
     unread: false,
-  },
-];
+  };
+}
 
 export default function InboxScreen() {
   const router = useRouter();
   const mode = useThemeStore((state) => state.mode);
+  const userId = useAuthStore((state) => state.user?.id);
   const theme = mode === 'dark' ? darkColors : colors;
   const styles = createStyles(theme);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+
+  useFocusEffect(useCallback(() => {
+    if (!userId) return undefined;
+    let active = true;
+    Promise.all([datingApi.getUserMatches(userId), datingApi.getChatConversations()])
+      .then(([matchResponse, chatResponse]) => {
+        if (!active) return;
+        setMatches(matchResponse.data.filter((match) => match.status === 'active').map(mapMatch));
+        setChats(chatResponse.data.map(mapConversation));
+      })
+      .catch((error) => {
+        if (active) Alert.alert('Unable to load messages', error instanceof Error ? error.message : 'Please try again.');
+      });
+    return () => { active = false; };
+  }, [userId]));
+
   const renderMatchItem = ({ item }: { item: Match }) => (
-    <TouchableOpacity style={styles.matchItem} onPress={() => router.push('/profile-detail')}>
+    <TouchableOpacity
+      style={styles.matchItem}
+      onPress={async () => {
+        try {
+          const result = await datingApi.getOrCreateChatConversation(item.matchId);
+          router.push(`/chat/${result.data.conversationId}`);
+        } catch (error) {
+          Alert.alert('Unable to open chat', error instanceof Error ? error.message : 'Please try again.');
+        }
+      }}
+    >
       <View style={styles.matchAvatarContainer}>
         <Image source={{ uri: item.image }} style={styles.matchAvatar} />
         {item.online && <View style={styles.onlineDot} />}
@@ -154,11 +160,11 @@ export default function InboxScreen() {
 
         {/* Matches section */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Matches ({MOCK_MATCHES.length})</Text>
+        <Text style={styles.sectionTitle}>Matches ({matches.length})</Text>
         </View>
 
         <FlatList
-          data={MOCK_MATCHES}
+          data={matches}
           renderItem={renderMatchItem}
           keyExtractor={(item) => item.id}
           horizontal
@@ -169,14 +175,14 @@ export default function InboxScreen() {
 
         {/* Chats section */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Chats ({MOCK_CHATS.length})</Text>
+        <Text style={styles.sectionTitle}>Chats ({chats.length})</Text>
           <TouchableOpacity onPress={() => Alert.alert('Chat filters', 'Unread and online filters will be connected to the backend in the next phase.')}>
             <Ionicons name="filter-outline" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.chatsList}>
-          {MOCK_CHATS.map(renderChatItem)}
+          {chats.map(renderChatItem)}
         </View>
       </ScrollView>
       </KeyboardAvoidingView>

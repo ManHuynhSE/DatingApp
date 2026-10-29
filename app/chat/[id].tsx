@@ -14,9 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors, darkColors, typography, spacing, borderRadius, resolveThemeStyles } from '../../src/theme';
 import { useThemeStore } from '../../src/store/themeStore';
+import { datingApi } from '../../src/api/datingClient';
+import { firebaseAuth } from '../../src/auth/firebase';
+import { createClientMessageId, listenToLatestMessages } from '../../src/services/chatService';
 
 interface Message {
   id: string;
@@ -26,55 +29,23 @@ interface Message {
   status?: string;
 }
 
-const MOCK_PROFILE = {
-  id: '1',
-  name: 'Ava Jones',
-  age: 25,
-  verified: true,
-  pronouns: 'she/her/hers',
-  occupation: 'Business Analyst at Tech',
-  avatar: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200',
-};
-
-const MOCK_MESSAGES: Message[] = [
-  {
-    id: '1',
-    text: "Hey! I saw you're into Asian food too. What's your favorite cuisine?",
-    sent: false,
-    time: '10:30 AM',
-  },
-  {
-    id: '2',
-    text: "Hi Ava! I love Japanese food, especially ramen and sushi. How about you?",
-    sent: true,
-    time: '10:32 AM',
-    status: 'Sent',
-  },
-  {
-    id: '3',
-    text: "Oh I'm a huge fan of Thai food! The balance of sweet, sour, salty and spicy is just perfect 😍",
-    sent: false,
-    time: '10:34 AM',
-  },
-  {
-    id: '4',
-    text: "That sounds amazing! We should definitely try a Thai restaurant together sometime 🍜",
-    sent: true,
-    time: '10:35 AM',
-    status: 'Sent',
-  },
-];
-
 export default function ChatDetailScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const conversationId = Array.isArray(params.id) ? params.id[0] : params.id;
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === 'dark' ? darkColors : colors;
   const styles = resolveThemeStyles(baseStyles, theme);
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [sending, setSending] = useState(false);
+  const [profile, setProfile] = useState({
+    name: 'Match', age: 0, verified: false, occupation: '',
+    avatar: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200',
+  });
   const scrollViewRef = useRef<ScrollView>(null);
-
-  const profile = MOCK_PROFILE;
+  const pendingMessageId = useRef<string | null>(null);
+  const currentFirebaseUid = firebaseAuth.currentAuth?.currentUser?.uid ?? '';
 
   const scrollMessagesToBottom = (animated = true) => {
     requestAnimationFrame(() => {
@@ -90,23 +61,70 @@ export default function ChatDetailScreen() {
     return () => keyboardSubscription.remove();
   }, []);
 
-  const handleSend = () => {
-    if (!message.trim()) return;
+  React.useEffect(() => {
+    if (!conversationId) return;
+    let active = true;
+    void datingApi.getChatConversation(conversationId).then(({ data }) => {
+      if (!active) return;
+      const birthDate = data.partner.birthDate ? new Date(data.partner.birthDate) : null;
+      let age = 0;
+      if (birthDate && !Number.isNaN(birthDate.getTime())) {
+        age = new Date().getFullYear() - birthDate.getFullYear();
+        const beforeBirthday = new Date().getMonth() < birthDate.getMonth()
+          || (new Date().getMonth() === birthDate.getMonth() && new Date().getDate() < birthDate.getDate());
+        if (beforeBirthday) age -= 1;
+      }
+      setProfile({
+        name: data.partner.name,
+        age,
+        verified: data.partner.verified,
+        occupation: data.partner.occupation ?? '',
+        avatar: data.partner.avatar ?? 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200',
+      });
+    }).catch((error) => {
+      if (active) Alert.alert('Unable to open chat', error instanceof Error ? error.message : 'Please try again.');
+    });
 
-    const newMessage: Message = {
-      id: String(messages.length + 1),
-      text: message.trim(),
-      sent: true,
-      time: new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      status: 'Sent',
+    const unsubscribe = listenToLatestMessages(
+      conversationId,
+      (liveMessages) => {
+        if (!active) return;
+        setMessages(liveMessages.map((item) => ({
+          id: item.id,
+          text: item.text,
+          sent: item.senderUid === currentFirebaseUid,
+          time: item.createdAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          status: item.senderUid === currentFirebaseUid ? 'Sent' : undefined,
+        })));
+        scrollMessagesToBottom(false);
+      },
+      (error) => {
+        if (active) Alert.alert('Chat connection error', error.message);
+      },
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
     };
+  }, [conversationId, currentFirebaseUid]);
 
-    setMessages((prev) => [...prev, newMessage]);
-    setMessage('');
-    scrollMessagesToBottom(true);
+  const handleSend = async () => {
+    const text = message.trim();
+    if (!text || !conversationId || sending) return;
+    setSending(true);
+    try {
+      const clientMessageId = pendingMessageId.current ?? createClientMessageId(conversationId);
+      pendingMessageId.current = clientMessageId;
+      await datingApi.sendChatMessage(conversationId, { clientMessageId, text });
+      pendingMessageId.current = null;
+      setMessage('');
+      scrollMessagesToBottom(true);
+    } catch (error) {
+      Alert.alert('Message not sent', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleMediaAction = (label: string) => {

@@ -52,6 +52,21 @@ const PHOTO_OPTIONS = [
   "https://picsum.photos/seed/profile-new-3/500/700",
   "https://picsum.photos/seed/profile-new-4/500/700",
 ];
+const CITY_OPTIONS = [
+  "San Francisco, CA",
+  "New York, NY",
+  "Los Angeles, CA",
+  "Seattle, WA",
+  "Austin, TX",
+];
+const OCCUPATION_OPTIONS = [
+  "Product Designer",
+  "Software Engineer",
+  "Photographer",
+  "Marketing Manager",
+  "Student",
+];
+const EDUCATION_OPTIONS = ["Đại học", "Cao Đẳng", "Thạc sĩ"];
 
 export default function ProfilePickerScreen() {
   const router = useRouter();
@@ -66,11 +81,36 @@ export default function ProfilePickerScreen() {
   const [detailValue, setDetailValue] = useState(() => {
     const field = params.field;
     const details = draft?.details ?? user?.details;
-    if (field === "location") return draft?.location ?? user?.location ?? "";
-    if (field === "occupation") return draft?.occupation ?? user?.occupation ?? "";
+    if (field === "location") {
+      const value = draft?.location ?? user?.location ?? "";
+      return value && !CITY_OPTIONS.includes(value) ? "Other" : value;
+    }
+    if (field === "occupation") {
+      const value = draft?.occupation ?? user?.occupation ?? "";
+      return value && !OCCUPATION_OPTIONS.includes(value) ? "Other" : value;
+    }
+    if (field === "education") {
+      const value = draft?.education ?? user?.education ?? "";
+      return value && !EDUCATION_OPTIONS.includes(value) ? "Other" : value;
+    }
     if (field === "height") return (details?.height ?? "").replace(/\s*cm$/i, "");
     if (field === "pets") return details?.pets ?? "";
     if (field === "exercise") return details?.exercise ?? "";
+    return "";
+  });
+  const [otherValue, setOtherValue] = useState(() => {
+    if (params.field === "location") {
+      const value = draft?.location ?? user?.location ?? "";
+      return value && !CITY_OPTIONS.includes(value) ? value : "";
+    }
+    if (params.field === "occupation") {
+      const value = draft?.occupation ?? user?.occupation ?? "";
+      return value && !OCCUPATION_OPTIONS.includes(value) ? value : "";
+    }
+    if (params.field === "education") {
+      const value = draft?.education ?? user?.education ?? "";
+      return value && !EDUCATION_OPTIONS.includes(value) ? value : "";
+    }
     return "";
   });
   const title =
@@ -92,9 +132,13 @@ export default function ProfilePickerScreen() {
   const selected =
     type === "languages" ? (draft?.languages ?? []) : (draft?.interests ?? []);
   const detailOptions =
-    params.field === "education"
-      ? ["Đại học", "Cao Đẳng", "Thạc sĩ"]
-      : [
+    params.field === "location"
+      ? [...CITY_OPTIONS, "Other"]
+      : params.field === "occupation"
+        ? [...OCCUPATION_OPTIONS, "Other"]
+        : params.field === "education"
+          ? [...EDUCATION_OPTIONS, "Other"]
+          : [
           "Prefer not to say",
           "Never",
           "Sometimes",
@@ -114,7 +158,11 @@ export default function ProfilePickerScreen() {
 
   const isFreeTextField =
     type === "detail" &&
-    (params.field === "location" || params.field === "occupation" || params.field === "height");
+    params.field === "height";
+  const isOtherSelectField =
+    type === "detail" &&
+    (params.field === "location" || params.field === "occupation" || params.field === "education") &&
+    detailValue === "Other";
   const isMultiSelectDetail =
     type === "detail" &&
     (params.field === "pets" || params.field === "exercise");
@@ -130,7 +178,12 @@ export default function ProfilePickerScreen() {
 
   const saveFreeTextDetail = () => {
     const field = params.field;
-    const value = detailValue.trim();
+    const value = (isOtherSelectField ? otherValue : detailValue).trim();
+
+    if (isOtherSelectField && !value) {
+      Alert.alert("Enter a value", "Please enter a value for Other.");
+      return;
+    }
 
     if (field === "location") {
       update({ location: value });
@@ -146,6 +199,8 @@ export default function ProfilePickerScreen() {
       if (baseDetails) {
         update({ details: { ...baseDetails, height: `${centimeters}cm` } });
       }
+    } else if (field === "education") {
+      update({ education: value });
     }
 
     router.back();
@@ -175,6 +230,13 @@ export default function ProfilePickerScreen() {
 
   const chooseDetail = (value: string) => {
     const field = params.field ?? "";
+    if (
+      value === "Other" &&
+      (field === "location" || field === "occupation" || field === "education")
+    ) {
+      setDetailValue("Other");
+      return;
+    }
     if (
       field === "location" ||
       field === "occupation" ||
@@ -236,17 +298,19 @@ export default function ProfilePickerScreen() {
             </Pressable>
           ))}
         </ScrollView>
-      ) : isFreeTextField ? (
+      ) : isFreeTextField || isOtherSelectField ? (
         <View style={styles.freeTextContainer}>
           <TextInput
-            value={detailValue}
-            onChangeText={setDetailValue}
+            value={isOtherSelectField ? otherValue : detailValue}
+            onChangeText={isOtherSelectField ? setOtherValue : setDetailValue}
             placeholder={
               params.field === "location"
-                ? "Nhập thành phố"
+                ? "Nhập thành phố khác"
                 : params.field === "occupation"
-                  ? "Nhập nghề nghiệp"
-                  : "Chiều cao (cm)"
+                  ? "Nhập nghề nghiệp khác"
+                  : params.field === "education"
+                    ? "Nhập trình độ học vấn khác"
+                    : "Chiều cao (cm)"
             }
             keyboardType={params.field === "height" ? "number-pad" : "default"}
             autoCapitalize="words"
