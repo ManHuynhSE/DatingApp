@@ -43,7 +43,7 @@ export default function ProfileDetailScreen() {
   useEffect(() => {
     if (params.userId) {
       datingApi
-        .getUserProfile(params.userId)
+        .getProfileByUserId(params.userId, true, true)
         .then((response) => {
           if (response.success && response.data) {
             setProfile(response.data);

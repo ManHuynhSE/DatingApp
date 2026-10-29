@@ -45,6 +45,7 @@ export function useFirebaseAuth(): UseFirebaseAuthReturn {
               distance: '',
               location: '',
               aboutMe: '',
+              education: '',
               photos: [],
               details: {
                 height: '',

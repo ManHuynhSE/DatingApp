@@ -8,7 +8,7 @@ export interface UserProfile {
   pronouns: string;
   occupation: string;
   company?: string;
-  education?: string;
+  education: string;
   distance: string;
   location: string;
   aboutMe: string;

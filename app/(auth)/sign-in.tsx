@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import Constants, { AppOwnership } from 'expo-constants';
 import { colors, typography, spacing, borderRadius } from '../../src/theme';
 import { firebaseAuth } from '../../src/auth/firebase';
-import { datingApi } from '../../src/api/datingClient';
+import { DatingApiError, datingApi } from '../../src/api/datingClient';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 
@@ -52,16 +52,25 @@ const completeAuthentication = async (
     const response = await datingApi.signInWithFirebase(idToken);
     if (response.success && response.data) {
       const userId = response.data.user.id;
+      let hasProfile = false;
 
-      // Store user ID for profile creation
-      if (response.data.isNewUser) {
-        // New user - redirect to profile creation
+      if (!response.data.isNewUser) {
+        try {
+          await datingApi.getUserProfile(userId, false, false);
+          hasProfile = true;
+        } catch (error) {
+          if (!(error instanceof DatingApiError) || error.status !== 404) {
+            throw error;
+          }
+        }
+      }
+
+      if (response.data.isNewUser || !hasProfile) {
         router.replace({
           pathname: '/create-profile',
           params: { userId },
         });
       } else {
-        // Existing user - go to discovery
         router.replace('/(tabs)/discovery');
       }
     }

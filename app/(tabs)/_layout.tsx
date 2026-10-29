@@ -64,15 +64,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="saved"
+        name="matches"
         options={{
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={21} color={color} />
+              <Ionicons name={focused ? 'heart' : 'heart-outline'} size={21} color={color} />
             </View>
           ),
         }}
       />
+      <Tabs.Screen name="saved" options={{ href: null }} />
       <Tabs.Screen
         name="inbox"
         options={{

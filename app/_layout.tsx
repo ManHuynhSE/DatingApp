@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { firebaseAuth } from '../src/auth/firebase';
 import { datingApi } from '../src/api/datingClient';
+import type { UserProfile } from '../src/data/mockData';
 import { useAuthStore } from '../src/store/authStore';
 import { useThemeStore } from '../src/store/themeStore';
 
@@ -41,7 +42,7 @@ export default function RootLayout() {
         if (!isMounted) return;
 
         const backendUser = auth.data.user;
-        const user = {
+        const user: UserProfile = {
           id: backendUser.id,
           name: backendUser.email?.split('@')[0] || firebaseUser.displayName || '',
           age: 0,
@@ -51,6 +52,7 @@ export default function RootLayout() {
           distance: '',
           location: '',
           aboutMe: '',
+          education: '',
           photos: firebaseUser.photoURL ? [firebaseUser.photoURL] : [],
           details: { height: '', smoking: '', drinking: '', pets: '', children: '', zodiac: '', religion: '', education: '', exercise: '' },
           interests: [],
@@ -73,7 +75,8 @@ export default function RootLayout() {
           user.distance = user.location;
           user.aboutMe = profile.bio ?? '';
           user.photos = photos.map((photo) => photo.url);
-          user.details = { ...user.details, height: profile.height_cm ? `${profile.height_cm}cm` : '', education: profile.education ?? '', pets: profile.pets?.join(', ') ?? '' };
+          user.education = profile.education ?? '';
+          user.details = { ...user.details, height: profile.height_cm ? `${profile.height_cm}cm` : '', education: profile.education ?? '', pets: profile.pets?.join(', ') ?? '', exercise: profile.life_style?.join(', ') ?? '' };
           user.languages = profile.languages ?? [];
           user.profileCompletion = 100;
         } catch {

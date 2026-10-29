@@ -1,15 +1,24 @@
+import { Platform } from 'react-native';
+
 const API_HOST =
   process.env.EXPO_PUBLIC_API_HOST ||
   'localhost';
 
-const DATING_API_BASE_URL =
+const NATIVE_DATING_API_BASE_URL =
   process.env.EXPO_PUBLIC_DATING_API_URL ||
   process.env.EXPO_PUBLIC_API_URL ||
   `http://${API_HOST}:3000/api`;
 
-const AUTH_API_BASE_URL =
-  process.env.EXPO_PUBLIC_AUTH_API_URL ||
-  DATING_API_BASE_URL.replace(/\/api\/?$/, '');
+const WEB_DATING_API_BASE_URL =
+  process.env.EXPO_PUBLIC_WEB_DATING_API_URL || 'http://localhost:3000/api';
+
+const DATING_API_BASE_URL = Platform.OS === 'web'
+  ? WEB_DATING_API_BASE_URL
+  : NATIVE_DATING_API_BASE_URL;
+
+const AUTH_API_BASE_URL = Platform.OS === 'web'
+  ? process.env.EXPO_PUBLIC_WEB_AUTH_API_URL || WEB_DATING_API_BASE_URL.replace(/\/api\/?$/, '')
+  : process.env.EXPO_PUBLIC_AUTH_API_URL || NATIVE_DATING_API_BASE_URL.replace(/\/api\/?$/, '');
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -99,20 +108,25 @@ export interface DatingSwipeResponse {
 
 export interface DatingMatchItem {
   id: string;
-  user1_id: string;
-  user2_id: string;
   status: string;
   matched_at: string;
-  otherUser?: {
+  unmatched_at?: string | null;
+  partner: {
     id: string;
-    profiles?: DatingProfile;
-    photos?: DatingPhoto[];
+    status: string;
+    profile: Pick<
+      DatingProfile,
+      'display_name' | 'birth_date' | 'gender' | 'bio' | 'city' | 'job_title' | 'is_verified'
+    > | null;
+    photo: Pick<DatingPhoto, 'url' | 'position' | 'is_primary'>[];
   };
+  conversation?: { id: string; last_message_at: string | null; created_at: string } | null;
 }
 
 export interface DatingMatchListResponse {
   success: boolean;
   data: DatingMatchItem[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
 export interface AuthResponse {
@@ -130,6 +144,18 @@ export interface AuthResponse {
     };
     isNewUser: boolean;
   };
+}
+
+export interface UpdateDatingProfileInput {
+  display_name?: string;
+  bio?: string | null;
+  job_title?: string | null;
+  city?: string | null;
+  height_cm?: number | null;
+  education?: string | null;
+  pets?: string[];
+  life_style?: string[];
+  languages?: string[];
 }
 
 export class DatingApiError extends Error {
@@ -285,6 +311,15 @@ export const datingApi = {
         method: 'POST',
         body: JSON.stringify(profileData),
       }
+    ),
+  
+   updateProfile: (userId: string, profileData: UpdateDatingProfileInput) =>
+    request<{ success: boolean; data: DatingProfile }>(
+      `/profiles/user/${userId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(profileData),
+      },
     ),
 };
 
