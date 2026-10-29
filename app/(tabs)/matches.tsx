@@ -93,7 +93,8 @@ export default function MatchesScreen() {
   const renderMatch = ({ item }: { item: DatingMatchItem }) => {
     const profile = item.partner.profile;
     const age = calculateAge(profile?.birth_date);
-    const subtitle = [profile?.job_title, profile?.city].filter(Boolean).join(' · ');
+    const location = [profile?.ward, profile?.city].filter(Boolean).join(', ');
+    const subtitle = [profile?.job_title, location].filter(Boolean).join(' · ');
 
     return (
       <Pressable

@@ -24,13 +24,17 @@ import {
 import { useAuthStore } from "../src/store/authStore";
 import { useProfileEditStore } from "../src/store/profileEditStore";
 import { useThemeStore } from "../src/store/themeStore";
-import { datingApi } from "@/api/datingClient";
+import { datingApi, type Hobby } from "@/api/datingClient";
+import ProfilePickerModal from "../src/components/ProfilePickerModal";
+
+const hobbiesCatalog = require("../assets/hobbies_list.json") as Hobby[];
+
 const detailFields = [
-  { field: "location", label: "Location", icon: "location-outline" },
+  { field: "location", label: "Address", icon: "location-outline" },
   { field: "height", label: "Height", icon: "resize-outline" },
   { field: "education", label: "Education", icon: "school-outline" },
-  { field: "occupation", label: "Work", icon: "briefcase-outline" },
-  { field: "exercise", label: "Lifestyle", icon: "barbell-outline" },
+  { field: "occupation", label: "Occupation", icon: "briefcase-outline" },
+  { field: "exercise", label: "Lifestyle", icon: "sparkles-outline" },
   { field: "pets", label: "Pets", icon: "paw-outline" },
 ] as const;
 
@@ -72,13 +76,19 @@ export default function EditProfileScreen({
     return Math.round((values.filter(Boolean).length / values.length) * 100);
   }, [current]);
 
+  const [activePicker, setActivePicker] = useState<{
+    type: string;
+    field?: string;
+  } | null>(null);
+
   if (!current) return null;
 
   const openPicker = (type: string, field?: string) => {
-    router.push({
-      pathname: "/profile-picker",
-      params: { type, field: field ?? "" },
-    });
+    setActivePicker({ type, field });
+  };
+
+  const closePicker = () => {
+    setActivePicker(null);
   };
 
   const save = async () => {
@@ -105,31 +115,61 @@ export default function EditProfileScreen({
 
     setSaving(true);
     try {
+      let ward: string | null = current.ward ?? null;
+      let city: string | null = current.city ?? null;
+      if (!city && !ward && current.location) {
+        const parts = current.location.split(',').map((p) => p.trim()).filter(Boolean);
+        if (parts.length > 1) {
+          ward = parts[0];
+          city = parts.slice(1).join(', ');
+        } else if (parts.length === 1) {
+          city = parts[0];
+        }
+      }
+
+      const hobbiesPayload = current.hobbies?.length
+        ? current.hobbies
+        : hobbiesCatalog.filter((h) => current.interests.includes(h.name));
+
       const response = await datingApi.updateProfile(user.id, {
-        display_name: current.name,
-        bio: current.aboutMe.trim() || null,
-        job_title: current.occupation.trim() || null,
-        city: current.location.trim() || null,
-        education: current.education.trim() || null,
+        display_name: current.name.trim().slice(0, 50),
+        bio: current.aboutMe.trim() ? current.aboutMe.trim().slice(0, 500) : null,
+        job_title: current.occupation.trim() ? current.occupation.trim().slice(0, 100) : null,
+        city: city ? city.slice(0, 100) : null,
+        ward: ward ? ward.slice(0, 100) : null,
+        education: current.education.trim() ? current.education.trim().slice(0, 100) : null,
         height_cm: heightCm,
-        pets: current.details.pets.split(",").map((value) => value.trim()).filter(Boolean),
-        life_style: current.details.exercise.split(",").map((value) => value.trim()).filter(Boolean),
-        languages: current.languages,
+        pet: current.details.pets.trim() || null,
+        life_style: current.details.exercise
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+          .slice(0, 20),
+        hobbies: hobbiesPayload.slice(0, 100),
+        languages: current.languages.slice(0, 20),
       });
       if (!response.success) {
         throw new Error("Server chưa nhận được update");
       }
+      const updatedLocation =
+        [response.data.ward, response.data.city].filter(Boolean).join(", ") ||
+        response.data.city ||
+        "";
       updateUser({
         name: response.data.display_name,
         aboutMe: response.data.bio ?? "",
         occupation: response.data.job_title ?? "",
-        location: response.data.city ?? "",
+        location: updatedLocation,
+        city: response.data.city ?? undefined,
+        ward: response.data.ward ?? undefined,
         education: response.data.education ?? "",
+        hobbies: response.data.hobbies ?? [],
+        interests: response.data.hobbies?.map((h) => h.name) ?? current.interests,
         languages: response.data.languages ?? [],
         details: {
           ...user.details,
           height: response.data.height_cm ? `${response.data.height_cm}cm` : "",
-          pets: response.data.pets?.join(", ") ?? "",
+          pets: response.data.pet ?? "",
           exercise: response.data.life_style?.join(", ") ?? "",
         },
       });
@@ -241,7 +281,8 @@ export default function EditProfileScreen({
             {detailFields.map((item) => {
               const value =
                 item.field === "location"
-                  ? current.location
+                  ? current.location ||
+                    [current.ward, current.city].filter(Boolean).join(", ")
                   : item.field === "occupation"
                     ? current.occupation
                     : item.field === "education"
@@ -362,7 +403,7 @@ export default function EditProfileScreen({
               />
             </View>
             <View style={styles.tags}>
-              {current.interests.slice(0, 6).map((item) => (
+              {current.interests.map((item) => (
                 <View
                   key={item}
                   style={[styles.tag, { backgroundColor: theme.primaryLight }]}
@@ -372,6 +413,13 @@ export default function EditProfileScreen({
                   </Text>
                 </View>
               ))}
+              {current.interests.length === 0 && (
+                <Text
+                  style={[styles.languageText, { color: theme.textSecondary }]}
+                >
+                  Add interests
+                </Text>
+              )}
             </View>
           </Pressable>
 
@@ -419,6 +467,13 @@ export default function EditProfileScreen({
           </Pressable> */}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ProfilePickerModal
+        visible={activePicker !== null}
+        type={activePicker?.type ?? "detail"}
+        field={activePicker?.field}
+        onClose={closePicker}
+      />
     </SafeAreaView>
   );
 }
@@ -471,7 +526,7 @@ const styles = StyleSheet.create({
   saveText: { ...typography.bodyBold },
   content: {
     padding: spacing.base,
-    paddingBottom: spacing.huge,
+    paddingBottom: 140,
     gap: spacing.md,
   },
   profileHeader: {

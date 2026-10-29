@@ -1,0 +1,86 @@
+[
+  {
+    "categoryId": "personality_energy",
+    "categoryName": "Tính cách & Năng lượng",
+    "description": "Xu hướng giao tiếp và nguồn năng lượng của bạn",
+    "maxSelection": 1,
+    "items": [
+      {
+        "id": "introvert",
+        "value": "Hướng nội"
+      },
+      {
+        "id": "balanced",
+        "value": "Cân bằng"
+      },
+      {
+        "id": "active",
+        "value": "Năng động"
+      },
+      {
+        "id": "chill",
+        "value": "Trầm tính"
+      }
+    ]
+  },
+  {
+    "categoryId": "daily_routine",
+    "categoryName": "Nhịp sinh học & Thói quen",
+    "description": "Giờ giấc và nhịp độ sinh hoạt hàng ngày",
+    "maxSelection": 2,
+    "items": [
+      {
+        "id": "night_owl",
+        "value": "Cú đêm"
+      },
+      {
+        "id": "workaholic",
+        "value": "Nghiện làm việc"
+      },
+      {
+        "id": "minimalist",
+        "value": "Sống tối giản"
+      },
+      {
+        "id": "homebody",
+        "value": "Thích ở nhà"
+      }
+    ]
+  },
+  {
+    "categoryId": "diet_nutrition",
+    "categoryName": "Chế độ ăn uống",
+    "description": "Thói quen dinh dưỡng hàng ngày của bạn",
+    "maxSelection": 1,
+    "items": [
+      {
+        "id": "vegetarian",
+        "value": "Ăn chay"
+      },
+      {
+        "id": "eat_clean",
+        "value": "Ăn uống lành mạnh"
+      },
+      {
+        "id": "omnivore",
+        "value": "Ăn uống thoải mái"
+      }
+    ]
+  },
+  {
+    "categoryId": "smoking_drinking",
+    "categoryName": "Rượu bia & Thuốc lá",
+    "description": "Quan điểm và thói quen sử dụng chất kích thích",
+    "maxSelection": 2,
+    "items": [
+      {
+        "id": "non_smoker",
+        "value": "Không hút thuốc"
+      },
+      {
+        "id": "non_alcoholic",
+        "value": "Không rượu bia"
+      }
+    ]
+  }
+]
