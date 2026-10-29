@@ -45,6 +45,12 @@ export interface DatingPhoto {
   created_at?: string;
 }
 
+export interface Hobby {
+  id: string;
+  name: string;
+  category: string;
+}
+
 export interface DatingProfile {
   id: string;
   user_id: string;
@@ -53,19 +59,24 @@ export interface DatingProfile {
   gender: 'male' | 'female' | 'non_binary' | 'other';
   bio: string | null;
   job_title: string | null;
+  pet: string | null;
+  life_style: string[];
+  hobbies: Hobby[];
+  education: string | null;
+  height_cm: number | null;
   city: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  height_cm?: number | null;
-  education?: string | null;
-  pets?: string[];
-  life_style?: string[];
-  languages: string[];
+  ward: string | null;
+  latitude: number | null;
+  longitude: number | null;
   is_verified: boolean;
+  languages: string[];
   users?: {
     id: string;
     email?: string | null;
     phone?: string | null;
+    status?: string;
+    last_active_at?: string | null;
+    created_at?: string;
     photos?: DatingPhoto[];
   };
 }
@@ -78,6 +89,16 @@ export interface DatingProfileListResponse {
     limit: number;
     total: number;
     totalPages: number;
+  };
+}
+
+export interface RecommendationPageResponse {
+  success: boolean;
+  data: DatingProfile[];
+  pagination: {
+    limit: number;
+    sessionId: string | null;
+    nextCursor: string | null;
   };
 }
 
@@ -116,7 +137,7 @@ export interface DatingMatchItem {
     status: string;
     profile: Pick<
       DatingProfile,
-      'display_name' | 'birth_date' | 'gender' | 'bio' | 'city' | 'job_title' | 'is_verified'
+      'display_name' | 'birth_date' | 'gender' | 'bio' | 'city' | 'ward' | 'job_title' | 'is_verified'
     > | null;
     photo: Pick<DatingPhoto, 'url' | 'position' | 'is_primary'>[];
   };
@@ -146,16 +167,65 @@ export interface AuthResponse {
   };
 }
 
-export interface UpdateDatingProfileInput {
-  display_name?: string;
+export interface CreateDatingProfileInput {
+  user_id: string;
+  display_name: string;
+  birth_date: string;
+  gender: 'male' | 'female' | 'non_binary' | 'other';
   bio?: string | null;
   job_title?: string | null;
-  city?: string | null;
-  height_cm?: number | null;
-  education?: string | null;
-  pets?: string[];
+  pet?: string | null;
   life_style?: string[];
+  hobbies?: Hobby[];
+  education?: string | null;
+  height_cm?: number | null;
+  city?: string | null;
+  ward?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   languages?: string[];
+}
+
+export interface UpdateDatingProfileInput {
+  display_name?: string;
+  birth_date?: string;
+  gender?: 'male' | 'female' | 'non_binary' | 'other';
+  bio?: string | null;
+  job_title?: string | null;
+  pet?: string | null;
+  life_style?: string[];
+  hobbies?: Hobby[];
+  education?: string | null;
+  height_cm?: number | null;
+  city?: string | null;
+  ward?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  languages?: string[];
+}
+
+export type UpsertDatingProfileInput = Omit<CreateDatingProfileInput, 'user_id'>;
+
+export interface ListProfilesParams {
+  page?: number;
+  limit?: number;
+  gender?: 'male' | 'female' | 'non_binary' | 'other';
+  city?: string;
+  ward?: string;
+  search?: string;
+  is_verified?: boolean;
+  minAge?: number;
+  maxAge?: number;
+  sortBy?: 'display_name' | 'birth_date';
+  sortOrder?: 'asc' | 'desc';
+  includeUser?: boolean;
+  includePhotos?: boolean;
+}
+
+export interface DeleteProfileResponse {
+  success: boolean;
+  message: string;
+  deleted: boolean;
 }
 
 export class DatingApiError extends Error {
@@ -203,32 +273,53 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const datingApi = {
   health: () => request<{ success: boolean; message: string }>('/health'),
 
-  getUserProfile: (userId: string) =>
-    request<{ success: boolean; data: DatingProfile }>(`/profiles/user/${userId}`),
+  getRecommendations: (userId: string, options: { limit?: number; cursor?: string } = {}) => {
+    const query = new URLSearchParams({ limit: String(options.limit ?? 50) });
+    if (options.cursor) query.append('cursor', options.cursor);
+    return request<RecommendationPageResponse>(`/recommendations/${userId}?${query.toString()}`);
+  },
 
-  listProfiles: (params: {
-    page?: number;
-    limit?: number;
-    gender?: 'male' | 'female' | 'non_binary' | 'other';
-    city?: string;
-    search?: string;
-    minAge?: number;
-    maxAge?: number;
-    includeUser?: boolean;
-    includePhotos?: boolean;
-  } = {}) => {
+  recordRecommendationImpressions: (
+    userId: string,
+    sessionId: string,
+    candidateUserIds: string[],
+  ) =>
+    request<{ success: boolean; data: { recorded: number } }>(
+      `/recommendations/${userId}/impressions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, candidateUserIds }),
+      },
+    ),
+
+  getUserProfile: (userId: string, includeUser = true, includePhotos = true) => {
+    const query = new URLSearchParams({
+      includeUser: String(includeUser),
+      includePhotos: String(includePhotos),
+    });
+    return request<{ success: boolean; data: DatingProfile }>(`/profiles/user/${userId}?${query.toString()}`);
+  },
+
+  listProfiles: (params: ListProfilesParams = {}) => {
+    const includePhotos = params.includePhotos ?? false;
+    const includeUser = includePhotos ? true : (params.includeUser ?? false);
+
     const query = new URLSearchParams({
       page: String(params.page ?? 1),
-      limit: String(params.limit ?? 30),
-      includeUser: String(params.includeUser ?? true),
-      includePhotos: String(params.includePhotos ?? true),
+      limit: String(params.limit ?? 10),
+      includeUser: String(includeUser),
+      includePhotos: String(includePhotos),
     });
 
     if (params.gender) query.append('gender', params.gender);
     if (params.city) query.append('city', params.city);
+    if (params.ward) query.append('ward', params.ward);
     if (params.search) query.append('search', params.search);
+    if (params.is_verified !== undefined) query.append('is_verified', String(params.is_verified));
     if (params.minAge !== undefined) query.append('minAge', String(params.minAge));
     if (params.maxAge !== undefined) query.append('maxAge', String(params.maxAge));
+    if (params.sortBy) query.append('sortBy', params.sortBy);
+    if (params.sortOrder) query.append('sortOrder', params.sortOrder);
 
     return request<DatingProfileListResponse>(`/profiles?${query.toString()}`);
   },
@@ -248,6 +339,52 @@ export const datingApi = {
     });
     return request<{ success: boolean; data: DatingProfile }>(`/profiles/user/${userId}?${query.toString()}`);
   },
+
+  createProfile: (profileData: CreateDatingProfileInput) =>
+    request<{ success: boolean; message?: string; data: DatingProfile }>(
+      '/profiles',
+      {
+        method: 'POST',
+        body: JSON.stringify(profileData),
+      },
+    ),
+
+  updateProfile: (userId: string, profileData: UpdateDatingProfileInput) =>
+    request<{ success: boolean; message?: string; data: DatingProfile }>(
+      `/profiles/user/${userId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(profileData),
+      },
+    ),
+
+  updateProfileById: (id: string, profileData: UpdateDatingProfileInput) =>
+    request<{ success: boolean; message?: string; data: DatingProfile }>(
+      `/profiles/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(profileData),
+      },
+    ),
+
+  upsertProfile: (userId: string, profileData: UpsertDatingProfileInput) =>
+    request<{ success: boolean; message: string; data: DatingProfile }>(
+      `/profiles/user/${userId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(profileData),
+      },
+    ),
+
+  deleteProfile: (id: string) =>
+    request<DeleteProfileResponse>(`/profiles/${id}`, {
+      method: 'DELETE',
+    }),
+
+  deleteProfileByUserId: (userId: string) =>
+    request<DeleteProfileResponse>(`/profiles/user/${userId}`, {
+      method: 'DELETE',
+    }),
 
   createSwipe: (
     swiperId: string,
@@ -294,33 +431,6 @@ export const datingApi = {
       return body as AuthResponse;
     });
   },
-
-  createProfile: (profileData: {
-    user_id: string;
-    display_name: string;
-    birth_date: string;
-    gender: 'male' | 'female' | 'non_binary' | 'other';
-    bio?: string | null;
-    job_title?: string | null;
-    city?: string | null;
-    height_cm?: number | null;
-  }) =>
-    request<{ success: boolean; data: DatingProfile }>(
-      '/profiles',
-      {
-        method: 'POST',
-        body: JSON.stringify(profileData),
-      }
-    ),
-  
-   updateProfile: (userId: string, profileData: UpdateDatingProfileInput) =>
-    request<{ success: boolean; data: DatingProfile }>(
-      `/profiles/user/${userId}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify(profileData),
-      },
-    ),
 };
 
 export { DATING_API_BASE_URL };

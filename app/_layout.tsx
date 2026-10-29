@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { firebaseAuth } from '../src/auth/firebase';
 import { datingApi } from '../src/api/datingClient';
@@ -71,12 +72,16 @@ export default function RootLayout() {
           user.verified = profile.is_verified;
           user.pronouns = profile.gender === 'female' ? 'She/Her' : profile.gender === 'male' ? 'He/Him' : profile.gender;
           user.occupation = profile.job_title ?? '';
-          user.location = profile.city ?? '';
+          user.city = profile.city ?? undefined;
+          user.ward = profile.ward ?? undefined;
+          user.location = [profile.ward, profile.city].filter(Boolean).join(', ') || profile.city || '';
           user.distance = user.location;
           user.aboutMe = profile.bio ?? '';
           user.photos = photos.map((photo) => photo.url);
           user.education = profile.education ?? '';
-          user.details = { ...user.details, height: profile.height_cm ? `${profile.height_cm}cm` : '', education: profile.education ?? '', pets: profile.pets?.join(', ') ?? '', exercise: profile.life_style?.join(', ') ?? '' };
+          user.details = { ...user.details, height: profile.height_cm ? `${profile.height_cm}cm` : '', education: profile.education ?? '', pets: profile.pet ?? '', exercise: profile.life_style?.join(', ') ?? '' };
+          user.hobbies = profile.hobbies ?? [];
+          user.interests = profile.hobbies?.map((h) => h.name) ?? [];
           user.languages = profile.languages ?? [];
           user.profileCompletion = 100;
         } catch {
@@ -96,20 +101,22 @@ export default function RootLayout() {
   }, [setSession]);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-      <Stack key={mode} screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="match-found" options={{ presentation: 'fullScreenModal' }} />
-        <Stack.Screen name="filters" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="profile-detail" options={{ presentation: 'card' }} />
-        <Stack.Screen name="chat/[id]" options={{ presentation: 'card' }} />
-        <Stack.Screen name="video-call" options={{ presentation: 'fullScreenModal' }} />
-        <Stack.Screen name="edit-profile" options={{ presentation: 'card' }} />
-        <Stack.Screen name="profile-picker" options={{ presentation: 'card' }} />
-        <Stack.Screen name="create-profile" options={{ presentation: 'card' }} />
-      </Stack>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+        <Stack key={mode} screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="match-found" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="filters" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="profile-detail" options={{ presentation: 'card' }} />
+          <Stack.Screen name="chat/[id]" options={{ presentation: 'card' }} />
+          <Stack.Screen name="video-call" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="edit-profile" options={{ presentation: 'card' }} />
+          <Stack.Screen name="profile-picker" options={{ presentation: 'card' }} />
+          <Stack.Screen name="create-profile" options={{ presentation: 'card' }} />
+        </Stack>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

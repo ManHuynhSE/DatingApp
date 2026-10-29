@@ -1,18 +1,36 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import {
+  AppState,
   View,
   Text,
   StyleSheet,
   Image,
   TouchableOpacity,
   Dimensions,
-  Animated,
-  PanResponder,
   Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import {
   colors,
   darkColors,
@@ -25,10 +43,10 @@ import { discoveryProfiles } from "@/data/mockData";
 import { useDiscoveryStore } from "@/store/discoveryStore";
 import { useThemeStore } from "@/store/themeStore";
 import { useAuthStore } from "@/store/authStore";
-import { datingApi, type DatingProfile } from "@/api/datingClient";
+import { datingApi, type DatingProfile, type Hobby } from "@/api/datingClient";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+const SWIPE_THRESHOLD = Math.min(Math.max(SCREEN_WIDTH * 0.25, 90), 140);
 
 interface ProfileCard {
   id: string;
@@ -39,7 +57,9 @@ interface ProfileCard {
   occupation: string;
   distance: string;
   city?: string;
+  ward?: string;
   languages: string[];
+  hobbies?: Hobby[];
   verified: boolean;
   image: string;
   photos?: string[];
@@ -104,9 +124,11 @@ const mapDatingProfile = (profile: DatingProfile): ProfileCard => {
           : profile.gender,
     gender: profile.gender,
     occupation: profile.job_title ?? "Open to meeting someone new",
-    distance: profile.city ? `${profile.city}` : "",
+    distance: [profile.ward, profile.city].filter(Boolean).join(", "),
     city: profile.city ?? undefined,
+    ward: profile.ward ?? undefined,
     languages: profile.languages ?? [],
+    hobbies: profile.hobbies ?? [],
     verified: profile.is_verified,
     image: primaryPhoto ?? "https://picsum.photos/seed/empty-discovery/700/900",
     photos: sortedPhotos.map((p) => p.url),
@@ -119,22 +141,27 @@ const PROGRESS_SEGMENTS = 10;
 export default function DiscoveryScreen() {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [showLikeOverlay, setShowLikeOverlay] = useState(false);
-  const [showPassOverlay, setShowPassOverlay] = useState(false);
-  const [decision, setDecision] = useState<"like" | "pass" | null>(null);
   const [swipeFeedback, setSwipeFeedback] = useState("");
   const [remoteProfiles, setRemoteProfiles] = useState<ProfileCard[] | null>(
     null,
   );
+  const [recommendationSessionId, setRecommendationSessionId] = useState<string | null>(null);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
+  const [laidOutProfileKey, setLaidOutProfileKey] = useState<string | null>(null);
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === "active");
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
-  const feedbackOpacity = useRef(new Animated.Value(0)).current;
-  const feedbackScale = useRef(new Animated.Value(0.86)).current;
-  const decisionOpacity = useRef(new Animated.Value(0)).current;
-  const decisionScale = useRef(new Animated.Value(0.72)).current;
-  const cardEntrance = useRef(new Animated.Value(1)).current;
+  const nextRecommendationCursorRef = useRef<string | null>(null);
+  const loadingMoreRecommendationsRef = useRef(false);
+  const recordedImpressionKeysRef = useRef(new Set<string>());
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const isSwiping = useSharedValue(false);
+  const cardEntrance = useSharedValue(1);
+  const feedbackOpacity = useSharedValue(0);
+  const feedbackScale = useSharedValue(0.86);
+  const likeScaleBoost = useSharedValue(1);
+  const passScaleBoost = useSharedValue(1);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const decisionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filters = useDiscoveryStore((state) => state.filters);
   const swipeRight = useDiscoveryStore((state) => state.swipeRight);
   const swipeLeft = useDiscoveryStore((state) => state.swipeLeft);
@@ -144,27 +171,80 @@ export default function DiscoveryScreen() {
   const styles = resolveThemeStyles(baseStyles, theme);
   const currentUser = useAuthStore((state) => state.user);
   const userId = currentUser?.id;
+  const isScreenFocused = useIsFocused();
 
-  const handleRefresh = () => {
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      setIsAppActive(state === "active");
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const loadFirstRecommendationPage = useCallback(async () => {
     setIsLoadingProfiles(true);
     setProfileLoadError(null);
-    datingApi
-      .listProfiles({ limit: 50, includeUser: true, includePhotos: true })
-      .then((response) => {
-        setRemoteProfiles(response.data.map(mapDatingProfile));
-      })
-      .catch((error: unknown) => {
+    setCurrentIndex(0);
+    setRecommendationSessionId(null);
+    nextRecommendationCursorRef.current = null;
+    recordedImpressionKeysRef.current = new Set();
+
+    if (!userId) {
+      setRemoteProfiles(null);
+      setIsLoadingProfiles(false);
+      return;
+    }
+
+    try {
+      const response = await datingApi.getRecommendations(userId, { limit: 50 });
+      setRemoteProfiles(response.data.map(mapDatingProfile));
+      setRecommendationSessionId(response.pagination.sessionId);
+      nextRecommendationCursorRef.current = response.pagination.nextCursor;
+    } catch (error: unknown) {
+      setProfileLoadError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load recommendations from server",
+      );
+      setRemoteProfiles([]);
+    } finally {
+      setIsLoadingProfiles(false);
+    }
+  }, [userId]);
+
+  const handleRefresh = () => {
+    void loadFirstRecommendationPage();
+  };
+
+  const loadMoreRecommendations = useCallback(async () => {
+    const cursor = nextRecommendationCursorRef.current;
+    if (!userId || !cursor || loadingMoreRecommendationsRef.current) return;
+    loadingMoreRecommendationsRef.current = true;
+    try {
+      const response = await datingApi.getRecommendations(userId, {
+        limit: 50,
+        cursor,
+      });
+      setRemoteProfiles((current) => {
+        const existingIds = new Set(current?.map((profile) => profile.id) ?? []);
+        const nextProfiles = response.data
+          .map(mapDatingProfile)
+          .filter((profile) => !existingIds.has(profile.id));
+        return [...(current ?? []), ...nextProfiles];
+      });
+      setRecommendationSessionId(response.pagination.sessionId);
+      nextRecommendationCursorRef.current = response.pagination.nextCursor;
+    } catch (error: unknown) {
+      if (!remoteProfiles?.length) {
         setProfileLoadError(
           error instanceof Error
             ? error.message
-            : "Unable to load profiles from server",
+            : "Unable to load more recommendations",
         );
-        setRemoteProfiles([]);
-      })
-      .finally(() => {
-        setIsLoadingProfiles(false);
-      });
-  };
+      }
+    } finally {
+      loadingMoreRecommendationsRef.current = false;
+    }
+  }, [remoteProfiles?.length, userId]);
 
   useEffect(() => {
     let active = true;
@@ -197,8 +277,10 @@ export default function DiscoveryScreen() {
                     ? "He/Him"
                     : profile.gender,
               occupation: profile.job_title ?? "",
-              distance: profile.city ? `${profile.city}` : "",
-              location: profile.city ?? "",
+              distance: [profile.ward, profile.city].filter(Boolean).join(", "),
+              location: [profile.ward, profile.city].filter(Boolean).join(", ") || profile.city || "",
+              city: profile.city ?? undefined,
+              ward: profile.ward ?? undefined,
               education: profile.education ?? "",
               aboutMe: profile.bio ?? "",
               photos: sortedPhotos.map((p) => p.url),
@@ -206,14 +288,15 @@ export default function DiscoveryScreen() {
                 height: profile.height_cm ? `${profile.height_cm}cm` : "",
                 smoking: "",
                 drinking: "",
-                pets: profile.pets?.join(", ") ?? "",
+                pets: profile.pet ?? "",
                 children: "",
                 zodiac: "",
                 religion: "",
                 education: "",
                 exercise: profile.life_style?.join(", ") ?? "",
               },
-              interests: [],
+              interests: profile.hobbies?.map((h) => h.name) ?? [],
+              hobbies: profile.hobbies ?? [],
               languages: profile.languages ?? [],
               relationshipGoal: "",
               profileCompletion: 100,
@@ -226,30 +309,15 @@ export default function DiscoveryScreen() {
         });
     }
 
-    // Load other profiles
-    datingApi
-      .listProfiles({ limit: 50, includeUser: true, includePhotos: true })
-      .then((response) => {
-        if (active) setRemoteProfiles(response.data.map(mapDatingProfile));
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setProfileLoadError(
-            error instanceof Error
-              ? error.message
-              : "Unable to load profiles from server",
-          );
-          setRemoteProfiles([]);
-        }
-      })
-      .finally(() => {
-        if (active) setIsLoadingProfiles(false);
-      });
+    const recommendationLoadTimer = setTimeout(() => {
+      void loadFirstRecommendationPage();
+    }, 0);
 
     return () => {
       active = false;
+      clearTimeout(recommendationLoadTimer);
     };
-  }, [userId]);
+  }, [loadFirstRecommendationPage, userId]);
 
   const filteredProfiles = useMemo(() => {
     const sourceProfiles =
@@ -280,205 +348,344 @@ export default function DiscoveryScreen() {
     return profiles;
   }, [filters, remoteProfiles, userId]);
 
-  const position = useRef(new Animated.ValueXY()).current;
-  const isAnimating = useRef(false);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 10;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (!isAnimating.current) {
-          position.setValue({ x: gestureState.dx, y: 0 });
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx > SWIPE_THRESHOLD) {
-          handleLike();
-        } else if (gestureState.dx < -SWIPE_THRESHOLD) {
-          handlePass();
-        } else {
-          Animated.spring(position, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    }),
-  ).current;
+  useEffect(() => {
+    if (remoteProfiles !== null && currentIndex >= filteredProfiles.length - 3) {
+      void loadMoreRecommendations();
+    }
+  }, [currentIndex, filteredProfiles.length, loadMoreRecommendations, remoteProfiles]);
 
   const activeIndex = currentIndex < filteredProfiles.length ? currentIndex : 0;
-  const currentProfile = filteredProfiles[activeIndex];
-  const isLastCard =
-    filteredProfiles.length > 1 && currentIndex >= filteredProfiles.length;
+  const currentProfile = filteredProfiles[currentIndex];
+  const isLastCard = currentIndex >= filteredProfiles.length;
   const currentProfileRef = useRef<ProfileCard | undefined>(currentProfile);
   currentProfileRef.current = currentProfile;
+
+  const visibleProfileKey =
+    recommendationSessionId && currentProfile
+      ? `${recommendationSessionId}:${currentProfile.id}`
+      : null;
+
+  const markCurrentProfileLaidOut = useCallback(() => {
+    if (visibleProfileKey) setLaidOutProfileKey(visibleProfileKey);
+  }, [visibleProfileKey]);
+
+  useEffect(() => {
+    if (
+      remoteProfiles === null ||
+      isLoadingProfiles ||
+      !isScreenFocused ||
+      !isAppActive ||
+      !userId ||
+      !recommendationSessionId ||
+      !currentProfile ||
+      currentProfile.isIntro ||
+      laidOutProfileKey !== visibleProfileKey
+    ) {
+      return undefined;
+    }
+    const key = `${recommendationSessionId}:${currentProfile.id}`;
+    if (recordedImpressionKeysRef.current.has(key)) return undefined;
+
+    // Count a card after it remains laid out, focused, and foregrounded briefly.
+    const timer = setTimeout(() => {
+      if (
+        AppState.currentState !== "active" ||
+        currentProfileRef.current?.id !== currentProfile.id
+      ) {
+        return;
+      }
+      recordedImpressionKeysRef.current.add(key);
+      datingApi
+        .recordRecommendationImpressions(userId, recommendationSessionId, [currentProfile.id])
+        .catch(() => recordedImpressionKeysRef.current.delete(key));
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [
+    currentProfile,
+    isAppActive,
+    isLoadingProfiles,
+    isScreenFocused,
+    laidOutProfileKey,
+    recommendationSessionId,
+    remoteProfiles,
+    userId,
+    visibleProfileKey,
+  ]);
 
   useEffect(() => {
     return () => {
       if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-      if (decisionTimer.current) clearTimeout(decisionTimer.current);
     };
   }, []);
 
-  const showSwipeFeedback = (message: string) => {
-    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-    setSwipeFeedback(message);
-    feedbackOpacity.setValue(0);
-    feedbackScale.setValue(0.86);
-    Animated.parallel([
-      Animated.timing(feedbackOpacity, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
+  useLayoutEffect(() => {
+    translateX.set(0);
+    translateY.set(0);
+    likeScaleBoost.set(1);
+    passScaleBoost.set(1);
+    cardEntrance.set(0);
+    cardEntrance.set(
+      withSpring(1, {
+        damping: 16,
+        stiffness: 150,
       }),
-      Animated.spring(feedbackScale, {
-        toValue: 1,
-        friction: 7,
-        tension: 90,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    feedbackTimer.current = setTimeout(() => {
-      Animated.timing(feedbackOpacity, {
-        toValue: 0,
-        duration: 260,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setSwipeFeedback("");
-      });
-    }, 1150);
-  };
+    );
+    isSwiping.set(false);
+  }, [
+    currentIndex,
+    cardEntrance,
+    isSwiping,
+    likeScaleBoost,
+    passScaleBoost,
+    translateX,
+    translateY,
+  ]);
 
-  const goToNext = () => {
-    position.setValue({ x: 0, y: 0 });
-    cardEntrance.setValue(0);
-    setCurrentIndex((prev) => Math.min(prev + 1, filteredProfiles.length));
-    Animated.spring(cardEntrance, {
-      toValue: 1,
-      friction: 8,
-      tension: 70,
-      useNativeDriver: true,
-    }).start();
-  };
+  const clearSwipeFeedback = useCallback(() => {
+    setSwipeFeedback("");
+  }, []);
 
-  const showDecision = (nextDecision: "like" | "pass") => {
-    if (decisionTimer.current) clearTimeout(decisionTimer.current);
-    setDecision(nextDecision);
-    decisionOpacity.setValue(0);
-    decisionScale.setValue(0.72);
-    Animated.parallel([
-      Animated.timing(decisionOpacity, {
-        toValue: 1,
-        duration: 160,
-        useNativeDriver: true,
-      }),
-      Animated.spring(decisionScale, {
-        toValue: 1,
-        friction: 6,
-        tension: 80,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    decisionTimer.current = setTimeout(() => {
-      Animated.timing(decisionOpacity, {
-        toValue: 0,
-        duration: 320,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setDecision(null);
-      });
-    }, 900);
-  };
+  const showSwipeFeedback = useCallback(
+    (message: string) => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+      setSwipeFeedback(message);
+      feedbackOpacity.set(0);
+      feedbackScale.set(0.86);
+      feedbackOpacity.set(withTiming(1, { duration: 180 }));
+      feedbackScale.set(withSpring(1, { damping: 14, stiffness: 160 }));
+      feedbackTimer.current = setTimeout(() => {
+        feedbackOpacity.set(
+          withTiming(0, { duration: 260 }, (finished) => {
+            if (finished) {
+              runOnJS(clearSwipeFeedback)();
+            }
+          }),
+        );
+      }, 1150);
+    },
+    [clearSwipeFeedback, feedbackOpacity, feedbackScale],
+  );
+
+  const completeSwipe = useCallback(
+    (action: "like" | "pass") => {
+      const profile = currentProfileRef.current;
+      if (!profile) {
+        isSwiping.set(false);
+        return;
+      }
+
+      if (!profile.isIntro) {
+        if (action === "like") {
+          swipeRight(profile.id);
+          if (userId) {
+            datingApi
+              .createSwipe(userId, profile.id, "like")
+              .then((res) => {
+                if (res.isMatch) {
+                  showSwipeFeedback("It's a Match! 🎉");
+                  setTimeout(() => {
+                    router.push({
+                      pathname: "/match-found",
+                      params: {
+                        matchedUserId: profile.id,
+                        matchedName: profile.name,
+                        matchedPhoto: profile.image,
+                      },
+                    });
+                  }, 350);
+                } else {
+                  showSwipeFeedback("Interest sent");
+                }
+              })
+              .catch((error: unknown) => {
+                showSwipeFeedback(
+                  error instanceof Error
+                    ? error.message
+                    : "Like could not be saved",
+                );
+              });
+          } else {
+            showSwipeFeedback("Interest sent");
+          }
+        } else {
+          swipeLeft(profile.id);
+          if (userId) {
+            datingApi
+              .createSwipe(userId, profile.id, "pass")
+              .then(() => {
+                showSwipeFeedback("Passed");
+              })
+              .catch((error: unknown) => {
+                showSwipeFeedback(
+                  error instanceof Error
+                    ? error.message
+                    : "Pass could not be saved",
+                );
+              });
+          } else {
+            showSwipeFeedback("Passed");
+          }
+        }
+      }
+
+      setCurrentIndex((prev) => Math.min(prev + 1, filteredProfiles.length));
+    },
+    [
+      filteredProfiles.length,
+      isSwiping,
+      router,
+      showSwipeFeedback,
+      swipeLeft,
+      swipeRight,
+      userId,
+    ],
+  );
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-6, 6])
+    .activeOffsetY([-6, 6])
+    .onUpdate((event) => {
+      if (isSwiping.get()) return;
+      translateX.set(event.translationX);
+      translateY.set(event.translationY * 0.65);
+    })
+    .onEnd((event) => {
+      if (isSwiping.get()) return;
+
+      const currentX = translateX.get();
+      const currentY = translateY.get();
+      const shouldLike =
+        currentX >= SWIPE_THRESHOLD ||
+        (event.velocityX > 850 && currentX > 40);
+      const shouldPass =
+        currentX <= -SWIPE_THRESHOLD ||
+        (event.velocityX < -850 && currentX < -40);
+
+      if (shouldLike) {
+        isSwiping.set(true);
+        const targetX = SCREEN_WIDTH * 1.45;
+        const ratio = targetX / Math.max(Math.abs(currentX), 1);
+        const targetY =
+          currentY * Math.min(ratio, 2) + event.velocityY * 0.08;
+
+        translateX.set(
+          withTiming(targetX, {
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+          }),
+        );
+        translateY.set(
+          withTiming(
+            targetY,
+            {
+              duration: 260,
+              easing: Easing.out(Easing.cubic),
+            },
+            (finished) => {
+              if (finished) {
+                runOnJS(completeSwipe)("like");
+              }
+            },
+          ),
+        );
+      } else if (shouldPass) {
+        isSwiping.set(true);
+        const targetX = -SCREEN_WIDTH * 1.45;
+        const ratio =
+          Math.abs(targetX) / Math.max(Math.abs(currentX), 1);
+        const targetY =
+          currentY * Math.min(ratio, 2) + event.velocityY * 0.08;
+
+        translateX.set(
+          withTiming(targetX, {
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+          }),
+        );
+        translateY.set(
+          withTiming(
+            targetY,
+            {
+              duration: 260,
+              easing: Easing.out(Easing.cubic),
+            },
+            (finished) => {
+              if (finished) {
+                runOnJS(completeSwipe)("pass");
+              }
+            },
+          ),
+        );
+      } else {
+        translateX.set(
+          withSpring(0, {
+            damping: 16,
+            stiffness: 180,
+            mass: 0.8,
+          }),
+        );
+        translateY.set(
+          withSpring(0, {
+            damping: 16,
+            stiffness: 180,
+            mass: 0.8,
+          }),
+        );
+      }
+    });
 
   const handleLike = () => {
     const profile = currentProfileRef.current;
-    if (isAnimating.current || !profile) return;
-    isAnimating.current = true;
-    showDecision("like");
-    setShowLikeOverlay(true);
-    Animated.timing(position, {
-      toValue: { x: SCREEN_WIDTH + 100, y: 0 },
-      duration: 430,
-      easing: (value) => value * (2 - value),
-      useNativeDriver: true,
-    }).start(() => {
-      setShowLikeOverlay(false);
-      if (!profile.isIntro) {
-        swipeRight(profile.id);
-        if (userId) {
-          datingApi
-            .createSwipe(userId, profile.id, "like")
-            .then((res) => {
-              if (res.isMatch) {
-                showSwipeFeedback("It's a Match! 🎉");
-                setTimeout(() => {
-                  router.push({
-                    pathname: "/match-found",
-                    params: {
-                      matchedUserId: profile.id,
-                      matchedName: profile.name,
-                      matchedPhoto: profile.image,
-                    },
-                  });
-                }, 350);
-              } else {
-                showSwipeFeedback("Interest sent");
-              }
-            })
-            .catch((error: unknown) => {
-              showSwipeFeedback(
-                error instanceof Error
-                  ? error.message
-                  : "Like could not be saved",
-              );
-            });
-        } else {
-          showSwipeFeedback("Interest sent");
-        }
-      }
-      goToNext();
-      isAnimating.current = false;
-    });
+    if (isSwiping.get() || !profile) return;
+    isSwiping.set(true);
+    likeScaleBoost.set(1.28);
+    translateX.set(
+      withTiming(
+        SCREEN_WIDTH * 1.4,
+        {
+          duration: 340,
+          easing: Easing.out(Easing.cubic),
+        },
+        (finished) => {
+          if (finished) {
+            runOnJS(completeSwipe)("like");
+          }
+        },
+      ),
+    );
+    translateY.set(
+      withTiming(-24, {
+        duration: 340,
+        easing: Easing.out(Easing.cubic),
+      }),
+    );
   };
 
   const handlePass = () => {
     const profile = currentProfileRef.current;
-    if (isAnimating.current || !profile) return;
-    isAnimating.current = true;
-    showDecision("pass");
-    setShowPassOverlay(true);
-    Animated.timing(position, {
-      toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
-      duration: 430,
-      easing: (value) => value * (2 - value),
-      useNativeDriver: true,
-    }).start(() => {
-      setShowPassOverlay(false);
-      if (!profile.isIntro) {
-        swipeLeft(profile.id);
-        if (userId) {
-          datingApi
-            .createSwipe(userId, profile.id, "pass")
-            .then(() => {
-              showSwipeFeedback("Passed");
-            })
-            .catch((error: unknown) => {
-              showSwipeFeedback(
-                error instanceof Error
-                  ? error.message
-                  : "Pass could not be saved",
-              );
-            });
-        } else {
-          showSwipeFeedback("Passed");
-        }
-      }
-      goToNext();
-      isAnimating.current = false;
-    });
+    if (isSwiping.get() || !profile) return;
+    isSwiping.set(true);
+    passScaleBoost.set(1.28);
+    translateX.set(
+      withTiming(
+        -SCREEN_WIDTH * 1.4,
+        {
+          duration: 340,
+          easing: Easing.out(Easing.cubic),
+        },
+        (finished) => {
+          if (finished) {
+            runOnJS(completeSwipe)("pass");
+          }
+        },
+      ),
+    );
+    translateY.set(
+      withTiming(24, {
+        duration: 340,
+        easing: Easing.out(Easing.cubic),
+      }),
+    );
   };
 
   const handleUndo = () => {
@@ -488,30 +695,111 @@ export default function DiscoveryScreen() {
     }
   };
 
-  const cardRotation = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-    outputRange: ["-8deg", "0deg", "8deg"],
-    extrapolate: "clamp",
+  useAnimatedReaction(
+    () => translateX.value >= SWIPE_THRESHOLD,
+    (isReached, previous) => {
+      if (isReached !== previous) {
+        likeScaleBoost.set(
+          withSpring(isReached ? 1.28 : 1, {
+            damping: 12,
+            stiffness: 220,
+          }),
+        );
+      }
+    },
+  );
+
+  useAnimatedReaction(
+    () => translateX.value <= -SWIPE_THRESHOLD,
+    (isReached, previous) => {
+      if (isReached !== previous) {
+        passScaleBoost.set(
+          withSpring(isReached ? 1.28 : 1, {
+            damping: 12,
+            stiffness: 220,
+          }),
+        );
+      }
+    },
+  );
+
+  const likeIconStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      translateX.value,
+      [15, SWIPE_THRESHOLD * 0.85],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    const baseScale = interpolate(
+      translateX.value,
+      [15, SWIPE_THRESHOLD],
+      [0.65, 1],
+      Extrapolation.CLAMP,
+    );
+    return {
+      opacity,
+      transform: [
+        { scale: baseScale * likeScaleBoost.value },
+        { rotate: "-12deg" },
+      ],
+    };
   });
 
-  const cardStyle = {
-    transform: [
-      { translateX: position.x },
-      { rotate: cardRotation },
-      {
-        translateY: cardEntrance.interpolate({
-          inputRange: [0, 1],
-          outputRange: [18, 0],
-        }),
-      },
-      {
-        scale: cardEntrance.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.96, 1],
-        }),
-      },
-    ],
-  };
+  const passIconStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      translateX.value,
+      [-SWIPE_THRESHOLD * 0.85, -15],
+      [1, 0],
+      Extrapolation.CLAMP,
+    );
+    const baseScale = interpolate(
+      translateX.value,
+      [-SWIPE_THRESHOLD, -15],
+      [1, 0.65],
+      Extrapolation.CLAMP,
+    );
+    return {
+      opacity,
+      transform: [
+        { scale: baseScale * passScaleBoost.value },
+        { rotate: "12deg" },
+      ],
+    };
+  });
+
+  const cardStyle = useAnimatedStyle(() => {
+    const rotate = interpolate(
+      translateX.value,
+      [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
+      [-12, 0, 12],
+      Extrapolation.CLAMP,
+    );
+    const entranceY = interpolate(
+      cardEntrance.value,
+      [0, 1],
+      [18, 0],
+      Extrapolation.CLAMP,
+    );
+    const entranceScale = interpolate(
+      cardEntrance.value,
+      [0, 1],
+      [0.96, 1],
+      Extrapolation.CLAMP,
+    );
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value + entranceY },
+        { rotate: `${rotate}deg` },
+        { scale: entranceScale },
+      ],
+    };
+  });
+
+  const feedbackAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: feedbackOpacity.value,
+    transform: [{ scale: feedbackScale.value }],
+  }));
 
   const renderProgressBar = () => {
     return (
@@ -677,98 +965,116 @@ export default function DiscoveryScreen() {
     }
 
     return (
-      <Animated.View
-        style={[styles.card, cardStyle]}
-        {...panResponder.panHandlers}
-      >
-        <Image
-          source={{ uri: currentProfile.image }}
-          style={styles.cardImage}
-          resizeMode="cover"
-        />
-
-        {/* Like / Pass overlays */}
-        {showLikeOverlay && (
-          <View style={[styles.swipeOverlay, styles.likeOverlay]}>
-            <Ionicons
-              name="checkmark-circle"
-              size={80}
-              color={colors.success}
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          key={currentProfile.id}
+          onLayout={markCurrentProfileLaidOut}
+          style={[styles.card, cardStyle]}
+        >
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <Image
+              source={{ uri: currentProfile.image }}
+              style={styles.cardImage}
+              resizeMode="cover"
             />
           </View>
-        )}
-        {showPassOverlay && (
-          <View style={[styles.swipeOverlay, styles.passOverlay]}>
-            <Ionicons name="close-circle" size={80} color={colors.error} />
-          </View>
-        )}
 
-        {/* Gradient overlay for text */}
-        <View style={styles.cardGradient} />
-
-        {/* Intro overlay for first card */}
-        {currentProfile.isIntro && renderIntroOverlay()}
-
-        {/* Profile info */}
-        <Pressable
-          style={styles.cardInfo}
-          onPress={() =>
-            router.push({
-              pathname: "/profile-detail",
-              params: {
-                userId: currentProfile.id,
-                name: currentProfile.name,
-                age: String(currentProfile.age),
-                occupation: currentProfile.occupation,
-                city: currentProfile.city ?? "",
-                bio: currentProfile.bio ?? "",
-                image: currentProfile.image,
-                verified: String(currentProfile.verified),
-              },
-            })
-          }
-        >
-          <View style={styles.nameRow}>
-            <Text style={styles.cardName}>
-              {currentProfile.name}, {currentProfile.age}
-            </Text>
-            {currentProfile.verified && (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={20} color="#4A90D9" />
-              </View>
-            )}
-          </View>
-
-          <View style={styles.pronounsChip}>
-            <Text style={styles.pronounsText}>{currentProfile.pronouns}</Text>
-          </View>
-
-          <View style={styles.occupationRow}>
-            <Ionicons name="briefcase-outline" size={14} color={colors.white} />
-            <Text style={styles.occupationText}>
-              {currentProfile.occupation}
-            </Text>
-          </View>
-        </Pressable>
-
-        {/* Action buttons on card */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.passButton]}
-            onPress={handlePass}
-            activeOpacity={0.8}
+          {/* Dynamic Reanimated Like / Pass icons (no background) */}
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.likeSwipeOverlay, likeIconStyle]}
           >
-            <Ionicons name="close" size={28} color={colors.error} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.likeButton]}
-            onPress={handleLike}
-            activeOpacity={0.8}
+            <Ionicons
+              name="heart"
+              size={98}
+              color="#EF4444"
+              style={styles.floatingSwipeIcon}
+            />
+          </Animated.View>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.passSwipeOverlay, passIconStyle]}
           >
-            <Ionicons name="checkmark" size={28} color={colors.success} />
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
+            <Ionicons
+              name="close"
+              size={106}
+              color="#E5E7EB"
+              style={styles.floatingSwipeIcon}
+            />
+          </Animated.View>
+
+          {/* Gradient overlay for text */}
+          <View style={styles.cardGradient} />
+
+          {/* Intro overlay for first card */}
+          {currentProfile.isIntro && renderIntroOverlay()}
+
+          {/* Profile info */}
+          <Pressable
+            style={styles.cardInfo}
+            onPress={() =>
+              router.push({
+                pathname: "/profile-detail",
+                params: {
+                  userId: currentProfile.id,
+                  name: currentProfile.name,
+                  age: String(currentProfile.age),
+                  occupation: currentProfile.occupation,
+                  city: currentProfile.city ?? "",
+                  ward: currentProfile.ward ?? "",
+                  bio: currentProfile.bio ?? "",
+                  image: currentProfile.image,
+                  verified: String(currentProfile.verified),
+                },
+              })
+            }
+          >
+            <View style={styles.nameRow}>
+              <Text style={styles.cardName}>
+                {currentProfile.name}, {currentProfile.age}
+              </Text>
+              {currentProfile.verified && (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={20} color="#4A90D9" />
+                </View>
+              )}
+            </View>
+
+            <View style={styles.pronounsChip}>
+              <Text style={styles.pronounsText}>{currentProfile.pronouns}</Text>
+            </View>
+
+            <View style={styles.occupationRow}>
+              <Ionicons
+                name="briefcase-outline"
+                size={14}
+                color={colors.white}
+              />
+              <Text style={styles.occupationText}>
+                {currentProfile.occupation}
+              </Text>
+            </View>
+          </Pressable>
+
+          {/* Action buttons on card */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.passButton]}
+              onPress={handlePass}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={28} color="#9CA3AF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.likeButton]}
+              onPress={handleLike}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="heart" size={26} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </GestureDetector>
     );
   };
 
@@ -780,38 +1086,9 @@ export default function DiscoveryScreen() {
       {renderHeader()}
       {renderProgressBar()}
       {swipeFeedback ? (
-        <Animated.View
-          style={[
-            styles.swipeFeedback,
-            { opacity: feedbackOpacity, transform: [{ scale: feedbackScale }] },
-          ]}
-        >
+        <Animated.View style={[styles.swipeFeedback, feedbackAnimatedStyle]}>
           <Ionicons name="sparkles" size={16} color={colors.primary} />
           <Text style={styles.swipeFeedbackText}>{swipeFeedback}</Text>
-        </Animated.View>
-      ) : null}
-      {decision ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.decisionOverlay,
-            {
-              opacity: decisionOpacity,
-              transform: [
-                { scale: decisionScale },
-                { rotate: decision === "like" ? "10deg" : "-10deg" },
-              ],
-            },
-          ]}
-        >
-          <Ionicons
-            name={decision === "like" ? "checkmark-circle" : "close-circle"}
-            size={96}
-            color={decision === "like" ? colors.success : colors.error}
-          />
-          <Text style={styles.decisionText}>
-            {decision === "like" ? "LIKE" : "PASS"}
-          </Text>
         </Animated.View>
       ) : null}
       <View style={styles.cardContainer}>{renderCard()}</View>
@@ -873,6 +1150,7 @@ const baseStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
+    userSelect: "none",
   },
   cardImage: {
     ...StyleSheet.absoluteFill,
@@ -1018,17 +1296,26 @@ const baseStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
   },
   // Swipe overlays
-  swipeOverlay: {
-    ...StyleSheet.absoluteFill,
+  likeSwipeOverlay: {
+    position: "absolute",
+    top: 32,
+    left: 32,
+    zIndex: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+  passSwipeOverlay: {
+    position: "absolute",
+    top: 32,
+    right: 32,
     zIndex: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  likeOverlay: {
-    backgroundColor: "rgba(16,185,129,0.15)",
-  },
-  passOverlay: {
-    backgroundColor: "rgba(239,68,68,0.15)",
+  floatingSwipeIcon: {
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 10,
   },
   // Empty state
   emptyCard: {

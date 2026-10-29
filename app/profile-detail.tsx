@@ -152,7 +152,9 @@ export default function ProfileDetailScreen() {
         <View style={styles.section}>
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={18} color={colors.primary} />
-            <Text style={styles.locationDistance}>{profile.city || 'Location not shared'}</Text>
+            <Text style={styles.locationDistance}>
+              {[profile.ward, profile.city].filter(Boolean).join(', ') || 'Location not shared'}
+            </Text>
           </View>
         </View>
 
@@ -176,6 +178,24 @@ export default function ProfileDetailScreen() {
                 <Text style={styles.detailChipText}>{profile.height_cm}cm</Text>
               </View>
             )}
+            {profile.education ? (
+              <View style={styles.detailChip}>
+                <Ionicons name="school-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.detailChipText}>{profile.education}</Text>
+              </View>
+            ) : null}
+            {profile.pet ? (
+              <View style={styles.detailChip}>
+                <Ionicons name="paw-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.detailChipText}>{profile.pet}</Text>
+              </View>
+            ) : null}
+            {profile.life_style && profile.life_style.length > 0 ? (
+              <View style={styles.detailChip}>
+                <Ionicons name="barbell-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.detailChipText}>{profile.life_style.join(', ')}</Text>
+              </View>
+            ) : null}
             {profile.languages && profile.languages.length > 0 && (
               <View style={styles.detailChip}>
                 <Ionicons name="language-outline" size={14} color={colors.textSecondary} />
@@ -184,6 +204,25 @@ export default function ProfileDetailScreen() {
             )}
           </View>
         </View>
+
+        <View style={styles.divider} />
+
+        {/* Hobbies / Interests */}
+        {profile.hobbies && profile.hobbies.length > 0 && (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>My interests</Text>
+              <View style={styles.chipsContainer}>
+                {profile.hobbies.map((hobby) => (
+                  <View key={hobby.id} style={styles.languageChip}>
+                    <Text style={styles.languageChipText}>{hobby.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            <View style={styles.divider} />
+          </>
+        )}
 
         <View style={styles.divider} />
 
