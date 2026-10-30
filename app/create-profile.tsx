@@ -2,8 +2,6 @@ import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,13 +9,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, darkColors, borderRadius, spacing, typography } from '../src/theme';
 import { datingApi } from '../src/api/datingClient';
 import { useThemeStore } from '../src/store/themeStore';
-import { useAuthStore } from '../src/store/authStore';
 import ProfilePickerModal from '../src/components/ProfilePickerModal';
 
 function calculateAge(birthDate: string): number {
@@ -65,57 +62,10 @@ export default function CreateProfileScreen() {
   const [ward, setWard] = useState('');
   const [location, setLocation] = useState('');
   const [about, setAbout] = useState('');
-  const [photos, setPhotos] = useState<string[]>([
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500',
-  ]);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [interestedIn, setInterestedIn] = useState<'male' | 'female' | 'everyone'>('everyone');
   const [languages, setLanguages] = useState<string[]>(['Vietnamese', 'English']);
   const [isSaving, setIsSaving] = useState(false);
-  const [photoAssets, setPhotoAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
-
-  const pickPhotos = async (replaceIndex?: number) => {
-    const remaining = 6 - photoAssets.length + (replaceIndex === undefined ? 0 : 1);
-    if (replaceIndex === undefined && remaining <= 0) {
-      Alert.alert('Photo limit reached', 'You can add up to 6 profile photos.');
-      return;
-    }
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsMultipleSelection: replaceIndex === undefined,
-        selectionLimit: Math.max(1, remaining),
-        quality: 0.85,
-      });
-      if (result.canceled || !result.assets.length) return;
-      setPhotoAssets((current) => {
-        if (replaceIndex !== undefined) {
-          const next = [...current];
-          next[replaceIndex] = result.assets[0];
-          return next;
-        }
-        return [...current, ...result.assets].slice(0, 6);
-      });
-    } catch (error) {
-      Alert.alert('Unable to open photos', error instanceof Error ? error.message : 'Please try again.');
-    }
-  };
-
-  const uploadSelectedPhotos = async () => {
-    for (const asset of photoAssets) {
-      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
-        throw new Error('One of the selected photos is larger than 10 MB.');
-      }
-      const type = asset.mimeType || 'image/jpeg';
-      const extension = type.split('/')[1] || 'jpg';
-      await datingApi.uploadPhoto({
-        uri: asset.uri,
-        name: asset.fileName || `profile-${Date.now()}.${extension}`,
-        type,
-        webFile: asset.file,
-      });
-    }
-  };
-
   const [activePicker, setActivePicker] = useState<{
     type: string;
     field?: string;
@@ -183,16 +133,7 @@ export default function CreateProfileScreen() {
       });
 
       if (profile.success) {
-        try {
-          await uploadSelectedPhotos();
-          router.replace('/(tabs)/discovery');
-        } catch (error) {
-          Alert.alert(
-            'Profile saved, photo upload failed',
-            error instanceof Error ? error.message : 'You can add photos from your profile later.',
-            [{ text: 'Continue', onPress: () => router.replace('/(tabs)/discovery') }],
-          );
-        }
+        router.replace('/(tabs)/discovery');
       }
     } catch (error) {
       const message =
@@ -234,56 +175,6 @@ export default function CreateProfileScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.progressLabel}>Let&apos;s get to know you</Text>
         <View style={styles.progressTrack}><View style={styles.progressFill} /></View>
-        <Text style={styles.sectionTitle}>Add your photos</Text>
-        <Text style={styles.helper}>Your main photo is how you appear in the swipe view.</Text>
-        <View style={styles.photoGrid}>
-          {Array.from({ length: 6 }, (_, index) => {
-            const asset = photoAssets[index];
-            return (
-              <Pressable key={index} style={styles.photoSlot} onPress={() => pickPhotos(asset ? index : undefined)}>
-                {asset ? (
-                  <Image source={{ uri: asset.uri }} style={styles.photo} />
-                ) : (
-                  <Ionicons name="add" size={24} color={colors.textTertiary} />
-                )}
-                {index === 0 && asset && (
-                  <View style={styles.mainPhotoBadge}>
-                    <Text style={styles.mainPhotoBadgeText}>Main</Text>
-                  </View>
-                )}
-                {asset && (
-                  <Pressable
-                    style={styles.removePhoto}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      setPhotoAssets((current) => current.filter((_, photoIndex) => photoIndex !== index));
-                    }}
-                    accessibilityLabel="Remove photo"
-                  >
-                    <Ionicons name="close" size={14} color={colors.white} />
-                  </Pressable>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={styles.sectionTitle}>About you</Text>
-        <TextInput value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={colors.textTertiary} style={styles.input} />
-        <TextInput value={age} onChangeText={setAge} placeholder="Age" keyboardType="number-pad" placeholderTextColor={colors.textTertiary} style={styles.input} />
-        <TextInput value={occupation} onChangeText={setOccupation} placeholder="Occupation" placeholderTextColor={colors.textTertiary} style={styles.input} />
-        <TextInput value={location} onChangeText={setLocation} placeholder="Location (e.g. Ward, City)" placeholderTextColor={colors.textTertiary} style={styles.input} />
-        <TextInput value={about} onChangeText={setAbout} placeholder="Tell people a little about yourself..." placeholderTextColor={colors.textTertiary} style={[styles.input, styles.about]} multiline />
-        <Text style={styles.sectionTitle}>Gender</Text>
-        <View style={styles.genderRow}>
-          {(['male', 'female', 'non_binary', 'other'] as const).map((g) => (
-            <Pressable
-              key={g}
-              style={[
-                styles.progressFill,
-                { backgroundColor: theme.primary },
-              ]}
-            />
-          </View>
 
           {/* Photos */}
           <SectionTitle
@@ -629,7 +520,6 @@ export default function CreateProfileScreen() {
             </Text>
           </Pressable>
         </ScrollView>
-      </KeyboardAvoidingView>
 
       <ProfilePickerModal
         visible={activePicker !== null}
@@ -696,23 +586,27 @@ function SectionTitle({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   header: { height: 76, paddingHorizontal: spacing.base, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.border },
+  iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  iconButtonPlaceholder: { width: 40, height: 40 },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
   content: { padding: spacing.base, paddingBottom: 50 },
   progressLabel: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: 8 },
   progressTrack: { height: 8, borderRadius: 4, backgroundColor: colors.primaryLight, marginBottom: spacing.xl },
   progressFill: { width: '25%', height: '100%', borderRadius: 4, backgroundColor: colors.primary },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.lg, marginBottom: 6 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionActionText: { ...typography.bodySmall, fontWeight: '700' },
   helper: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.md },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  photoSlot: { width: '31.5%', aspectRatio: 3 / 4, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.border, borderRadius: borderRadius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  photo: { width: '100%', height: '100%' },
-  mainPhotoBadge: { position: 'absolute', left: 5, bottom: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, backgroundColor: colors.primary },
-  mainPhotoBadgeText: { ...typography.captionBold, color: colors.white, fontSize: 10 },
-  removePhoto: { position: 'absolute', top: 5, right: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
+  photosCard: { borderWidth: 1, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm },
+  photoStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  photoSlot: { width: '31%', aspectRatio: 3 / 4, borderWidth: 1, borderStyle: 'dashed', borderRadius: borderRadius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  slotImage: { width: '100%', height: '100%' },
+  choosePhotoAction: { ...typography.bodySmall, fontWeight: '700', marginTop: spacing.sm },
   input: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, marginTop: 10, color: colors.textPrimary, ...typography.body },
-  about: { height: 110, textAlignVertical: 'top', paddingTop: spacing.md },
-  genderRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  genderOption: {
+  inputPickerRow: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md,
     marginTop: 10,
     flexDirection: 'row',

@@ -326,6 +326,46 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+async function nativeMultipartRequest<T>(path: string, body: FormData): Promise<T> {
+  const url = `${DATING_API_BASE_URL.replace(/\/+$/, '')}${path}`;
+  const idToken = await firebaseAuth.getIdToken().catch(() => null);
+
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.timeout = REQUEST_TIMEOUT_MS;
+    if (idToken) xhr.setRequestHeader('Authorization', `Bearer ${idToken}`);
+    xhr.onload = () => {
+      const text = xhr.responseText;
+      let responseBody: unknown = null;
+      try {
+        responseBody = text ? JSON.parse(text) : null;
+      } catch {
+        responseBody = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(responseBody as T);
+        return;
+      }
+
+      const message =
+        typeof responseBody === 'object' &&
+        responseBody !== null &&
+        'message' in responseBody &&
+        typeof responseBody.message === 'string'
+          ? responseBody.message
+          : text || xhr.statusText || 'Photo upload failed';
+      reject(new DatingApiError(xhr.status, `${message} (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error('Network request failed while uploading photo'));
+    xhr.ontimeout = () =>
+      reject(new DatingApiError(408, `Photo upload timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds`));
+    xhr.onabort = () => reject(new DatingApiError(408, 'Photo upload was cancelled'));
+    xhr.send(body);
+  });
+}
+
 export const datingApi = {
   health: () => request<{ success: boolean; message: string }>('/health'),
 
@@ -339,21 +379,27 @@ export const datingApi = {
     webFile?: Blob;
   }) => {
     const body = new FormData();
-    if (Platform.OS === 'web') {
-      let webFile = file.webFile;
-      if (!webFile) {
-        const response = await fetch(file.uri);
-        if (!response.ok) throw new Error('Unable to read the selected image file');
-        webFile = await response.blob();
-      }
-      body.append('image', webFile, file.name);
-    } else {
+    if (Platform.OS !== 'web') {
       body.append('image', {
         uri: file.uri,
         name: file.name,
         type: file.type,
       } as unknown as Blob);
+      // Expo's Winter fetch converts FormData to bytes and rejects React Native's
+      // { uri, name, type } file part. XHR still handles native file URIs natively.
+      return nativeMultipartRequest<{ success: boolean; data: DatingPhoto }>(
+        '/users/me/photos',
+        body,
+      );
     }
+
+    let webFile = file.webFile;
+    if (!webFile) {
+      const response = await fetch(file.uri);
+      if (!response.ok) throw new Error('Unable to read the selected image file');
+      webFile = await response.blob();
+    }
+    body.append('image', webFile, file.name);
     return request<{ success: boolean; data: DatingPhoto }>(
       '/users/me/photos',
       { method: 'POST', body },

@@ -74,6 +74,15 @@ const lifestylesData = require("../../assets/lifestyles_list.json") as Lifestyle
 
 const MAX_LANGUAGES = 10;
 const MAX_INTERESTS = 10;
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const INTERESTED_OPTIONS = [
+  { value: "male", label: "Men", subtitle: "Show me men", icon: "man-outline" },
+  { value: "female", label: "Women", subtitle: "Show me women", icon: "woman-outline" },
+  { value: "everyone", label: "Everyone", subtitle: "Show me everyone", icon: "people-outline" },
+] as const;
 
 type PhotoDraftItem = {
   key: string;
