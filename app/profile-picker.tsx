@@ -68,6 +68,21 @@ const PHOTO_OPTIONS = [
   "https://picsum.photos/seed/profile-new-3/500/700",
   "https://picsum.photos/seed/profile-new-4/500/700",
 ];
+const CITY_OPTIONS = [
+  "San Francisco, CA",
+  "New York, NY",
+  "Los Angeles, CA",
+  "Seattle, WA",
+  "Austin, TX",
+];
+const OCCUPATION_OPTIONS = [
+  "Product Designer",
+  "Software Engineer",
+  "Photographer",
+  "Marketing Manager",
+  "Student",
+];
+const EDUCATION_OPTIONS = ["Đại học", "Cao Đẳng", "Thạc sĩ"];
 
 export default function ProfilePickerScreen() {
   const router = useRouter();
@@ -467,6 +482,13 @@ export default function ProfilePickerScreen() {
 
   const chooseDetail = (value: string) => {
     const field = params.field ?? "";
+    if (
+      value === "Other" &&
+      (field === "location" || field === "occupation" || field === "education")
+    ) {
+      setDetailValue("Other");
+      return;
+    }
     if (
       field === "location" ||
       field === "occupation" ||
@@ -1150,8 +1172,8 @@ export default function ProfilePickerScreen() {
               : "Nhập chiều cao tính bằng cm (từ 100 đến 250). Nhấn 'Done' ở góc phải trên để lưu."}
           </Text>
           <TextInput
-            value={detailValue}
-            onChangeText={setDetailValue}
+            value={isOtherSelectField ? otherValue : detailValue}
+            onChangeText={isOtherSelectField ? setOtherValue : setDetailValue}
             placeholder={
               params.field === "occupation"
                 ? "Nghề nghiệp (Occupation)"

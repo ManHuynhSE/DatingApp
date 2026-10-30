@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /conversations/{conversationId} {
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.participantUids;
+      allow create, update, delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(
+            /databases/$(database)/documents/conversations/$(conversationId)
+          ).data.participantUids;
+        allow create, update, delete: if false;
+      }
+    }
+  }
+}

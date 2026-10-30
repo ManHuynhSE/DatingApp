@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { firebaseAuth } from '@/auth/firebase';
 
 const API_HOST =
   process.env.EXPO_PUBLIC_API_HOST ||
@@ -240,10 +241,12 @@ export class DatingApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${DATING_API_BASE_URL.replace(/\/+$/, '')}${path}`;
+  const idToken = await firebaseAuth.getIdToken().catch(() => null);
   const response = await fetchWithTimeout(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       ...options.headers,
     },
   });
@@ -417,6 +420,29 @@ export const datingApi = {
   getUserMatches: (userId: string) =>
     request<DatingMatchListResponse>(`/matches/user/${userId}`),
 
+  getChatConversations: () =>
+    request<{ success: boolean; data: ChatConversationSummary[] }>('/chat/conversations'),
+
+  getChatConversation: (conversationId: string) =>
+    request<{ success: boolean; data: ChatConversationSummary }>(
+      `/chat/conversations/${conversationId}`,
+    ),
+
+  getOrCreateChatConversation: (matchId: string) =>
+    request<{ success: boolean; data: ChatConversationSummary }>(
+      `/chat/matches/${matchId}/conversation`,
+      { method: 'POST' },
+    ),
+
+  sendChatMessage: (
+    conversationId: string,
+    input: { clientMessageId: string; text: string },
+  ) =>
+    request<{ success: boolean; data: ChatMessageDto }>(
+      `/chat/conversations/${conversationId}/messages`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+
   signInWithFirebase: (idToken: string) => {
     const url = `${AUTH_API_BASE_URL}/auth/firebase`;
     return fetchWithTimeout(url, {
@@ -432,5 +458,30 @@ export const datingApi = {
     });
   },
 };
+
+export interface ChatConversationSummary {
+  conversationId: string;
+  matchId: string;
+  partner: {
+    id: string;
+    firebaseUid: string | null;
+    name: string;
+    birthDate: string | null;
+    occupation: string | null;
+    city: string | null;
+    verified: boolean;
+    avatar: string | null;
+  };
+  lastMessage?: string;
+  lastMessageAt?: string | null;
+}
+
+export interface ChatMessageDto {
+  id: string;
+  senderUid: string;
+  text: string;
+  type: 'text';
+  createdAt: string;
+}
 
 export { DATING_API_BASE_URL };
