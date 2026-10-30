@@ -1,7 +1,22 @@
 import { create } from 'zustand';
 import type { UserProfile } from '@/data/mockData';
 
-type Draft = Pick<UserProfile, 'name' | 'age' | 'occupation' | 'location' |'education'| 'aboutMe' | 'photos' | 'interests' | 'languages' | 'details'>;
+type Draft = Pick<
+  UserProfile,
+  | 'name'
+  | 'age'
+  | 'occupation'
+  | 'location'
+  | 'city'
+  | 'ward'
+  | 'education'
+  | 'aboutMe'
+  | 'photos'
+  | 'interests'
+  | 'hobbies'
+  | 'languages'
+  | 'details'
+>;
 
 interface ProfileEditState {
   draft: Draft | null;
@@ -19,10 +34,13 @@ export const useProfileEditStore = create<ProfileEditState>((set) => ({
         age: user.age,
         occupation: user.occupation,
         location: user.location,
+        city: user.city,
+        ward: user.ward,
         aboutMe: user.aboutMe,
-        education:user.education,
+        education: user.education,
         photos: [...user.photos],
         interests: [...user.interests],
+        hobbies: user.hobbies ? [...user.hobbies] : [],
         languages: [...user.languages],
         details: { ...user.details },
       },

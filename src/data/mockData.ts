@@ -1,5 +1,11 @@
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export interface Hobby {
+  id: string;
+  name: string;
+  category: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -11,10 +17,13 @@ export interface UserProfile {
   education: string;
   distance: string;
   location: string;
+  city?: string;
+  ward?: string;
   aboutMe: string;
   photos: string[];
   details: ProfileDetails;
   interests: string[];
+  hobbies?: Hobby[];
   languages: string[];
   relationshipGoal: string;
   profileCompletion: number;

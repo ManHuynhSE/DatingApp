@@ -15,7 +15,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, borderRadius, spacing, typography } from '../src/theme';
 import { datingApi } from '../src/api/datingClient';
-import { firebaseAuth } from '../src/auth/firebase';
 
 export default function CreateProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
@@ -23,28 +22,44 @@ export default function CreateProfileScreen() {
   const [age, setAge] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | 'non_binary' | 'other'>('male');
   const [occupation, setOccupation] = useState('');
+  const [location, setLocation] = useState('');
   const [about, setAbout] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const finish = async () => {
-    if (!name.trim() || !age.trim() || !userId) {
-      Alert.alert('Complete your profile', 'Please add your name and age before continuing.');
+    const ageNum = parseInt(age, 10);
+    if (!name.trim() || Number.isNaN(ageNum) || ageNum < 18 || ageNum > 120 || !userId) {
+      Alert.alert('Complete your profile', 'Please enter your name and an age between 18 and 120.');
       return;
     }
 
     setIsSaving(true);
     try {
-      // Calculate birth_date from age
-      const birthYear = new Date().getFullYear() - parseInt(age);
-      const birth_date = new Date(birthYear, 0, 1).toISOString().split('T')[0];
+      // Calculate birth_date from age ensuring 18-120 range
+      const birthYear = new Date().getFullYear() - ageNum;
+      const birth_date = `${birthYear}-01-01`;
+
+      let ward: string | null = null;
+      let city: string | null = null;
+      if (location.trim()) {
+        const parts = location.split(',').map((p) => p.trim()).filter(Boolean);
+        if (parts.length > 1) {
+          ward = parts[0].slice(0, 100);
+          city = parts.slice(1).join(', ').slice(0, 100);
+        } else if (parts.length === 1) {
+          city = parts[0].slice(0, 100);
+        }
+      }
 
       const profile = await datingApi.createProfile({
         user_id: userId,
-        display_name: name.trim(),
+        display_name: name.trim().slice(0, 50),
         birth_date,
         gender,
-        bio: about.trim() || null,
-        job_title: occupation.trim() || null,
+        bio: about.trim() ? about.trim().slice(0, 500) : null,
+        job_title: occupation.trim() ? occupation.trim().slice(0, 100) : null,
+        city,
+        ward,
       });
 
       if (profile.success) {
@@ -87,7 +102,36 @@ export default function CreateProfileScreen() {
         <TextInput value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={colors.textTertiary} style={styles.input} />
         <TextInput value={age} onChangeText={setAge} placeholder="Age" keyboardType="number-pad" placeholderTextColor={colors.textTertiary} style={styles.input} />
         <TextInput value={occupation} onChangeText={setOccupation} placeholder="Occupation" placeholderTextColor={colors.textTertiary} style={styles.input} />
+        <TextInput value={location} onChangeText={setLocation} placeholder="Location (e.g. Ward, City)" placeholderTextColor={colors.textTertiary} style={styles.input} />
         <TextInput value={about} onChangeText={setAbout} placeholder="Tell people a little about yourself..." placeholderTextColor={colors.textTertiary} style={[styles.input, styles.about]} multiline />
+        <Text style={styles.sectionTitle}>Gender</Text>
+        <View style={styles.genderRow}>
+          {(['male', 'female', 'non_binary', 'other'] as const).map((g) => (
+            <Pressable
+              key={g}
+              style={[
+                styles.genderOption,
+                gender === g && styles.genderOptionSelected,
+              ]}
+              onPress={() => setGender(g)}
+            >
+              <Text
+                style={[
+                  styles.genderOptionText,
+                  gender === g && styles.genderOptionTextSelected,
+                ]}
+              >
+                {g === 'male'
+                  ? 'Male'
+                  : g === 'female'
+                    ? 'Female'
+                    : g === 'non_binary'
+                      ? 'Non-binary'
+                      : 'Other'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         <Text style={styles.sectionTitle}>Your preferences</Text>
         <View style={styles.preferenceRow}><Text style={styles.preferenceText}>I&apos;m interested in</Text><Text style={styles.preferenceValue}>Women</Text><Ionicons name="chevron-forward" size={18} color={colors.textTertiary} /></View>
         <View style={styles.preferenceRow}><Text style={styles.preferenceText}>Languages</Text><Text style={styles.preferenceValue}>English</Text><Ionicons name="chevron-forward" size={18} color={colors.textTertiary} /></View>
@@ -115,6 +159,21 @@ const styles = StyleSheet.create({
   slot: { flex: 1, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.textTertiary, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
   input: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, marginTop: 10, color: colors.textPrimary, ...typography.body },
   about: { height: 110, textAlignVertical: 'top', paddingTop: spacing.md },
+  genderRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  genderOption: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  genderOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
+  genderOptionText: { ...typography.captionBold, color: colors.textSecondary },
+  genderOptionTextSelected: { color: colors.primary },
   preferenceRow: { minHeight: 54, borderBottomWidth: 1, borderBottomColor: colors.borderLight, flexDirection: 'row', alignItems: 'center', gap: 8 },
   preferenceText: { flex: 1, ...typography.body, color: colors.textPrimary },
   preferenceValue: { ...typography.bodySmall, color: colors.textSecondary },

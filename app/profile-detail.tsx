@@ -191,7 +191,9 @@ export default function ProfileDetailScreen() {
         <View style={styles.section}>
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={18} color={colors.primary} />
-            <Text style={styles.locationDistance}>{profile.city || 'Location not shared'}</Text>
+            <Text style={styles.locationDistance}>
+              {[profile.ward, profile.city].filter(Boolean).join(', ') || 'Location not shared'}
+            </Text>
           </View>
         </View>
 
