@@ -1172,8 +1172,8 @@ export default function ProfilePickerScreen() {
               : "Nhập chiều cao tính bằng cm (từ 100 đến 250). Nhấn 'Done' ở góc phải trên để lưu."}
           </Text>
           <TextInput
-            value={isOtherSelectField ? otherValue : detailValue}
-            onChangeText={isOtherSelectField ? setOtherValue : setDetailValue}
+            value={detailValue}
+            onChangeText={setDetailValue}
             placeholder={
               params.field === "occupation"
                 ? "Nghề nghiệp (Occupation)"

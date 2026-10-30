@@ -36,15 +36,12 @@ const calculateAge = (birthDate: string) => {
 
 export default function ProfileDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ userId?: string; distance_km?: string }>();
+  const params = useLocalSearchParams<{ userId?: string; source?: string; distance_km?: string }>();
   const currentUserId = useAuthStore((state) => state.user?.id);
-  const params = useLocalSearchParams<{
-    userId?: string | string[];
-    source?: string | string[];
-  }>();
+
   const routeUserId = Array.isArray(params.userId) ? params.userId[0] : params.userId;
   const source = Array.isArray(params.source) ? params.source[0] : params.source;
-  const currentUserId = useAuthStore((state) => state.user?.id);
+  // const currentUserId = useAuthStore((state) => state.user?.id);
   const userId = routeUserId || currentUserId;
   const [profile, setProfile] = useState<DatingProfile | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
@@ -155,7 +152,7 @@ export default function ProfileDetailScreen() {
     return a.position - b.position;
   });
   const photoUrls = sortedPhotos.map((p) => p.url);
-  const selectedPets = profile.pets ?? [];
+  const selectedPets = profile.pet ?? "";
   const selectedLifestyle = profile.life_style ?? [];
   const selectedLanguages = profile.languages ?? [];
   const hasProfileDetails = Boolean(
@@ -296,11 +293,11 @@ export default function ProfileDetailScreen() {
                 {(selectedPets.length > 0 || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>Pets</Text>
-                    <View style={styles.choiceList}>
+                    {/* <View style={styles.choiceList}>
                       {selectedPets.length
                         ? selectedPets.map(renderChoice)
                         : <Text style={styles.emptyDetail}>Not added yet</Text>}
-                    </View>
+                    </View> */}
                   </View>
                 )}
 
