@@ -66,6 +66,7 @@ export default function ProfileDetailScreen() {
   // const currentUserId = useAuthStore((state) => state.user?.id);
   const userId = routeUserId || currentUserId;
   const [profile, setProfile] = useState<DatingProfile | null>(null);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
@@ -141,6 +142,7 @@ export default function ProfileDetailScreen() {
           throw new Error("Profile not found");
         }
         setProfile(response.data);
+        setActivePhotoIndex(0);
       })
       .catch((err) => {
         if (active) {
@@ -268,15 +270,38 @@ export default function ProfileDetailScreen() {
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
-        {/* Hero Photo */}
+        {/* Hero photo carousel */}
         <View style={styles.heroContainer}>
           <Image
             source={{
-              uri: photoUrls[0] || "https://picsum.photos/seed/profile/700/900",
+              uri: photoUrls[activePhotoIndex] || "https://picsum.photos/seed/profile/700/900",
             }}
             style={styles.heroImage}
             resizeMode="cover"
           />
+          {photoUrls.length > 1 && (
+            <>
+              <TouchableOpacity
+                style={[styles.heroArrow, styles.heroArrowLeft]}
+                onPress={() => setActivePhotoIndex((index) => (index - 1 + photoUrls.length) % photoUrls.length)}
+                accessibilityRole="button"
+                accessibilityLabel="Previous profile photo"
+              >
+                <Ionicons name="chevron-back" size={24} color={theme.white} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.heroArrow, styles.heroArrowRight]}
+                onPress={() => setActivePhotoIndex((index) => (index + 1) % photoUrls.length)}
+                accessibilityRole="button"
+                accessibilityLabel="Next profile photo"
+              >
+                <Ionicons name="chevron-forward" size={24} color={theme.white} />
+              </TouchableOpacity>
+              <View style={styles.photoCountBadge}>
+                <Text style={styles.photoCountText}>{activePhotoIndex + 1} / {photoUrls.length}</Text>
+              </View>
+            </>
+          )}
           {/* Overlay info */}
           <View style={styles.heroOverlay}>
             <View style={styles.nameRow}>
@@ -426,22 +451,6 @@ export default function ProfileDetailScreen() {
           </>
         )}
 
-        {/* Photo gallery */}
-        {photoUrls.length > 1 && (
-          <View style={styles.section}>
-            <View style={styles.photoGrid}>
-              {photoUrls.slice(1).map((photo, i) => (
-                <Image
-                  key={i}
-                  source={{ uri: photo }}
-                  style={styles.galleryPhoto}
-                  resizeMode="cover"
-                />
-              ))}
-            </View>
-          </View>
-        )}
-
         {/* Action buttons */}
         {!hideProfileActions && (
           <View style={styles.actionButtons}>
@@ -536,6 +545,33 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
   heroImage: {
     width: "100%",
     height: "100%",
+  },
+  heroArrow: {
+    position: "absolute",
+    top: "48%",
+    zIndex: 2,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.42)",
+  },
+  heroArrowLeft: { left: spacing.md },
+  heroArrowRight: { right: spacing.md },
+  photoCountBadge: {
+    position: "absolute",
+    top: spacing.md,
+    right: spacing.md,
+    zIndex: 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  photoCountText: {
+    ...typography.captionBold,
+    color: theme.white,
   },
   heroOverlay: {
     position: "absolute",
@@ -664,16 +700,6 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
     height: 1,
     backgroundColor: theme.border,
     marginHorizontal: spacing.lg,
-  },
-  photoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  galleryPhoto: {
-    width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.sm) / 2,
-    height: ((SCREEN_WIDTH - spacing.lg * 2 - spacing.sm) / 2) * 1.2,
-    borderRadius: borderRadius.md,
   },
   actionButtons: {
     flexDirection: "row",

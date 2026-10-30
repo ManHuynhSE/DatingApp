@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, borderRadius, spacing, typography } from '../src/theme';
@@ -25,6 +26,50 @@ export default function CreateProfileScreen() {
   const [location, setLocation] = useState('');
   const [about, setAbout] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [photoAssets, setPhotoAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
+
+  const pickPhotos = async (replaceIndex?: number) => {
+    const remaining = 6 - photoAssets.length + (replaceIndex === undefined ? 0 : 1);
+    if (replaceIndex === undefined && remaining <= 0) {
+      Alert.alert('Photo limit reached', 'You can add up to 6 profile photos.');
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: replaceIndex === undefined,
+        selectionLimit: Math.max(1, remaining),
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets.length) return;
+      setPhotoAssets((current) => {
+        if (replaceIndex !== undefined) {
+          const next = [...current];
+          next[replaceIndex] = result.assets[0];
+          return next;
+        }
+        return [...current, ...result.assets].slice(0, 6);
+      });
+    } catch (error) {
+      Alert.alert('Unable to open photos', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
+  const uploadSelectedPhotos = async () => {
+    for (const asset of photoAssets) {
+      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+        throw new Error('One of the selected photos is larger than 10 MB.');
+      }
+      const type = asset.mimeType || 'image/jpeg';
+      const extension = type.split('/')[1] || 'jpg';
+      await datingApi.uploadPhoto({
+        uri: asset.uri,
+        name: asset.fileName || `profile-${Date.now()}.${extension}`,
+        type,
+        webFile: asset.file,
+      });
+    }
+  };
 
   const finish = async () => {
     const ageNum = parseInt(age, 10);
@@ -63,7 +108,16 @@ export default function CreateProfileScreen() {
       });
 
       if (profile.success) {
-        router.replace('/(tabs)/discovery');
+        try {
+          await uploadSelectedPhotos();
+          router.replace('/(tabs)/discovery');
+        } catch (error) {
+          Alert.alert(
+            'Profile saved, photo upload failed',
+            error instanceof Error ? error.message : 'You can add photos from your profile later.',
+            [{ text: 'Continue', onPress: () => router.replace('/(tabs)/discovery') }],
+          );
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Please check your connection and try again.';
@@ -92,11 +146,35 @@ export default function CreateProfileScreen() {
         <Text style={styles.sectionTitle}>Add your photos</Text>
         <Text style={styles.helper}>Your main photo is how you appear in the swipe view.</Text>
         <View style={styles.photoGrid}>
-          <Pressable style={styles.mainPhoto} onPress={() => Alert.alert('Add photo', 'Photo picker will be connected in the native build.')}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500' }} style={styles.photo} />
-            <View style={styles.photoEdit}><Ionicons name="camera" size={16} color={colors.white} /></View>
-          </Pressable>
-          <View style={styles.photoSlots}>{[1, 2].map((slot) => <Pressable key={slot} style={styles.slot} onPress={() => Alert.alert('Add photo', 'Photo picker will be connected in the native build.')}><Ionicons name="add" size={24} color={colors.textTertiary} /></Pressable>)}</View>
+          {Array.from({ length: 6 }, (_, index) => {
+            const asset = photoAssets[index];
+            return (
+              <Pressable key={index} style={styles.photoSlot} onPress={() => pickPhotos(asset ? index : undefined)}>
+                {asset ? (
+                  <Image source={{ uri: asset.uri }} style={styles.photo} />
+                ) : (
+                  <Ionicons name="add" size={24} color={colors.textTertiary} />
+                )}
+                {index === 0 && asset && (
+                  <View style={styles.mainPhotoBadge}>
+                    <Text style={styles.mainPhotoBadgeText}>Main</Text>
+                  </View>
+                )}
+                {asset && (
+                  <Pressable
+                    style={styles.removePhoto}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      setPhotoAssets((current) => current.filter((_, photoIndex) => photoIndex !== index));
+                    }}
+                    accessibilityLabel="Remove photo"
+                  >
+                    <Ionicons name="close" size={14} color={colors.white} />
+                  </Pressable>
+                )}
+              </Pressable>
+            );
+          })}
         </View>
         <Text style={styles.sectionTitle}>About you</Text>
         <TextInput value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={colors.textTertiary} style={styles.input} />
@@ -151,12 +229,12 @@ const styles = StyleSheet.create({
   progressFill: { width: '25%', height: '100%', borderRadius: 4, backgroundColor: colors.primary },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.lg, marginBottom: 6 },
   helper: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.md },
-  photoGrid: { flexDirection: 'row', height: 190, gap: 10 },
-  mainPhoto: { flex: 1.35, borderRadius: borderRadius.md, overflow: 'hidden' },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  photoSlot: { width: '31.5%', aspectRatio: 3 / 4, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.border, borderRadius: borderRadius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   photo: { width: '100%', height: '100%' },
-  photoEdit: { position: 'absolute', right: 8, bottom: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  photoSlots: { flex: .65, gap: 10 },
-  slot: { flex: 1, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.textTertiary, borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
+  mainPhotoBadge: { position: 'absolute', left: 5, bottom: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, backgroundColor: colors.primary },
+  mainPhotoBadgeText: { ...typography.captionBold, color: colors.white, fontSize: 10 },
+  removePhoto: { position: 'absolute', top: 5, right: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
   input: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, marginTop: 10, color: colors.textPrimary, ...typography.body },
   about: { height: 110, textAlignVertical: 'top', paddingTop: spacing.md },
   genderRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },

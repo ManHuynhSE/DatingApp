@@ -293,10 +293,12 @@ export class DatingApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${DATING_API_BASE_URL.replace(/\/+$/, '')}${path}`;
   const idToken = await firebaseAuth.getIdToken().catch(() => null);
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body instanceof FormData;
   const response = await fetchWithTimeout(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       ...options.headers,
     },
@@ -326,6 +328,55 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const datingApi = {
   health: () => request<{ success: boolean; message: string }>('/health'),
+
+  getMyPhotos: () =>
+    request<{ success: boolean; data: DatingPhoto[] }>('/users/me/photos'),
+
+  uploadPhoto: async (file: {
+    uri: string;
+    name: string;
+    type: string;
+    webFile?: Blob;
+  }) => {
+    const body = new FormData();
+    if (Platform.OS === 'web') {
+      let webFile = file.webFile;
+      if (!webFile) {
+        const response = await fetch(file.uri);
+        if (!response.ok) throw new Error('Unable to read the selected image file');
+        webFile = await response.blob();
+      }
+      body.append('image', webFile, file.name);
+    } else {
+      body.append('image', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as unknown as Blob);
+    }
+    return request<{ success: boolean; data: DatingPhoto }>(
+      '/users/me/photos',
+      { method: 'POST', body },
+    );
+  },
+
+  deletePhoto: (photoId: string) =>
+    request<{
+      success: boolean;
+      data: { id: string; cloudinaryDeleted: boolean; legacyAsset: boolean };
+    }>(`/users/me/photos/${photoId}`, { method: 'DELETE' }),
+
+  setPrimaryPhoto: (photoId: string) =>
+    request<{ success: boolean; data: DatingPhoto[] }>(
+      `/users/me/photos/${photoId}/primary`,
+      { method: 'PATCH' },
+    ),
+
+  reorderPhotos: (photoIds: string[]) =>
+    request<{ success: boolean; data: DatingPhoto[] }>(
+      '/users/me/photos/order',
+      { method: 'PATCH', body: JSON.stringify({ photoIds }) },
+    ),
 
   getRecommendations: (
     userId: string,

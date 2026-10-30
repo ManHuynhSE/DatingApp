@@ -167,6 +167,7 @@ export default function EditProfileScreen({
         "";
       updateUser({
         name: response.data.display_name,
+        photos: current.photos,
         aboutMe: response.data.bio ?? "",
         occupation: response.data.job_title ?? "",
         location: updatedLocation,
@@ -250,21 +251,12 @@ export default function EditProfileScreen({
         >
           <View style={styles.profileHeader}>
             <View style={styles.avatarStack}>
-              {(current.photos.length
-                ? current.photos
-                : ["https://picsum.photos/seed/empty-profile/300/400"]
-              )
-                .slice(0, 3)
-                .map((photo, index) => (
-                  <Image
-                    key={photo}
-                    source={{ uri: photo }}
-                    style={[
-                      styles.avatar,
-                      { left: index * 28, zIndex: 3 - index },
-                    ]}
-                  />
-                ))}
+              <Image
+                source={{
+                  uri: current.photos[0] || "https://picsum.photos/seed/empty-profile/300/400",
+                }}
+                style={styles.avatar}
+              />
             </View>
             <View style={styles.profileHeaderText}>
               <Text style={[styles.profileName, { color: theme.textPrimary }]}>
@@ -584,9 +576,8 @@ const styles = StyleSheet.create({
     minHeight: 90,
     marginBottom: spacing.sm,
   },
-  avatarStack: { width: 112, height: 72, position: "relative" },
+  avatarStack: { width: 72, height: 72 },
   avatar: {
-    position: "absolute",
     width: 68,
     height: 68,
     borderRadius: 34,

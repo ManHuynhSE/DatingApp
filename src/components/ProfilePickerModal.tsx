@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   Easing,
@@ -35,6 +36,7 @@ import {
 import { useAuthStore } from "../store/authStore";
 import { useProfileEditStore } from "../store/profileEditStore";
 import { useThemeStore } from "../store/themeStore";
+import { datingApi, type DatingPhoto } from "../api/datingClient";
 
 const vnAddressData = require("../../assets/vn-address.json") as Record<
   string,
@@ -73,12 +75,12 @@ const lifestylesData = require("../../assets/lifestyles_list.json") as Lifestyle
 const MAX_LANGUAGES = 10;
 const MAX_INTERESTS = 10;
 
-const PHOTO_OPTIONS = [
-  "https://picsum.photos/seed/profile-new-1/500/700",
-  "https://picsum.photos/seed/profile-new-2/500/700",
-  "https://picsum.photos/seed/profile-new-3/500/700",
-  "https://picsum.photos/seed/profile-new-4/500/700",
-];
+type PhotoDraftItem = {
+  key: string;
+  url: string;
+  id?: string;
+  asset?: ImagePicker.ImagePickerAsset;
+};
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SHEET_HEIGHT = Math.min(SCREEN_HEIGHT * 0.86, 740);
@@ -154,9 +156,18 @@ function ProfilePickerSheetContent({
   const [tempPets, setTempPets] = useState<string[]>(() =>
     (details?.pets ?? "").split(",").map((pet) => pet.trim()).filter(Boolean),
   );
-  const [tempPhotos, setTempPhotos] = useState<string[]>(
-    () => draft?.photos ?? user?.photos ?? [],
+  const [photoItems, setPhotoItems] = useState<PhotoDraftItem[]>(() =>
+    (draft?.photos ?? user?.photos ?? []).map((url, index) => ({
+      key: `initial-${index}-${url}`,
+      url,
+    })),
   );
+  const [serverPhotos, setServerPhotos] = useState<DatingPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(type === "photos");
+  const [photosLoaded, setPhotosLoaded] = useState(false);
+  const [photosSaving, setPhotosSaving] = useState(false);
+  const [photosError, setPhotosError] = useState<string | null>(null);
+  const [photoLoadAttempt, setPhotoLoadAttempt] = useState(0);
   const [tempLanguages, setTempLanguages] = useState<string[]>(
     () => draft?.languages ?? user?.languages ?? [],
   );
@@ -186,6 +197,27 @@ function ProfilePickerSheetContent({
   const [hobbySearch, setHobbySearch] = useState("");
   const [lifestyleSearch, setLifestyleSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
+
+  useEffect(() => {
+    if (type !== "photos") return;
+    let active = true;
+    datingApi.getMyPhotos().then(({ data }) => {
+      if (!active) return;
+      setServerPhotos(data);
+      setPhotoItems(data.map((photo) => ({
+        key: photo.id,
+        id: photo.id,
+        url: photo.url,
+      })));
+      setPhotosLoaded(true);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setPhotosError(error instanceof Error ? error.message : "Không tải được ảnh profile.");
+    }).finally(() => {
+      if (active) setPhotosLoading(false);
+    });
+    return () => { active = false; };
+  }, [type, user?.id, photoLoadAttempt]);
 
   // Slide Up Animation on mount
   useEffect(() => {
@@ -231,6 +263,71 @@ function ProfilePickerSheetContent({
     animateClose(handleFinishModal);
   };
 
+  const savePhotos = async () => {
+    if (!photosLoaded) {
+      Alert.alert("Ảnh chưa sẵn sàng", "Tải lại danh sách ảnh rồi thử lại.");
+      return;
+    }
+
+    setPhotosSaving(true);
+    try {
+      const retainedPhotoIds = new Set(
+        photoItems.flatMap((photo) => photo.id ? [photo.id] : []),
+      );
+      const savedItems: { id: string; url: string }[] = [];
+      for (const photo of photoItems) {
+        if (photo.id) {
+          savedItems.push({ id: photo.id, url: photo.url });
+          continue;
+        }
+        if (!photo.asset) continue;
+
+        const asset = photo.asset;
+        const mimeType = asset.mimeType || "image/jpeg";
+        const extension = mimeType.split("/")[1] || "jpg";
+        const uploaded = await datingApi.uploadPhoto({
+          uri: asset.uri,
+          name: asset.fileName || `profile-${Date.now()}.${extension}`,
+          type: mimeType,
+          webFile: asset.file,
+        });
+        const savedPhoto = uploaded.data;
+        savedItems.push({ id: savedPhoto.id, url: savedPhoto.url });
+        setServerPhotos((previous) => [...previous, savedPhoto]);
+        setPhotoItems((previous) => previous.map((item) =>
+          item.key === photo.key
+            ? { key: savedPhoto.id, id: savedPhoto.id, url: savedPhoto.url }
+            : item,
+        ));
+      }
+
+      for (const photo of serverPhotos) {
+        if (!retainedPhotoIds.has(photo.id)) {
+          await datingApi.deletePhoto(photo.id);
+          setServerPhotos((previous) => previous.filter((item) => item.id !== photo.id));
+        }
+      }
+
+      const ordered = await datingApi.reorderPhotos(savedItems.map((photo) => photo.id));
+      const finalPhotos = ordered.data.map((photo) => photo.url);
+      setServerPhotos(ordered.data);
+      setPhotoItems(ordered.data.map((photo) => ({
+        key: photo.id,
+        id: photo.id,
+        url: photo.url,
+      })));
+      update({ photos: finalPhotos });
+      animateClose(handleFinishModal);
+    } catch (error) {
+      Alert.alert(
+        "Không lưu được ảnh",
+        error instanceof Error ? error.message : "Thử lại sau nhé.",
+      );
+    } finally {
+      setPhotosSaving(false);
+    }
+  };
+
   // ─── DONE HANDLER: Validates and commits temporary state to draft ──────────
   const handleDone = () => {
     const baseDetails = draft?.details ?? user?.details;
@@ -247,8 +344,7 @@ function ProfilePickerSheetContent({
     }
 
     if (type === "photos") {
-      update({ photos: tempPhotos });
-      animateClose(handleFinishModal);
+      void savePhotos();
       return;
     }
 
@@ -484,14 +580,54 @@ function ProfilePickerSheetContent({
     });
   };
 
-  const addPhoto = (photo: string) => {
-    if (!tempPhotos.includes(photo)) {
-      setTempPhotos((prev) => [...prev, photo].slice(0, 6));
+  const choosePhoto = async () => {
+    if (!photosLoaded || photosLoading || photosSaving) return;
+    if (photoItems.length >= 6) {
+      Alert.alert("Đã đủ ảnh", "Profile hiện hỗ trợ tối đa 6 ảnh.");
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+        Alert.alert("Ảnh quá lớn", "Chọn ảnh nhỏ hơn 10 MB.");
+        return;
+      }
+
+      setPhotoItems((previous) => [
+        ...previous,
+        {
+          key: `local-${Date.now()}`,
+          url: asset.uri,
+          asset,
+        },
+      ]);
+    } catch (error) {
+      Alert.alert(
+        "Không mở được thư viện ảnh",
+        error instanceof Error ? error.message : "Thử lại sau nhé.",
+      );
     }
   };
 
-  const removePhoto = (photo: string) => {
-    setTempPhotos((prev) => prev.filter((p) => p !== photo));
+  const removePhoto = (key: string) => {
+    setPhotoItems((previous) => previous.filter((photo) => photo.key !== key));
+  };
+
+  const movePhoto = (index: number, offset: number) => {
+    setPhotoItems((previous) => {
+      const nextIndex = index + offset;
+      if (nextIndex < 0 || nextIndex >= previous.length) return previous;
+      const next = [...previous];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
   };
 
   const getCategoryIcon = (categoryId: string) => {
@@ -590,10 +726,11 @@ function ProfilePickerSheetContent({
                 onPress={handleDone}
                 style={styles.headerBtn}
                 hitSlop={8}
+                disabled={type === "photos" && (!photosLoaded || photosLoading || photosSaving)}
                 accessibilityLabel="Done and save changes"
               >
                 <Text style={[styles.doneText, { color: theme.primary }]}>
-                  Done
+                  {type === "photos" && photosSaving ? "Saving…" : "Done"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -606,66 +743,93 @@ function ProfilePickerSheetContent({
                   <Text
                     style={[styles.helper, { color: theme.textSecondary }]}
                   >
-                    Select photos to add to your profile (max 6):
+                    {photosLoading
+                      ? "Loading your saved photos…"
+                      : photosError
+                        ? photosError
+                        : "Add up to 6 real photos. The first photo is your main photo."}
                   </Text>
+                  {photosError && (
+                    <TouchableOpacity
+                      style={styles.photoPickerButton}
+                      onPress={() => {
+                        setPhotosLoading(true);
+                        setPhotosError(null);
+                        setPhotoLoadAttempt((attempt) => attempt + 1);
+                      }}
+                    >
+                      <Ionicons name="refresh-outline" size={18} color={theme.primary} />
+                      <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>Try again</Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.photoGrid}>
-                    {tempPhotos.map((photo) => (
-                      <View key={photo} style={styles.photoThumbWrap}>
+                    {photoItems.map((photo, index) => (
+                      <View key={photo.key} style={styles.photoThumbWrap}>
                         <Image
-                          source={{ uri: photo }}
+                          source={{ uri: photo.url }}
                           style={styles.photoThumb}
                         />
-                        {tempPhotos.length > 1 && (
-                          <TouchableOpacity
-                            style={styles.removePhotoBtn}
-                            onPress={() => removePhoto(photo)}
-                          >
-                            <Ionicons name="close" size={14} color="#fff" />
-                          </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.photoPrimaryBtn}
+                          onPress={() => movePhoto(index, -index)}
+                          disabled={index === 0 || photosSaving || !photosLoaded}
+                          accessibilityLabel={index === 0 ? "Main photo" : "Make main photo"}
+                        >
+                          <Ionicons
+                            name={index === 0 ? "star" : "star-outline"}
+                            size={15}
+                            color={index === 0 ? "#FFC94A" : "#fff"}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.removePhotoBtn}
+                          onPress={() => removePhoto(photo.key)}
+                          disabled={photosSaving || !photosLoaded}
+                          accessibilityLabel="Remove photo"
+                        >
+                          <Ionicons name="close" size={14} color="#fff" />
+                        </TouchableOpacity>
+                        {(index > 0 || index < photoItems.length - 1) && (
+                          <View style={styles.photoOrderBar}>
+                            <TouchableOpacity
+                              style={styles.photoOrderBtn}
+                              onPress={() => movePhoto(index, -1)}
+                              disabled={index === 0 || photosSaving || !photosLoaded}
+                              accessibilityLabel="Move photo earlier"
+                            >
+                              <Ionicons name="arrow-back" size={14} color="#fff" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.photoOrderBtn}
+                              onPress={() => movePhoto(index, 1)}
+                              disabled={index === photoItems.length - 1 || photosSaving || !photosLoaded}
+                              accessibilityLabel="Move photo later"
+                            >
+                              <Ionicons name="arrow-forward" size={14} color="#fff" />
+                            </TouchableOpacity>
+                          </View>
                         )}
                       </View>
                     ))}
                   </View>
-
-                  <Text
+                  <TouchableOpacity
                     style={[
-                      styles.sectionHeading,
-                      { color: theme.textPrimary },
+                      styles.photoPickerButton,
+                      { borderColor: theme.border, backgroundColor: theme.surface },
                     ]}
+                    onPress={choosePhoto}
+                    disabled={!photosLoaded || photosLoading || photosSaving || photoItems.length >= 6}
+                    accessibilityLabel="Choose a photo from your library"
                   >
-                    Suggestions
-                  </Text>
-                  <View style={styles.suggestionsGrid}>
-                    {PHOTO_OPTIONS.map((item) => {
-                      const isAdded = tempPhotos.includes(item);
-                      return (
-                        <TouchableOpacity
-                          key={item}
-                          onPress={() =>
-                            isAdded ? removePhoto(item) : addPhoto(item)
-                          }
-                          style={[
-                            styles.suggestionItem,
-                            isAdded && { borderColor: theme.primary, borderWidth: 2 },
-                          ]}
-                        >
-                          <Image
-                            source={{ uri: item }}
-                            style={styles.suggestionThumb}
-                          />
-                          {isAdded && (
-                            <View style={styles.photoCheckedOverlay}>
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={22}
-                                color={theme.primary}
-                              />
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                    {photosSaving ? (
+                      <Ionicons name="sync-outline" size={18} color={theme.primary} />
+                    ) : (
+                      <Ionicons name="image-outline" size={18} color={theme.primary} />
+                    )}
+                    <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>
+                      Choose from library
+                    </Text>
+                  </TouchableOpacity>
                 </ScrollView>
               ) : type === "languages" ? (
                 /* 2. Languages Picker */
@@ -1693,29 +1857,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  suggestionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  suggestionItem: {
-    width: "31%",
-    aspectRatio: 3 / 4,
-    borderRadius: borderRadius.md,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  suggestionThumb: {
-    width: "100%",
-    height: "100%",
-  },
-  photoCheckedOverlay: {
+  photoPrimaryBtn: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "#fff",
+    top: 4,
+    left: 4,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    width: 24,
+    height: 24,
     borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoOrderBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 4,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  photoOrderBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoPickerButton: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  photoPickerButtonText: {
+    ...typography.bodyBold,
+    fontSize: 14,
   },
   searchBox: {
     flexDirection: "row",
