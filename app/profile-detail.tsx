@@ -36,6 +36,8 @@ const calculateAge = (birthDate: string) => {
 
 export default function ProfileDetailScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ userId?: string; distance_km?: string }>();
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const params = useLocalSearchParams<{
     userId?: string | string[];
     source?: string | string[];
@@ -47,6 +49,44 @@ export default function ProfileDetailScreen() {
   const [profile, setProfile] = useState<DatingProfile | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  const handleLike = async () => {
+    if (!profile || isSubmittingAction) return;
+    setIsSubmittingAction(true);
+    if (currentUserId) {
+      try {
+        const res = await datingApi.createSwipe(currentUserId, profile.user_id, 'like');
+        if (res.isMatch) {
+          router.replace({
+            pathname: '/match-found',
+            params: {
+              matchedUserId: profile.user_id,
+              matchedName: profile.display_name,
+              matchedPhoto: photoUrls[0] || '',
+            },
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('Swipe like failed:', err);
+      }
+    }
+    router.back();
+  };
+
+  const handlePass = async () => {
+    if (!profile || isSubmittingAction) return;
+    setIsSubmittingAction(true);
+    if (currentUserId) {
+      try {
+        await datingApi.createSwipe(currentUserId, profile.user_id, 'pass');
+      } catch (err) {
+        console.warn('Swipe pass failed:', err);
+      }
+    }
+    router.back();
+  };
   const loading = Boolean(userId) && loadedUserId !== userId;
   const isOwnProfile = Boolean(userId && userId === currentUserId);
   const isMatchedProfile = source === 'matches';
@@ -192,7 +232,24 @@ export default function ProfileDetailScreen() {
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={18} color={colors.primary} />
             <Text style={styles.locationDistance}>
-              {[profile.ward, profile.city].filter(Boolean).join(', ') || 'Location not shared'}
+              {(() => {
+                const distanceKmVal =
+                  profile.distance_km ??
+                  (params.distance_km ? Number(params.distance_km) : null);
+                const distanceLabel =
+                  distanceKmVal !== null && distanceKmVal !== undefined
+                    ? distanceKmVal < 1
+                      ? '< 1 km away'
+                      : `${distanceKmVal} km away`
+                    : null;
+                const locationString = [profile.ward, profile.city]
+                  .filter(Boolean)
+                  .join(', ');
+                return (
+                  [distanceLabel, locationString].filter(Boolean).join(' · ') ||
+                  'Location not shared'
+                );
+              })()}
             </Text>
           </View>
         </View>
