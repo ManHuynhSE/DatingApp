@@ -4,6 +4,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -11,10 +12,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import SpringPressable from '@/components/SpringPressable';
 import { colors, darkColors, borderRadius, spacing, typography } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { datingApi, type DatingMatchItem } from '@/api/datingClient';
+
+const FALLBACK_PHOTO = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300';
+const springFadeInDown = (delay = 0) =>
+  FadeInDown.delay(delay).springify().damping(22).stiffness(240).mass(0.85);
 
 function calculateAge(birthDate?: string) {
   if (!birthDate) return null;
@@ -25,9 +32,7 @@ function calculateAge(birthDate?: string) {
   if (
     today.getMonth() < birth.getMonth() ||
     (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
-  ) {
-    age -= 1;
-  }
+  ) age -= 1;
   return age;
 }
 
@@ -35,12 +40,18 @@ function getPartnerPhoto(match: DatingMatchItem) {
   const photos = [...match.partner.photo].sort(
     (a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position,
   );
-  return photos[0]?.url ?? `https://picsum.photos/seed/${match.partner.id}/160/160`;
+  return photos[0]?.url ?? FALLBACK_PHOTO;
+}
+
+function formatMatchDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Recently matched';
+  return `Matched ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
 }
 
 export default function MatchesScreen() {
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
+  const userId = useAuthStore((state) => state.user?.id);
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === 'dark' ? darkColors : colors;
   const styles = createStyles(theme);
@@ -50,11 +61,14 @@ export default function MatchesScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const refreshMatches = useCallback(async () => {
-    if (!user?.id) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     setRefreshing(true);
     setError(null);
     try {
-      const response = await datingApi.getUserMatches(user.id);
+      const response = await datingApi.getUserMatches(userId);
       setMatches(response.data ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load matches.');
@@ -62,105 +76,194 @@ export default function MatchesScreen() {
       setRefreshing(false);
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!user?.id) return;
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       let active = true;
-      datingApi
-        .getUserMatches(user.id)
+      datingApi.getUserMatches(userId)
         .then((response) => {
-          if (active) {
-            setMatches(response.data ?? []);
-            setError(null);
-          }
+          if (!active) return;
+          setMatches(response.data ?? []);
+          setError(null);
         })
         .catch((err: unknown) => {
-          if (active) {
-            setError(err instanceof Error ? err.message : 'Could not load matches.');
-          }
+          if (active) setError(err instanceof Error ? err.message : 'Could not load matches.');
         })
         .finally(() => {
           if (active) setLoading(false);
         });
-      return () => {
-        active = false;
-      };
-    }, [user]),
+      return () => { active = false; };
+    }, [userId]),
   );
 
-  const renderMatch = ({ item }: { item: DatingMatchItem }) => {
+  const openProfile = (item: DatingMatchItem) => {
+    if (!item.partner.profile) return;
+    router.push({
+      pathname: '/profile-detail',
+      params: {
+        userId: item.partner.id,
+        source: 'matches',
+        distance_km: item.partner.distance_km == null ? '' : String(item.partner.distance_km),
+      },
+    });
+  };
+
+  const renderMatch = ({ item, index }: { item: DatingMatchItem; index: number }) => {
     const profile = item.partner.profile;
     const age = calculateAge(profile?.birth_date);
-    const location = [profile?.ward, profile?.city].filter(Boolean).join(', ');
-    const subtitle = [profile?.job_title, location].filter(Boolean).join(' · ');
+    const context = [profile?.job_title, profile?.city].filter(Boolean).join(' · ');
 
     return (
-      <Pressable
-        accessibilityRole="button"
-        disabled={!profile}
-        onPress={() => router.push({ pathname: '/profile-detail', params: { userId: item.partner.id } })}
-        style={({ pressed }) => [styles.matchCard, pressed && styles.pressed]}
-      >
-        <Image source={{ uri: getPartnerPhoto(item) }} style={styles.avatar} />
-        <View style={styles.matchInfo}>
-          <Text style={styles.name} numberOfLines={1}>
-            {profile?.display_name ?? 'Profile unavailable'}{age ? `, ${age}` : ''}
-          </Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {subtitle || (profile?.bio ? profile.bio : 'You matched')}
-          </Text>
-          <Text style={styles.date}>
-            Matched {new Date(item.matched_at).toLocaleDateString()}
-          </Text>
+      <Animated.View entering={springFadeInDown(Math.min(index, 8) * 45)}>
+       <SpringPressable
+          accessibilityRole="button"
+          accessibilityLabel={`View ${profile?.display_name ?? 'match'} profile`}
+          disabled={!profile}
+          onPress={() => openProfile(item)}
+          style={[styles.matchCard, !profile && styles.matchCardUnavailable]}
+        >
+        <View style={styles.photoWrap}>
+          <Image source={{ uri: getPartnerPhoto(item) }} style={styles.avatar} />
+          <View style={styles.photoHeart}>
+            <Ionicons name="heart" size={12} color={theme.white} />
+          </View>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
-      </Pressable>
+
+        <View style={styles.matchInfo}>
+          <View style={styles.nameLine}>
+            <Text style={styles.name} numberOfLines={1}>
+              {profile?.display_name ?? 'Profile unavailable'}{age ? `, ${age}` : ''}
+            </Text>
+            {profile?.is_verified && (
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="checkmark" size={11} color={theme.white} />
+              </View>
+            )}
+          </View>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {context || (profile?.bio ? profile.bio : 'Your mutual like starts here')}
+          </Text>
+          <View style={styles.dateLine}>
+            <Ionicons name="heart-outline" size={13} color={theme.primary} />
+            <Text style={styles.date}>{formatMatchDate(item.matched_at)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.openButton}>
+          <Ionicons name="chevron-forward" size={19} color={theme.primary} />
+        </View>
+        </SpringPressable>
+      </Animated.View>
     );
   };
 
+  const listHeader = (
+    <View>
+      <Animated.View entering={springFadeInDown()} style={styles.pageHeader}>
+        <View style={styles.eyebrowRow}>
+          <View style={styles.eyebrowDot} />
+          <Text style={styles.eyebrow}>YOUR CONNECTIONS</Text>
+        </View>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Matches</Text>
+          <View style={styles.countPill}>
+            <Ionicons name="heart" size={15} color={theme.primary} />
+            <Text style={styles.countText}>{matches.length}</Text>
+          </View>
+        </View>
+        <Text style={styles.subtitleHeader}>A mutual like is a lovely place to start.</Text>
+      </Animated.View>
+
+      {matches.length > 0 && (
+        <Animated.View entering={springFadeInDown(90)} style={styles.noteCard}>
+          <View style={styles.noteIcon}>
+            <Ionicons name="sparkles-outline" size={20} color={theme.primary} />
+          </View>
+          <Text style={styles.noteText}>Say hello and see where the conversation goes.</Text>
+        </Animated.View>
+      )}
+
+      <Animated.View entering={springFadeInDown(140)} style={styles.listHeading}>
+        <Text style={styles.listTitle}>People you matched with</Text>
+        <Text style={styles.listCount}>{matches.length}</Text>
+      </Animated.View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Matches</Text>
-        <Text style={styles.count}>{matches.length}</Text>
-      </View>
-
-      {!user ? (
+      {!userId ? (
         <View style={styles.stateContainer}>
+          <View style={styles.stateIcon}>
+            <Ionicons name="person-outline" size={28} color={theme.primary} />
+          </View>
           <Text style={styles.stateTitle}>Sign in to see your matches</Text>
+          <Text style={styles.stateDescription}>Your mutual likes will appear here.</Text>
         </View>
       ) : loading ? (
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={styles.loadingText}>Finding your connections…</Text>
         </View>
       ) : error ? (
         <View style={styles.stateContainer}>
-          <Ionicons name="cloud-offline-outline" size={42} color={theme.textTertiary} />
+          <View style={styles.stateIcon}>
+            <Ionicons name="cloud-offline-outline" size={28} color={theme.textTertiary} />
+          </View>
           <Text style={styles.stateTitle}>Couldn’t load matches</Text>
           <Text style={styles.stateDescription}>{error}</Text>
           <Pressable onPress={refreshMatches} disabled={refreshing} style={styles.retryButton}>
-            {refreshing ? <ActivityIndicator color={theme.white} /> : <Text style={styles.retryText}>Try again</Text>}
+            {refreshing
+              ? <ActivityIndicator color={theme.white} />
+              : <Text style={styles.retryText}>Try again</Text>}
           </Pressable>
         </View>
       ) : matches.length === 0 ? (
-        <View style={styles.stateContainer}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="heart-outline" size={42} color={theme.primary} />
-          </View>
-          <Text style={styles.stateTitle}>No matches yet</Text>
-          <Text style={styles.stateDescription}>
-            When you and someone like each other, they’ll show up here.
-          </Text>
-        </View>
+        <FlatList
+          data={[]}
+          renderItem={renderMatch}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={(
+            <Animated.View entering={springFadeInDown(180)} style={styles.emptyState}>
+              <View style={styles.emptyArtwork}>
+                <View style={styles.emptyHalo} />
+                <Ionicons name="heart" size={38} color={theme.primary} />
+                <View style={styles.emptySparkle}>
+                  <Ionicons name="sparkles" size={16} color={theme.secondary} />
+                </View>
+              </View>
+              <Text style={styles.emptyTitle}>Your story starts with a match</Text>
+              <Text style={styles.emptyDescription}>
+                Like someone you’re interested in. If they like you back, you’ll find them here.
+              </Text>
+              <Pressable onPress={() => router.push('/(tabs)/discovery')} style={styles.discoverButton}>
+                <Text style={styles.discoverButtonText}>Explore profiles</Text>
+                <Ionicons name="arrow-forward" size={17} color={theme.white} />
+              </Pressable>
+            </Animated.View>
+          )}
+          contentContainerStyle={styles.emptyListContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={(
+            <RefreshControl refreshing={refreshing} onRefresh={refreshMatches} tintColor={theme.primary} />
+          )}
+        />
       ) : (
         <FlatList
           data={matches}
           keyExtractor={(item) => item.id}
           renderItem={renderMatch}
-          contentContainerStyle={styles.list}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={(
+            <RefreshControl refreshing={refreshing} onRefresh={refreshMatches} tintColor={theme.primary} />
+          )}
         />
       )}
     </SafeAreaView>
@@ -169,30 +272,62 @@ export default function MatchesScreen() {
 
 const createStyles = (theme: typeof colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: {
-    minHeight: 64,
-    paddingHorizontal: spacing.base,
+  pageHeader: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
+  eyebrowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.primary },
+  eyebrow: { ...typography.captionBold, color: theme.primary, letterSpacing: 1.2 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  title: { ...typography.h1, color: theme.textPrimary, fontSize: 32 },
+  countPill: {
+    minWidth: 48,
+    height: 32,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.border,
-  },
-  title: { ...typography.h2, color: theme.textPrimary },
-  count: {
-    ...typography.bodySmall,
-    color: theme.primary,
+    justifyContent: 'center',
+    gap: spacing.xs,
     backgroundColor: theme.primaryLight,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
   },
-  list: { padding: spacing.base, paddingBottom: 100, gap: spacing.sm },
-  matchCard: {
-    minHeight: 88,
-    padding: spacing.sm,
+  countText: { ...typography.bodyBold, color: theme.primary },
+  subtitleHeader: { ...typography.bodySmall, color: theme.textSecondary, marginTop: spacing.xs },
+  noteCard: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    minHeight: 64,
     borderRadius: borderRadius.lg,
+    backgroundColor: theme.primaryLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  noteIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: theme.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteText: { ...typography.bodySmall, color: theme.textPrimary, flex: 1 },
+  listHeading: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  listTitle: { ...typography.bodyBold, color: theme.textPrimary },
+  listCount: { ...typography.captionBold, color: theme.textTertiary },
+  listContent: { paddingBottom: 112 },
+  matchCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    minHeight: 112,
+    padding: spacing.md,
+    borderRadius: borderRadius.xl,
     backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: theme.border,
@@ -200,32 +335,121 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  pressed: { opacity: 0.75 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: theme.border },
-  matchInfo: { flex: 1, gap: 3 },
-  name: { ...typography.bodyBold, color: theme.textPrimary },
-  subtitle: { ...typography.bodySmall, color: theme.textSecondary },
-  date: { ...typography.caption, color: theme.textTertiary },
-  stateContainer: {
-    flex: 1,
+  matchCardPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+  matchCardUnavailable: { opacity: 0.65 },
+  photoWrap: { position: 'relative' },
+  avatar: {
+    width: 76,
+    height: 76,
+    borderRadius: borderRadius.lg,
+    backgroundColor: theme.border,
+  },
+  photoHeart: {
+    position: 'absolute',
+    right: -5,
+    bottom: -5,
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: theme.surface,
+    backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing['2xl'],
   },
-  emptyIcon: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: theme.surface,
+  matchInfo: { flex: 1, minWidth: 0, gap: 5 },
+  nameLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  name: { ...typography.bodyBold, color: theme.textPrimary, flexShrink: 1 },
+  verifiedBadge: {
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+    backgroundColor: '#4A90D9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subtitle: { ...typography.caption, color: theme.textSecondary },
+  dateLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  date: { ...typography.caption, color: theme.textTertiary },
+  openButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: theme.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyListContent: { flexGrow: 1, paddingBottom: 112 },
+  emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxl },
+  emptyArtwork: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    backgroundColor: theme.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
-  stateTitle: { ...typography.h3, color: theme.textPrimary, textAlign: 'center', marginTop: spacing.md },
-  stateDescription: { ...typography.body, color: theme.textSecondary, textAlign: 'center', marginTop: spacing.sm },
+  emptyHalo: {
+    position: 'absolute',
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: theme.white,
+  },
+  emptySparkle: {
+    position: 'absolute',
+    top: 13,
+    right: 14,
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    backgroundColor: theme.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: { ...typography.h3, color: theme.textPrimary, textAlign: 'center' },
+  emptyDescription: {
+    ...typography.bodySmall,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginTop: spacing.sm,
+    maxWidth: 310,
+  },
+  discoverButton: {
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+    backgroundColor: theme.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  discoverButtonText: { ...typography.bodyBold, color: theme.white },
+  stateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: theme.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  stateTitle: { ...typography.h3, color: theme.textPrimary, textAlign: 'center' },
+  stateDescription: { ...typography.bodySmall, color: theme.textSecondary, textAlign: 'center', marginTop: spacing.sm },
+  loadingText: { ...typography.bodySmall, color: theme.textSecondary, marginTop: spacing.md },
   retryButton: {
-    minWidth: 120,
-    minHeight: 44,
+    minWidth: 130,
+    minHeight: 46,
     marginTop: spacing.lg,
     paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.full,

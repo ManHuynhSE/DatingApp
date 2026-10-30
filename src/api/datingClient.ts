@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { firebaseAuth } from '@/auth/firebase';
 
 const API_HOST =
   process.env.EXPO_PUBLIC_API_HOST ||
@@ -68,6 +69,7 @@ export interface DatingProfile {
   ward: string | null;
   latitude: number | null;
   longitude: number | null;
+  distance_km?: number | null;
   is_verified: boolean;
   languages: string[];
   users?: {
@@ -80,6 +82,55 @@ export interface DatingProfile {
     photos?: DatingPhoto[];
   };
 }
+
+export interface RecommendationProfile {
+  id: string;
+  user_id: string;
+  display_name: string;
+  birth_date: string;
+  gender: 'male' | 'female' | 'non_binary' | 'other' | string;
+  bio: string | null;
+  job_title: string | null;
+  pet: string | null;
+  life_style: string[];
+  hobbies: Hobby[];
+  education: string | null;
+  height_cm: number | null;
+  city: string | null;
+  ward: string | null;
+  distance_km: number | null;
+  is_verified: boolean;
+  languages: string[];
+  users?: {
+    id: string;
+    photos?: DatingPhoto[];
+  };
+}
+
+export interface UserPreferences {
+  id?: string;
+  user_id: string;
+  interested_in: 'male' | 'female' | 'everyone';
+  age_min: number;
+  age_max: number;
+  max_distance_km: number;
+  show_me: boolean;
+  interested_languages: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type UpdateUserPreferencesInput = Partial<
+  Pick<
+    UserPreferences,
+    | 'interested_in'
+    | 'age_min'
+    | 'age_max'
+    | 'max_distance_km'
+    | 'show_me'
+    | 'interested_languages'
+  >
+>;
 
 export interface DatingProfileListResponse {
   success: boolean;
@@ -94,7 +145,7 @@ export interface DatingProfileListResponse {
 
 export interface RecommendationPageResponse {
   success: boolean;
-  data: DatingProfile[];
+  data: RecommendationProfile[];
   pagination: {
     limit: number;
     sessionId: string | null;
@@ -135,6 +186,7 @@ export interface DatingMatchItem {
   partner: {
     id: string;
     status: string;
+    distance_km?: number | null;
     profile: Pick<
       DatingProfile,
       'display_name' | 'birth_date' | 'gender' | 'bio' | 'city' | 'ward' | 'job_title' | 'is_verified'
@@ -240,10 +292,14 @@ export class DatingApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${DATING_API_BASE_URL.replace(/\/+$/, '')}${path}`;
+  const idToken = await firebaseAuth.getIdToken().catch(() => null);
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body instanceof FormData;
   const response = await fetchWithTimeout(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       ...options.headers,
     },
   });
@@ -270,13 +326,114 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+async function nativeMultipartRequest<T>(path: string, body: FormData): Promise<T> {
+  const url = `${DATING_API_BASE_URL.replace(/\/+$/, '')}${path}`;
+  const idToken = await firebaseAuth.getIdToken().catch(() => null);
+
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.timeout = REQUEST_TIMEOUT_MS;
+    if (idToken) xhr.setRequestHeader('Authorization', `Bearer ${idToken}`);
+    xhr.onload = () => {
+      const text = xhr.responseText;
+      let responseBody: unknown = null;
+      try {
+        responseBody = text ? JSON.parse(text) : null;
+      } catch {
+        responseBody = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(responseBody as T);
+        return;
+      }
+
+      const message =
+        typeof responseBody === 'object' &&
+        responseBody !== null &&
+        'message' in responseBody &&
+        typeof responseBody.message === 'string'
+          ? responseBody.message
+          : text || xhr.statusText || 'Photo upload failed';
+      reject(new DatingApiError(xhr.status, `${message} (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error('Network request failed while uploading photo'));
+    xhr.ontimeout = () =>
+      reject(new DatingApiError(408, `Photo upload timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds`));
+    xhr.onabort = () => reject(new DatingApiError(408, 'Photo upload was cancelled'));
+    xhr.send(body);
+  });
+}
+
 export const datingApi = {
   health: () => request<{ success: boolean; message: string }>('/health'),
 
-  getRecommendations: (userId: string, options: { limit?: number; cursor?: string } = {}) => {
-    const query = new URLSearchParams({ limit: String(options.limit ?? 50) });
+  getMyPhotos: () =>
+    request<{ success: boolean; data: DatingPhoto[] }>('/users/me/photos'),
+
+  uploadPhoto: async (file: {
+    uri: string;
+    name: string;
+    type: string;
+    webFile?: Blob;
+  }) => {
+    const body = new FormData();
+    if (Platform.OS !== 'web') {
+      body.append('image', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as unknown as Blob);
+      // Expo's Winter fetch converts FormData to bytes and rejects React Native's
+      // { uri, name, type } file part. XHR still handles native file URIs natively.
+      return nativeMultipartRequest<{ success: boolean; data: DatingPhoto }>(
+        '/users/me/photos',
+        body,
+      );
+    }
+
+    let webFile = file.webFile;
+    if (!webFile) {
+      const response = await fetch(file.uri);
+      if (!response.ok) throw new Error('Unable to read the selected image file');
+      webFile = await response.blob();
+    }
+    body.append('image', webFile, file.name);
+    return request<{ success: boolean; data: DatingPhoto }>(
+      '/users/me/photos',
+      { method: 'POST', body },
+    );
+  },
+
+  deletePhoto: (photoId: string) =>
+    request<{
+      success: boolean;
+      data: { id: string; cloudinaryDeleted: boolean; legacyAsset: boolean };
+    }>(`/users/me/photos/${photoId}`, { method: 'DELETE' }),
+
+  setPrimaryPhoto: (photoId: string) =>
+    request<{ success: boolean; data: DatingPhoto[] }>(
+      `/users/me/photos/${photoId}/primary`,
+      { method: 'PATCH' },
+    ),
+
+  reorderPhotos: (photoIds: string[]) =>
+    request<{ success: boolean; data: DatingPhoto[] }>(
+      '/users/me/photos/order',
+      { method: 'PATCH', body: JSON.stringify({ photoIds }) },
+    ),
+
+  getRecommendations: (
+    userId: string,
+    options: { limit?: number; cursor?: string | null } = {},
+  ) => {
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+    const query = new URLSearchParams({ limit: String(limit) });
     if (options.cursor) query.append('cursor', options.cursor);
-    return request<RecommendationPageResponse>(`/recommendations/${userId}?${query.toString()}`);
+    return request<RecommendationPageResponse>(
+      `/recommendations/${userId}?${query.toString()}`,
+    );
   },
 
   recordRecommendationImpressions: (
@@ -289,6 +446,35 @@ export const datingApi = {
       {
         method: 'POST',
         body: JSON.stringify({ sessionId, candidateUserIds }),
+      },
+    ),
+
+  getUserPreferences: (userId: string) =>
+    request<{ success: boolean; data: UserPreferences }>(
+      `/preferences/user/${userId}`,
+    ),
+
+  updateUserPreferences: (
+    userId: string,
+    preferences: UpdateUserPreferencesInput,
+  ) =>
+    request<{ success: boolean; message?: string; data: UserPreferences }>(
+      `/preferences/user/${userId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(preferences),
+      },
+    ),
+
+  upsertUserPreferences: (
+    userId: string,
+    preferences: UpdateUserPreferencesInput,
+  ) =>
+    request<{ success: boolean; message?: string; data: UserPreferences }>(
+      `/preferences/user/${userId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(preferences),
       },
     ),
 
@@ -417,6 +603,29 @@ export const datingApi = {
   getUserMatches: (userId: string) =>
     request<DatingMatchListResponse>(`/matches/user/${userId}`),
 
+  getChatConversations: () =>
+    request<{ success: boolean; data: ChatConversationSummary[] }>('/chat/conversations'),
+
+  getChatConversation: (conversationId: string) =>
+    request<{ success: boolean; data: ChatConversationSummary }>(
+      `/chat/conversations/${conversationId}`,
+    ),
+
+  getOrCreateChatConversation: (matchId: string) =>
+    request<{ success: boolean; data: ChatConversationSummary }>(
+      `/chat/matches/${matchId}/conversation`,
+      { method: 'POST' },
+    ),
+
+  sendChatMessage: (
+    conversationId: string,
+    input: { clientMessageId: string; text: string },
+  ) =>
+    request<{ success: boolean; data: ChatMessageDto }>(
+      `/chat/conversations/${conversationId}/messages`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+
   signInWithFirebase: (idToken: string) => {
     const url = `${AUTH_API_BASE_URL}/auth/firebase`;
     return fetchWithTimeout(url, {
@@ -432,5 +641,30 @@ export const datingApi = {
     });
   },
 };
+
+export interface ChatConversationSummary {
+  conversationId: string;
+  matchId: string;
+  partner: {
+    id: string;
+    firebaseUid: string | null;
+    name: string;
+    birthDate: string | null;
+    occupation: string | null;
+    city: string | null;
+    verified: boolean;
+    avatar: string | null;
+  };
+  lastMessage?: string;
+  lastMessageAt?: string | null;
+}
+
+export interface ChatMessageDto {
+  id: string;
+  senderUid: string;
+  text: string;
+  type: 'text';
+  createdAt: string;
+}
 
 export { DATING_API_BASE_URL };

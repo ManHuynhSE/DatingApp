@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   Easing,
@@ -35,6 +36,7 @@ import {
 import { useAuthStore } from "../store/authStore";
 import { useProfileEditStore } from "../store/profileEditStore";
 import { useThemeStore } from "../store/themeStore";
+import { datingApi, type DatingPhoto } from "../api/datingClient";
 
 const vnAddressData = require("../../assets/vn-address.json") as Record<
   string,
@@ -72,13 +74,22 @@ const lifestylesData = require("../../assets/lifestyles_list.json") as Lifestyle
 
 const MAX_LANGUAGES = 10;
 const MAX_INTERESTS = 10;
-
-const PHOTO_OPTIONS = [
-  "https://picsum.photos/seed/profile-new-1/500/700",
-  "https://picsum.photos/seed/profile-new-2/500/700",
-  "https://picsum.photos/seed/profile-new-3/500/700",
-  "https://picsum.photos/seed/profile-new-4/500/700",
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
+const INTERESTED_OPTIONS = [
+  { value: "male", label: "Men", subtitle: "Show me men", icon: "man-outline" },
+  { value: "female", label: "Women", subtitle: "Show me women", icon: "woman-outline" },
+  { value: "everyone", label: "Everyone", subtitle: "Show me everyone", icon: "people-outline" },
+] as const;
+
+type PhotoDraftItem = {
+  key: string;
+  url: string;
+  id?: string;
+  asset?: ImagePicker.ImagePickerAsset;
+};
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SHEET_HEIGHT = Math.min(SCREEN_HEIGHT * 0.86, 740);
@@ -88,6 +99,20 @@ export interface ProfilePickerModalProps {
   type: string;
   field?: string;
   onClose: () => void;
+  initialData?: {
+    city?: string;
+    ward?: string;
+    languages?: string[];
+    interestedIn?: 'male' | 'female' | 'everyone';
+    photos?: string[];
+    birthDate?: string;
+    [key: string]: any;
+  };
+  onSelectAddress?: (address: { city: string; ward: string; fullAddress: string }) => void;
+  onSelectLanguages?: (languages: string[]) => void;
+  onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
+  onSelectPhotos?: (photos: string[]) => void;
+  onSelectBirthDate?: (birthDate: string, age: number) => void;
 }
 
 export default function ProfilePickerModal({
@@ -95,6 +120,12 @@ export default function ProfilePickerModal({
   type,
   field,
   onClose,
+  initialData,
+  onSelectAddress,
+  onSelectLanguages,
+  onSelectInterestedIn,
+  onSelectPhotos,
+  onSelectBirthDate,
 }: ProfilePickerModalProps) {
   if (!visible) return null;
 
@@ -104,6 +135,12 @@ export default function ProfilePickerModal({
       type={type}
       field={field}
       onClose={onClose}
+      initialData={initialData}
+      onSelectAddress={onSelectAddress}
+      onSelectLanguages={onSelectLanguages}
+      onSelectInterestedIn={onSelectInterestedIn}
+      onSelectPhotos={onSelectPhotos}
+      onSelectBirthDate={onSelectBirthDate}
     />
   );
 }
@@ -112,10 +149,30 @@ function ProfilePickerSheetContent({
   type,
   field,
   onClose,
+  initialData,
+  onSelectAddress,
+  onSelectLanguages,
+  onSelectInterestedIn,
+  onSelectPhotos,
+  onSelectBirthDate,
 }: {
   type: string;
   field?: string;
   onClose: () => void;
+  initialData?: {
+    city?: string;
+    ward?: string;
+    languages?: string[];
+    interestedIn?: 'male' | 'female' | 'everyone';
+    photos?: string[];
+    birthDate?: string;
+    [key: string]: any;
+  };
+  onSelectAddress?: (address: { city: string; ward: string; fullAddress: string }) => void;
+  onSelectLanguages?: (languages: string[]) => void;
+  onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
+  onSelectPhotos?: (photos: string[]) => void;
+  onSelectBirthDate?: (birthDate: string, age: number) => void;
 }) {
   const themeMode = useThemeStore((state) => state.mode);
   const theme = themeMode === "dark" ? darkColors : colors;
@@ -151,13 +208,83 @@ function ProfilePickerSheetContent({
       details?.education ??
       "",
   );
-  const [tempPet, setTempPet] = useState(() => details?.pets ?? "");
-  const [tempPhotos, setTempPhotos] = useState<string[]>(
-    () => draft?.photos ?? user?.photos ?? [],
+  const [tempPets, setTempPets] = useState<string[]>(() =>
+    (details?.pets ?? "").split(",").map((pet) => pet.trim()).filter(Boolean),
   );
+  const [photoItems, setPhotoItems] = useState<PhotoDraftItem[]>(() =>
+    (draft?.photos ?? user?.photos ?? []).map((url, index) => ({
+      key: `initial-${index}-${url}`,
+      url,
+    })),
+  );
+  const [serverPhotos, setServerPhotos] = useState<DatingPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(type === "photos");
+  const [photosLoaded, setPhotosLoaded] = useState(false);
+  const [photosSaving, setPhotosSaving] = useState(false);
+  const [photosError, setPhotosError] = useState<string | null>(null);
+  const [photoLoadAttempt, setPhotoLoadAttempt] = useState(0);
   const [tempLanguages, setTempLanguages] = useState<string[]>(
-    () => draft?.languages ?? user?.languages ?? [],
+    () => initialData?.languages ?? draft?.languages ?? user?.languages ?? [],
   );
+  const [tempInterestedIn, setTempInterestedIn] = useState<"male" | "female" | "everyone">(
+    () => initialData?.interestedIn ?? "everyone",
+  );
+  // Birth Date States
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const [tempYear, setTempYear] = useState(() => {
+    if (initialData?.birthDate) {
+      const parts = initialData.birthDate.split('-').map(Number);
+      if (parts.length === 3 && parts[0]) return parts[0];
+    }
+    return new Date().getFullYear() - 22;
+  });
+  const [tempMonth, setTempMonth] = useState(() => {
+    if (initialData?.birthDate) {
+      const parts = initialData.birthDate.split('-').map(Number);
+      if (parts.length === 3 && parts[1]) return parts[1];
+    }
+    return 1;
+  });
+  const [tempDay, setTempDay] = useState(() => {
+    if (initialData?.birthDate) {
+      const parts = initialData.birthDate.split('-').map(Number);
+      if (parts.length === 3 && parts[2]) return parts[2];
+    }
+    return 1;
+  });
+
+  const maxDays = useMemo(() => {
+    return new Date(tempYear, tempMonth, 0).getDate();
+  }, [tempYear, tempMonth]);
+
+  const effectiveDay = Math.min(tempDay, maxDays);
+
+  const tempAge = useMemo(() => {
+    const today = new Date();
+    let a = today.getFullYear() - tempYear;
+    const m = today.getMonth() + 1 - tempMonth;
+    if (m < 0 || (m === 0 && today.getDate() < effectiveDay)) {
+      a--;
+    }
+    return a;
+  }, [tempYear, tempMonth, effectiveDay]);
+
+  const availableYears = useMemo(() => {
+    const years: number[] = [];
+    for (let y = currentYear - 18; y >= currentYear - 100; y--) {
+      years.push(y);
+    }
+    return years;
+  }, [currentYear]);
+
+  const availableMonths = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => i + 1);
+  }, []);
+
+  const availableDays = useMemo(() => {
+    return Array.from({ length: maxDays }, (_, i) => i + 1);
+  }, [maxDays]);
+
   const [tempInterests, setTempInterests] = useState<string[]>(
     () => draft?.interests ?? user?.interests ?? [],
   );
@@ -171,8 +298,8 @@ function ProfilePickerSheetContent({
       : [];
   });
 
-  const cityVal = draft?.city ?? user?.city ?? "";
-  const wardVal = draft?.ward ?? user?.ward ?? "";
+  const cityVal = initialData?.city ?? draft?.city ?? user?.city ?? "";
+  const wardVal = initialData?.ward ?? draft?.ward ?? user?.ward ?? "";
   const [tempCity, setTempCity] = useState(cityVal);
   const [tempWard, setTempWard] = useState(wardVal);
   const [addressStep, setAddressStep] = useState<"city" | "ward">(() =>
@@ -184,6 +311,27 @@ function ProfilePickerSheetContent({
   const [hobbySearch, setHobbySearch] = useState("");
   const [lifestyleSearch, setLifestyleSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
+
+  useEffect(() => {
+    if (type !== "photos") return;
+    let active = true;
+    datingApi.getMyPhotos().then(({ data }) => {
+      if (!active) return;
+      setServerPhotos(data);
+      setPhotoItems(data.map((photo) => ({
+        key: photo.id,
+        id: photo.id,
+        url: photo.url,
+      })));
+      setPhotosLoaded(true);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setPhotosError(error instanceof Error ? error.message : "Không tải được ảnh profile.");
+    }).finally(() => {
+      if (active) setPhotosLoading(false);
+    });
+    return () => { active = false; };
+  }, [type, user?.id, photoLoadAttempt]);
 
   // Slide Up Animation on mount
   useEffect(() => {
@@ -229,29 +377,129 @@ function ProfilePickerSheetContent({
     animateClose(handleFinishModal);
   };
 
+  const savePhotos = async () => {
+    if (!photosLoaded) {
+      Alert.alert("Ảnh chưa sẵn sàng", "Tải lại danh sách ảnh rồi thử lại.");
+      return;
+    }
+
+    setPhotosSaving(true);
+    try {
+      const retainedPhotoIds = new Set(
+        photoItems.flatMap((photo) => photo.id ? [photo.id] : []),
+      );
+      const savedItems: { id: string; url: string }[] = [];
+      for (const photo of photoItems) {
+        if (photo.id) {
+          savedItems.push({ id: photo.id, url: photo.url });
+          continue;
+        }
+        if (!photo.asset) continue;
+
+        const asset = photo.asset;
+        const mimeType = asset.mimeType || "image/jpeg";
+        const extension = mimeType.split("/")[1] || "jpg";
+        const uploaded = await datingApi.uploadPhoto({
+          uri: asset.uri,
+          name: asset.fileName || `profile-${Date.now()}.${extension}`,
+          type: mimeType,
+          webFile: asset.file,
+        });
+        const savedPhoto = uploaded.data;
+        savedItems.push({ id: savedPhoto.id, url: savedPhoto.url });
+        setServerPhotos((previous) => [...previous, savedPhoto]);
+        setPhotoItems((previous) => previous.map((item) =>
+          item.key === photo.key
+            ? { key: savedPhoto.id, id: savedPhoto.id, url: savedPhoto.url }
+            : item,
+        ));
+      }
+
+      for (const photo of serverPhotos) {
+        if (!retainedPhotoIds.has(photo.id)) {
+          await datingApi.deletePhoto(photo.id);
+          setServerPhotos((previous) => previous.filter((item) => item.id !== photo.id));
+        }
+      }
+
+      const ordered = await datingApi.reorderPhotos(savedItems.map((photo) => photo.id));
+      const finalPhotos = ordered.data.map((photo) => photo.url);
+      setServerPhotos(ordered.data);
+      setPhotoItems(ordered.data.map((photo) => ({
+        key: photo.id,
+        id: photo.id,
+        url: photo.url,
+      })));
+      update({ photos: finalPhotos });
+      animateClose(handleFinishModal);
+    } catch (error) {
+      Alert.alert(
+        "Không lưu được ảnh",
+        error instanceof Error ? error.message : "Thử lại sau nhé.",
+      );
+    } finally {
+      setPhotosSaving(false);
+    }
+  };
+
   // ─── DONE HANDLER: Validates and commits temporary state to draft ──────────
   const handleDone = () => {
     const baseDetails = draft?.details ?? user?.details;
 
     if (isAddressField) {
       const fullAddress = [tempWard, tempCity].filter(Boolean).join(", ");
-      update({
-        location: fullAddress,
-        city: tempCity || undefined,
-        ward: tempWard || undefined,
-      });
+      if (onSelectAddress) {
+        onSelectAddress({ city: tempCity, ward: tempWard, fullAddress });
+      } else {
+        update({
+          location: fullAddress,
+          city: tempCity || undefined,
+          ward: tempWard || undefined,
+        });
+      }
       animateClose(handleFinishModal);
       return;
     }
 
     if (type === "photos") {
-      update({ photos: tempPhotos });
-      animateClose(handleFinishModal);
+      void savePhotos();
       return;
     }
 
     if (type === "languages") {
-      update({ languages: tempLanguages });
+      if (onSelectLanguages) {
+        onSelectLanguages(tempLanguages);
+      } else {
+        update({ languages: tempLanguages });
+      }
+      animateClose(handleFinishModal);
+      return;
+    }
+
+    if (type === "birth_date") {
+      if (tempAge < 18) {
+        Alert.alert(
+          "Age requirement",
+          "You must be at least 18 years old to join HeartSync.",
+        );
+        return;
+      }
+      if (tempAge > 120) {
+        Alert.alert("Invalid date", "Please select a valid birth date.");
+        return;
+      }
+      const formatted = `${tempYear}-${String(tempMonth).padStart(2, "0")}-${String(effectiveDay).padStart(2, "0")}`;
+      if (onSelectBirthDate) {
+        onSelectBirthDate(formatted, tempAge);
+      }
+      animateClose(handleFinishModal);
+      return;
+    }
+
+    if (type === "interested_in") {
+      if (onSelectInterestedIn) {
+        onSelectInterestedIn(tempInterestedIn);
+      }
       animateClose(handleFinishModal);
       return;
     }
@@ -270,7 +518,7 @@ function ProfilePickerSheetContent({
 
     if (isPetField) {
       if (baseDetails) {
-        update({ details: { ...baseDetails, pets: tempPet } });
+        update({ details: { ...baseDetails, pets: tempPets.join(", ") } });
       }
       animateClose(handleFinishModal);
       return;
@@ -330,6 +578,8 @@ function ProfilePickerSheetContent({
   // ─── Modal Title ───────────────────────────────────────────────────────────
   const title = useMemo(() => {
     if (type === "photos") return "Photos";
+    if (type === "birth_date") return "Date of Birth";
+    if (type === "interested_in") return "I'm interested in";
     if (isAddressField) return "Address";
     if (type === "languages") return "Languages";
     if (type === "interests") return "My Interests";
@@ -475,17 +725,61 @@ function ProfilePickerSheetContent({
   };
 
   const selectPetBadge = (badge: string) => {
-    setTempPet((prev) => (prev === badge ? "" : badge));
+    setTempPets((previous) => {
+      if (previous.includes(badge)) return previous.filter((pet) => pet !== badge);
+      if (badge === "Không nuôi thú cưng") return [badge];
+      return [...previous.filter((pet) => pet !== "Không nuôi thú cưng"), badge];
+    });
   };
 
-  const addPhoto = (photo: string) => {
-    if (!tempPhotos.includes(photo)) {
-      setTempPhotos((prev) => [...prev, photo].slice(0, 6));
+  const choosePhoto = async () => {
+    if (!photosLoaded || photosLoading || photosSaving) return;
+    if (photoItems.length >= 6) {
+      Alert.alert("Đã đủ ảnh", "Profile hiện hỗ trợ tối đa 6 ảnh.");
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+        Alert.alert("Ảnh quá lớn", "Chọn ảnh nhỏ hơn 10 MB.");
+        return;
+      }
+
+      setPhotoItems((previous) => [
+        ...previous,
+        {
+          key: `local-${Date.now()}`,
+          url: asset.uri,
+          asset,
+        },
+      ]);
+    } catch (error) {
+      Alert.alert(
+        "Không mở được thư viện ảnh",
+        error instanceof Error ? error.message : "Thử lại sau nhé.",
+      );
     }
   };
 
-  const removePhoto = (photo: string) => {
-    setTempPhotos((prev) => prev.filter((p) => p !== photo));
+  const removePhoto = (key: string) => {
+    setPhotoItems((previous) => previous.filter((photo) => photo.key !== key));
+  };
+
+  const movePhoto = (index: number, offset: number) => {
+    setPhotoItems((previous) => {
+      const nextIndex = index + offset;
+      if (nextIndex < 0 || nextIndex >= previous.length) return previous;
+      const next = [...previous];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
   };
 
   const getCategoryIcon = (categoryId: string) => {
@@ -584,10 +878,11 @@ function ProfilePickerSheetContent({
                 onPress={handleDone}
                 style={styles.headerBtn}
                 hitSlop={8}
+                disabled={type === "photos" && (!photosLoaded || photosLoading || photosSaving)}
                 accessibilityLabel="Done and save changes"
               >
                 <Text style={[styles.doneText, { color: theme.primary }]}>
-                  Done
+                  {type === "photos" && photosSaving ? "Saving…" : "Done"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -600,66 +895,93 @@ function ProfilePickerSheetContent({
                   <Text
                     style={[styles.helper, { color: theme.textSecondary }]}
                   >
-                    Select photos to add to your profile (max 6):
+                    {photosLoading
+                      ? "Loading your saved photos…"
+                      : photosError
+                        ? photosError
+                        : "Add up to 6 real photos. The first photo is your main photo."}
                   </Text>
+                  {photosError && (
+                    <TouchableOpacity
+                      style={styles.photoPickerButton}
+                      onPress={() => {
+                        setPhotosLoading(true);
+                        setPhotosError(null);
+                        setPhotoLoadAttempt((attempt) => attempt + 1);
+                      }}
+                    >
+                      <Ionicons name="refresh-outline" size={18} color={theme.primary} />
+                      <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>Try again</Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.photoGrid}>
-                    {tempPhotos.map((photo) => (
-                      <View key={photo} style={styles.photoThumbWrap}>
+                    {photoItems.map((photo, index) => (
+                      <View key={photo.key} style={styles.photoThumbWrap}>
                         <Image
-                          source={{ uri: photo }}
+                          source={{ uri: photo.url }}
                           style={styles.photoThumb}
                         />
-                        {tempPhotos.length > 1 && (
-                          <TouchableOpacity
-                            style={styles.removePhotoBtn}
-                            onPress={() => removePhoto(photo)}
-                          >
-                            <Ionicons name="close" size={14} color="#fff" />
-                          </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.photoPrimaryBtn}
+                          onPress={() => movePhoto(index, -index)}
+                          disabled={index === 0 || photosSaving || !photosLoaded}
+                          accessibilityLabel={index === 0 ? "Main photo" : "Make main photo"}
+                        >
+                          <Ionicons
+                            name={index === 0 ? "star" : "star-outline"}
+                            size={15}
+                            color={index === 0 ? "#FFC94A" : "#fff"}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.removePhotoBtn}
+                          onPress={() => removePhoto(photo.key)}
+                          disabled={photosSaving || !photosLoaded}
+                          accessibilityLabel="Remove photo"
+                        >
+                          <Ionicons name="close" size={14} color="#fff" />
+                        </TouchableOpacity>
+                        {(index > 0 || index < photoItems.length - 1) && (
+                          <View style={styles.photoOrderBar}>
+                            <TouchableOpacity
+                              style={styles.photoOrderBtn}
+                              onPress={() => movePhoto(index, -1)}
+                              disabled={index === 0 || photosSaving || !photosLoaded}
+                              accessibilityLabel="Move photo earlier"
+                            >
+                              <Ionicons name="arrow-back" size={14} color="#fff" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.photoOrderBtn}
+                              onPress={() => movePhoto(index, 1)}
+                              disabled={index === photoItems.length - 1 || photosSaving || !photosLoaded}
+                              accessibilityLabel="Move photo later"
+                            >
+                              <Ionicons name="arrow-forward" size={14} color="#fff" />
+                            </TouchableOpacity>
+                          </View>
                         )}
                       </View>
                     ))}
                   </View>
-
-                  <Text
+                  <TouchableOpacity
                     style={[
-                      styles.sectionHeading,
-                      { color: theme.textPrimary },
+                      styles.photoPickerButton,
+                      { borderColor: theme.border, backgroundColor: theme.surface },
                     ]}
+                    onPress={choosePhoto}
+                    disabled={!photosLoaded || photosLoading || photosSaving || photoItems.length >= 6}
+                    accessibilityLabel="Choose a photo from your library"
                   >
-                    Suggestions
-                  </Text>
-                  <View style={styles.suggestionsGrid}>
-                    {PHOTO_OPTIONS.map((item) => {
-                      const isAdded = tempPhotos.includes(item);
-                      return (
-                        <TouchableOpacity
-                          key={item}
-                          onPress={() =>
-                            isAdded ? removePhoto(item) : addPhoto(item)
-                          }
-                          style={[
-                            styles.suggestionItem,
-                            isAdded && { borderColor: theme.primary, borderWidth: 2 },
-                          ]}
-                        >
-                          <Image
-                            source={{ uri: item }}
-                            style={styles.suggestionThumb}
-                          />
-                          {isAdded && (
-                            <View style={styles.photoCheckedOverlay}>
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={22}
-                                color={theme.primary}
-                              />
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                    {photosSaving ? (
+                      <Ionicons name="sync-outline" size={18} color={theme.primary} />
+                    ) : (
+                      <Ionicons name="image-outline" size={18} color={theme.primary} />
+                    )}
+                    <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>
+                      Choose from library
+                    </Text>
+                  </TouchableOpacity>
                 </ScrollView>
               ) : type === "languages" ? (
                 /* 2. Languages Picker */
@@ -785,6 +1107,345 @@ function ProfilePickerSheetContent({
                       );
                     }}
                   />
+                </View>
+              ) : type === "birth_date" ? (
+                /* Birth Date Picker */
+                <View style={styles.flex}>
+                  {/* Top Preview Card */}
+                  <View
+                    style={[
+                      styles.birthDateSummaryCard,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: tempAge >= 18 ? theme.border : theme.error,
+                      },
+                    ]}
+                  >
+                    <View style={styles.birthDateSummaryLeft}>
+                      <Text
+                        style={[styles.birthDateValueText, { color: theme.textPrimary }]}
+                      >
+                        {String(effectiveDay).padStart(2, "0")} / {String(tempMonth).padStart(2, "0")} / {tempYear}
+                      </Text>
+                      <Text
+                        style={[typography.caption, { color: theme.textSecondary }]}
+                      >
+                        Day / Month / Year
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.birthDateAgeBadge,
+                        {
+                          backgroundColor:
+                            tempAge >= 18 ? theme.primaryLight : "rgba(239, 68, 68, 0.15)",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={tempAge >= 18 ? "checkmark-circle" : "alert-circle"}
+                        size={16}
+                        color={tempAge >= 18 ? theme.primary : theme.error}
+                      />
+                      <Text
+                        style={[
+                          styles.birthDateAgeText,
+                          { color: tempAge >= 18 ? theme.primary : theme.error },
+                        ]}
+                      >
+                        {tempAge >= 18 ? `${tempAge} years old` : "Must be 18+"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Direct Numeric Input Row */}
+                  <View style={styles.dateInputRow}>
+                    <View style={styles.dateInputCol}>
+                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                        Day
+                      </Text>
+                      <TextInput
+                        value={String(effectiveDay)}
+                        onChangeText={(t) => {
+                          const n = parseInt(t.replace(/\D/g, ""), 10);
+                          if (!Number.isNaN(n) && n >= 1 && n <= 31) {
+                            setTempDay(n);
+                          }
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        style={[
+                          styles.dateInputField,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                            color: theme.textPrimary,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <View style={styles.dateInputCol}>
+                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                        Month
+                      </Text>
+                      <TextInput
+                        value={String(tempMonth)}
+                        onChangeText={(t) => {
+                          const n = parseInt(t.replace(/\D/g, ""), 10);
+                          if (!Number.isNaN(n) && n >= 1 && n <= 12) {
+                            setTempMonth(n);
+                          }
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        style={[
+                          styles.dateInputField,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                            color: theme.textPrimary,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <View style={styles.dateInputColYear}>
+                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                        Year
+                      </Text>
+                      <TextInput
+                        value={String(tempYear)}
+                        onChangeText={(t) => {
+                          const n = parseInt(t.replace(/\D/g, ""), 10);
+                          if (!Number.isNaN(n) && n >= 1900 && n <= currentYear) {
+                            setTempYear(n);
+                          }
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        style={[
+                          styles.dateInputField,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                            color: theme.textPrimary,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+
+                  {/* 3 Interactive Columns */}
+                  <View style={styles.dateColumnsContainer}>
+                    {/* Days Column */}
+                    <View style={styles.dateColumn}>
+                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                        Day
+                      </Text>
+                      <FlatList
+                        data={availableDays}
+                        keyExtractor={(item) => `day-${item}`}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.dateColumnList}
+                        renderItem={({ item }) => {
+                          const isSelected = item === effectiveDay;
+                          return (
+                            <Pressable
+                              onPress={() => setTempDay(item)}
+                              style={[
+                                styles.dateItem,
+                                isSelected && {
+                                  backgroundColor: theme.primary,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dateItemText,
+                                  {
+                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "400",
+                                  },
+                                ]}
+                              >
+                                {String(item).padStart(2, "0")}
+                              </Text>
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    </View>
+
+                    {/* Months Column */}
+                    <View style={[styles.dateColumn, styles.dateColumnMonth]}>
+                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                        Month
+                      </Text>
+                      <FlatList
+                        data={availableMonths}
+                        keyExtractor={(item) => `month-${item}`}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.dateColumnList}
+                        renderItem={({ item }) => {
+                          const isSelected = item === tempMonth;
+                          return (
+                            <Pressable
+                              onPress={() => setTempMonth(item)}
+                              style={[
+                                styles.dateItem,
+                                isSelected && {
+                                  backgroundColor: theme.primary,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dateItemText,
+                                  {
+                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "400",
+                                  },
+                                ]}
+                              >
+                                {MONTH_NAMES[item - 1]}
+                              </Text>
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    </View>
+
+                    {/* Years Column */}
+                    <View style={styles.dateColumn}>
+                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                        Year
+                      </Text>
+                      <FlatList
+                        data={availableYears}
+                        keyExtractor={(item) => `year-${item}`}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.dateColumnList}
+                        renderItem={({ item }) => {
+                          const isSelected = item === tempYear;
+                          return (
+                            <Pressable
+                              onPress={() => setTempYear(item)}
+                              style={[
+                                styles.dateItem,
+                                isSelected && {
+                                  backgroundColor: theme.primary,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dateItemText,
+                                  {
+                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "400",
+                                  },
+                                ]}
+                              >
+                                {item}
+                              </Text>
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : type === "interested_in" ? (
+                /* Interested In Picker */
+                <View style={styles.flex}>
+                  <Text
+                    style={[
+                      styles.helper,
+                      { color: theme.textSecondary, marginBottom: spacing.md },
+                    ]}
+                  >
+                    Select who you would like to see in your discovery feed:
+                  </Text>
+                  <View style={{ gap: spacing.sm, paddingHorizontal: spacing.base }}>
+                    {INTERESTED_OPTIONS.map((item) => {
+                      const isSelected = tempInterestedIn === item.value;
+                      return (
+                        <Pressable
+                          key={item.value}
+                          onPress={() => setTempInterestedIn(item.value)}
+                          style={[
+                            styles.selectRow,
+                            {
+                              backgroundColor: theme.surface,
+                              borderColor: isSelected
+                                ? theme.primary
+                                : theme.border,
+                              borderWidth: isSelected ? 1.5 : 1,
+                              paddingVertical: spacing.md,
+                            },
+                          ]}
+                        >
+                          <View style={styles.interestedOptionRow}>
+                            <View
+                              style={[
+                                styles.interestedOptionIconBox,
+                                {
+                                  backgroundColor: isSelected
+                                    ? theme.primaryLight
+                                    : theme.background,
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name={item.icon as any}
+                                size={20}
+                                color={
+                                  isSelected
+                                    ? theme.primary
+                                    : theme.textSecondary
+                                }
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  styles.selectRowText,
+                                  {
+                                    color: isSelected
+                                      ? theme.primary
+                                      : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "500",
+                                  },
+                                ]}
+                              >
+                                {item.label}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.previewBoxText,
+                                  { color: theme.textSecondary, marginTop: 2 },
+                                ]}
+                              >
+                                {item.subtitle}
+                              </Text>
+                            </View>
+                          </View>
+                          <Ionicons
+                            name={
+                              isSelected
+                                ? "radio-button-on"
+                                : "radio-button-off"
+                            }
+                            size={22}
+                            color={
+                              isSelected ? theme.primary : theme.textTertiary
+                            }
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
               ) : type === "interests" ? (
                 /* 3. Interests (Hobbies) Picker */
@@ -1193,7 +1854,7 @@ function ProfilePickerSheetContent({
                   </View>
                 </View>
               ) : isPetField ? (
-                /* 5. Pets Picker (Badges single select) */
+                /* 5. Pets Picker (multi-select, stored as one profile string) */
                 <ScrollView contentContainerStyle={styles.scrollPadding}>
                   <Text
                     style={[
@@ -1201,11 +1862,11 @@ function ProfilePickerSheetContent({
                       { color: theme.textSecondary },
                     ]}
                   >
-                    Chọn 1 lựa chọn về thú cưng phù hợp với bạn:
+                    Chọn các lựa chọn phù hợp với bạn:
                   </Text>
                   <View style={styles.badgeWrap}>
                     {petListData.map((badge) => {
-                      const isSelected = tempPet === badge;
+                      const isSelected = tempPets.includes(badge);
                       return (
                         <Pressable
                           key={badge}
@@ -1687,29 +2348,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  suggestionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  suggestionItem: {
-    width: "31%",
-    aspectRatio: 3 / 4,
-    borderRadius: borderRadius.md,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  suggestionThumb: {
-    width: "100%",
-    height: "100%",
-  },
-  photoCheckedOverlay: {
+  photoPrimaryBtn: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "#fff",
+    top: 4,
+    left: 4,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    width: 24,
+    height: 24,
     borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoOrderBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 4,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  photoOrderBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoPickerButton: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  photoPickerButtonText: {
+    ...typography.bodyBold,
+    fontSize: 14,
   },
   searchBox: {
     flexDirection: "row",
@@ -1895,5 +2575,113 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     ...typography.body,
     fontSize: 15,
+  },
+  interestedOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  birthDateSummaryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+  },
+  birthDateSummaryLeft: {
+    gap: 2,
+  },
+  birthDateValueText: {
+    ...typography.h3,
+    fontSize: 18,
+    letterSpacing: 1,
+  },
+  birthDateAgeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  birthDateAgeText: {
+    ...typography.captionBold,
+    fontSize: 13,
+  },
+  dateInputRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+  },
+  dateInputCol: {
+    flex: 1,
+  },
+  dateInputColYear: {
+    flex: 1.3,
+  },
+  dateInputLabel: {
+    ...typography.caption,
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  dateInputField: {
+    height: 42,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    textAlign: "center",
+    ...typography.bodyBold,
+    fontSize: 16,
+  },
+  dateColumnsContainer: {
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+  },
+  dateColumn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "rgba(150, 150, 150, 0.15)",
+    borderRadius: borderRadius.md,
+    overflow: "hidden",
+  },
+  dateColumnMonth: {
+    flex: 1.2,
+  },
+  dateColumnHeader: {
+    ...typography.captionBold,
+    textAlign: "center",
+    paddingVertical: 6,
+    backgroundColor: "rgba(150, 150, 150, 0.08)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(150, 150, 150, 0.2)",
+  },
+  dateColumnList: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  dateItem: {
+    height: 38,
+    borderRadius: borderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 2,
+  },
+  dateItemText: {
+    ...typography.body,
+    fontSize: 14,
+  },
+  interestedOptionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
