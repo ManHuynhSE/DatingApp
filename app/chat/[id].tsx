@@ -16,6 +16,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+} from 'react-native-reanimated';
 import { colors, darkColors, typography, spacing, borderRadius } from '../../src/theme';
 import { useThemeStore } from '../../src/store/themeStore';
 import { datingApi } from '../../src/api/datingClient';
@@ -135,7 +139,7 @@ export default function ChatDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <Animated.View entering={FadeInDown.duration(320)} style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
@@ -171,7 +175,7 @@ export default function ChatDetailScreen() {
         >
             <Ionicons name="videocam-outline" size={22} color={theme.textPrimary} />
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       <KeyboardAvoidingView
         style={styles.chatArea}
@@ -200,7 +204,7 @@ export default function ChatDetailScreen() {
           ) : null}
 
           {messages.length === 0 ? (
-            <View style={styles.emptyConversation}>
+            <Animated.View entering={FadeInDown.duration(380)} style={styles.emptyConversation}>
               <View style={styles.emptyAvatarFrame}>
                 <Image source={{ uri: profile.avatar }} style={styles.emptyAvatar} />
                 {profile.verified && (
@@ -211,12 +215,13 @@ export default function ChatDetailScreen() {
               </View>
               <Text style={styles.emptyTitle}>You matched with {profile.name}</Text>
               <Text style={styles.emptyDescription}>Start with a friendly hello and see where the conversation goes.</Text>
-            </View>
+            </Animated.View>
           ) : null}
 
           {messages.map((msg) => (
-            <View
+            <Animated.View
               key={msg.id}
+              entering={FadeInDown.duration(180)}
               style={[
                 styles.messageBubbleWrapper,
                 msg.sent
@@ -250,11 +255,12 @@ export default function ChatDetailScreen() {
                   <Text style={styles.messageStatus}> · {msg.status}</Text>
                 )}
               </View>
-            </View>
+            </Animated.View>
           ))}
 
           {messages.length === 0 ? (
-            <TouchableOpacity style={styles.icebreakerCard} onPress={() => setMessage('What do you enjoy doing on a free day?')}>
+            <Animated.View entering={FadeInUp.delay(100).duration(350)}>
+             <TouchableOpacity style={styles.icebreakerCard} onPress={() => setMessage('What do you enjoy doing on a free day?')}>
               <View style={styles.miniGameIcon}>
                 <Ionicons name="sparkles" size={20} color={theme.primary} />
               </View>
@@ -263,7 +269,8 @@ export default function ChatDetailScreen() {
                 <Text style={styles.miniGameText}>Tap for a conversation starter</Text>
               </View>
               <Ionicons name="arrow-forward" size={18} color={theme.primary} />
-            </TouchableOpacity>
+             </TouchableOpacity>
+            </Animated.View>
           ) : null}
         </ScrollView>
 
@@ -428,8 +435,8 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
   messageBubbleWrapper: { maxWidth: '82%', marginBottom: spacing.xs },
   sentBubbleWrapper: { alignSelf: 'flex-end' },
   receivedBubbleWrapper: { alignSelf: 'flex-start' },
-  messageBubble: { paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderRadius: borderRadius.xl },
-  sentBubble: { backgroundColor: theme.primary, borderBottomRightRadius: spacing.xs },
+  messageBubble: { alignSelf: 'flex-start', paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderRadius: borderRadius.xl },
+  sentBubble: { alignSelf: 'flex-end', backgroundColor: theme.primary, borderBottomRightRadius: spacing.xs },
   receivedBubble: {
     backgroundColor: theme.surface,
     borderBottomLeftRadius: spacing.xs,

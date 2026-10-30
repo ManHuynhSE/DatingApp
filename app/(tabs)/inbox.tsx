@@ -4,7 +4,6 @@ import {
   Alert,
   FlatList,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import SpringPressable from '@/components/SpringPressable';
 import { borderRadius, colors, darkColors, spacing, typography } from '@/theme';
 import { datingApi, type ChatConversationSummary, type DatingMatchItem } from '@/api/datingClient';
 import { useAuthStore } from '@/store/authStore';
@@ -35,6 +36,8 @@ interface ChatRow {
 }
 
 const FALLBACK_AVATAR = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200';
+const springFadeInDown = (delay = 0) =>
+  FadeInDown.delay(delay).springify().damping(22).stiffness(240).mass(0.85);
 
 function formatTimestamp(value?: string | null) {
   if (!value) return '';
@@ -118,33 +121,37 @@ export default function InboxScreen() {
     }
   };
 
-  const renderMatch = ({ item }: { item: NewMatch }) => (
-    <Pressable onPress={() => openNewMatch(item)} style={styles.matchItem}>
-      <View style={styles.matchAvatarFrame}>
-        <Image source={{ uri: item.image }} style={styles.matchAvatar} />
-        <View style={styles.matchHeart}>
-          <Ionicons name="heart" size={11} color={theme.white} />
+  const renderMatch = ({ item, index }: { item: NewMatch; index: number }) => (
+    <Animated.View entering={springFadeInDown(Math.min(index, 8) * 45 + 100)}>
+      <SpringPressable onPress={() => openNewMatch(item)} style={styles.matchItem}>
+        <View style={styles.matchAvatarFrame}>
+          <Image source={{ uri: item.image }} style={styles.matchAvatar} />
+          <View style={styles.matchHeart}>
+            <Ionicons name="heart" size={11} color={theme.white} />
+          </View>
         </View>
-      </View>
-      <Text style={styles.matchName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
-    </Pressable>
+        <Text style={styles.matchName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
+      </SpringPressable>
+    </Animated.View>
   );
 
-  const renderChat = ({ item }: { item: ChatRow }) => (
-    <Pressable
-      onPress={() => router.push(`/chat/${item.id}`)}
-      style={({ pressed }) => [styles.chatRow, pressed && styles.chatRowPressed]}
-    >
-      <Image source={{ uri: item.image }} style={styles.chatAvatar} />
-      <View style={styles.chatBody}>
-        <View style={styles.chatTopLine}>
-          <Text style={styles.chatName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.chatTime}>{item.timestamp}</Text>
+  const renderChat = ({ item, index }: { item: ChatRow; index: number }) => (
+    <Animated.View entering={springFadeInDown(Math.min(index, 8) * 40 + 180)}>
+      <SpringPressable
+        onPress={() => router.push(`/chat/${item.id}`)}
+        style={({ pressed }) => [styles.chatRow, pressed && styles.chatRowPressed]}
+      >
+        <Image source={{ uri: item.image }} style={styles.chatAvatar} />
+        <View style={styles.chatBody}>
+          <View style={styles.chatTopLine}>
+            <Text style={styles.chatName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.chatTime}>{item.timestamp}</Text>
+          </View>
+          <Text style={styles.chatPreview} numberOfLines={1}>{item.preview}</Text>
         </View>
-        <Text style={styles.chatPreview} numberOfLines={1}>{item.preview}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={17} color={theme.textTertiary} />
-    </Pressable>
+        <Ionicons name="chevron-forward" size={17} color={theme.textTertiary} />
+      </SpringPressable>
+    </Animated.View>
   );
 
   return (
@@ -154,7 +161,7 @@ export default function InboxScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
+        <Animated.View entering={springFadeInDown()} style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>HEARTSYNC</Text>
             <Text style={styles.title}>Messages</Text>
@@ -162,9 +169,9 @@ export default function InboxScreen() {
           <View style={styles.headerIcon}>
             <Ionicons name="chatbubbles-outline" size={22} color={theme.primary} />
           </View>
-        </View>
+        </Animated.View>
 
-        <View style={styles.sectionHeader}>
+        <Animated.View entering={springFadeInDown(70)} style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>
             <Text style={styles.sectionTitle}>NEW MATCHES</Text>
             {matches.length > 0 && (
@@ -174,7 +181,7 @@ export default function InboxScreen() {
             )}
           </View>
           {matches.length > 0 && <Text style={styles.sectionHint}>Say hi to someone new</Text>}
-        </View>
+        </Animated.View>
 
         {loading ? (
           <View style={styles.loadingRow}>
@@ -192,13 +199,13 @@ export default function InboxScreen() {
             contentContainerStyle={styles.matchesList}
           />
         ) : (
-          <View style={styles.noNewMatches}>
+          <Animated.View entering={springFadeInDown(120)} style={styles.noNewMatches}>
             <Ionicons name="heart-outline" size={18} color={theme.textTertiary} />
             <Text style={styles.noNewMatchesText}>New mutual likes will show up here.</Text>
-          </View>
+          </Animated.View>
         )}
 
-        <View style={styles.messagesHeader}>
+        <Animated.View entering={springFadeInDown(150)} style={styles.messagesHeader}>
           <View style={styles.sectionTitleRow}>
             <Text style={styles.sectionTitle}>MESSAGES</Text>
             {chats.length > 0 && (
@@ -208,7 +215,7 @@ export default function InboxScreen() {
             )}
           </View>
           <Text style={styles.sectionHint}>Your conversations</Text>
-        </View>
+        </Animated.View>
 
         {loading ? (
           <View style={styles.messageLoading}>
@@ -223,13 +230,13 @@ export default function InboxScreen() {
             ItemSeparatorComponent={() => <View style={styles.separator} />}
           />
         ) : (
-          <View style={styles.emptyMessages}>
+          <Animated.View entering={springFadeInDown(200)} style={styles.emptyMessages}>
             <View style={styles.emptyIcon}>
               <Ionicons name="chatbubble-ellipses-outline" size={26} color={theme.primary} />
             </View>
             <Text style={styles.emptyTitle}>No conversations yet</Text>
             <Text style={styles.emptyText}>When you’re ready, start a chat with one of your matches.</Text>
-          </View>
+          </Animated.View>
         )}
       </ScrollView>
     </SafeAreaView>

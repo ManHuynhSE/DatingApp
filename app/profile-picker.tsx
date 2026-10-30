@@ -68,22 +68,6 @@ const PHOTO_OPTIONS = [
   "https://picsum.photos/seed/profile-new-3/500/700",
   "https://picsum.photos/seed/profile-new-4/500/700",
 ];
-const CITY_OPTIONS = [
-  "San Francisco, CA",
-  "New York, NY",
-  "Los Angeles, CA",
-  "Seattle, WA",
-  "Austin, TX",
-];
-const OCCUPATION_OPTIONS = [
-  "Product Designer",
-  "Software Engineer",
-  "Photographer",
-  "Marketing Manager",
-  "Student",
-];
-const EDUCATION_OPTIONS = ["Đại học", "Cao Đẳng", "Thạc sĩ"];
-
 export default function ProfilePickerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string; field?: string }>();
@@ -114,9 +98,9 @@ export default function ProfilePickerScreen() {
     return "";
   });
 
-  const [selectedPet, setSelectedPet] = useState<string>(() => {
+  const [selectedPets, setSelectedPets] = useState<string[]>(() => {
     const details = draft?.details ?? user?.details;
-    return details?.pets ?? "";
+    return (details?.pets ?? "").split(",").map((pet) => pet.trim()).filter(Boolean);
   });
 
   // ─── Lifestyle State ────────────────────────────────────────────────────────
@@ -353,7 +337,7 @@ export default function ProfilePickerScreen() {
     if (isPetField) {
       const baseDetails = draft?.details ?? user?.details;
       if (baseDetails) {
-        update({ details: { ...baseDetails, pets: selectedPet } });
+        update({ details: { ...baseDetails, pets: selectedPets.join(", ") } });
       }
       router.back();
       return;
@@ -408,12 +392,11 @@ export default function ProfilePickerScreen() {
   };
 
   const selectPetBadge = (badge: string) => {
-    const next = selectedPet === badge ? "" : badge;
-    setSelectedPet(next);
-    const baseDetails = draft?.details ?? user?.details;
-    if (baseDetails) {
-      update({ details: { ...baseDetails, pets: next } });
-    }
+    setSelectedPets((previous) => {
+      if (previous.includes(badge)) return previous.filter((pet) => pet !== badge);
+      if (badge === "Không nuôi thú cưng") return [badge];
+      return [...previous.filter((pet) => pet !== "Không nuôi thú cưng"), badge];
+    });
   };
 
   const toggleLifestyleItem = (
@@ -1199,11 +1182,11 @@ export default function ProfilePickerScreen() {
           <Text
             style={[styles.petBadgeSubtitle, { color: theme.textSecondary }]}
           >
-            Chọn 1 lựa chọn về thú cưng phù hợp với bạn:
+            Chọn các lựa chọn phù hợp với bạn:
           </Text>
           <View style={styles.petBadgeWrap}>
             {petListData.map((badge) => {
-              const isSelected = selectedPet === badge;
+              const isSelected = selectedPets.includes(badge);
               return (
                 <Pressable
                   key={badge}
