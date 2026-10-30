@@ -640,6 +640,34 @@ export const datingApi = {
       return body as AuthResponse;
     });
   },
+
+  syncFirebasePhoneVerification: async (idToken: string) => {
+    const url = `${AUTH_API_BASE_URL}/auth/firebase/phone-verification`;
+    const response = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new DatingApiError(response.status, body.message || 'Phone verification sync failed');
+    }
+    return body as { success: boolean; data: { is_verified: boolean } };
+  },
+
+  createFirebaseNativePhoneSession: async (idToken: string) => {
+    const url = `${AUTH_API_BASE_URL}/auth/firebase/native-phone-session`;
+    const response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new DatingApiError(response.status, body.message || 'Could not start phone verification');
+    }
+    return body as { success: boolean; data: { customToken: string } };
+  },
 };
 
 export interface ChatConversationSummary {

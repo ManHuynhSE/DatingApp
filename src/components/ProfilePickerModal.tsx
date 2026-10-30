@@ -219,6 +219,7 @@ function ProfilePickerSheetContent({
   );
   const [serverPhotos, setServerPhotos] = useState<DatingPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = useState(type === "photos");
+  const [photoPicking, setPhotoPicking] = useState(false);
   const [photosLoaded, setPhotosLoaded] = useState(false);
   const [photosSaving, setPhotosSaving] = useState(false);
   const [photosError, setPhotosError] = useState<string | null>(null);
@@ -733,38 +734,48 @@ function ProfilePickerSheetContent({
   };
 
   const choosePhoto = async () => {
-    if (!photosLoaded || photosLoading || photosSaving) return;
-    if (photoItems.length >= 6) {
-      Alert.alert("Đã đủ ảnh", "Profile hiện hỗ trợ tối đa 6 ảnh.");
-      return;
-    }
+    if (!photosLoaded || photosLoading || photosSaving || photoPicking) return;
+    const selectionLimit = 6 - photoItems.length;
+    if (selectionLimit <= 0) return;
 
+    setPhotoPicking(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        allowsEditing: true,
+        allowsMultipleSelection: true,
+        selectionLimit,
         quality: 0.85,
       });
-      if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
-        Alert.alert("Ảnh quá lớn", "Chọn ảnh nhỏ hơn 10 MB.");
-        return;
+      if (result.canceled || !result.assets.length) return;
+      const tooLargeCount = result.assets.filter(
+        (asset) => asset.fileSize && asset.fileSize > 10 * 1024 * 1024,
+      ).length;
+      const acceptedAssets = result.assets
+        .filter((asset) => !asset.fileSize || asset.fileSize <= 10 * 1024 * 1024)
+        .slice(0, selectionLimit);
+      if (tooLargeCount > 0) {
+        Alert.alert(
+          "Some photos are too large",
+          `${tooLargeCount} photo${tooLargeCount === 1 ? " was" : "s were"} skipped. Choose images under 10 MB.`,
+        );
       }
-
+      if (!acceptedAssets.length) return;
+      const batchKey = Date.now();
       setPhotoItems((previous) => [
         ...previous,
-        {
-          key: `local-${Date.now()}`,
+        ...acceptedAssets.map((asset, index) => ({
+          key: `local-${batchKey}-${index}`,
           url: asset.uri,
           asset,
-        },
-      ]);
+        })),
+      ].slice(0, 6));
     } catch (error) {
       Alert.alert(
         "Không mở được thư viện ảnh",
         error instanceof Error ? error.message : "Thử lại sau nhé.",
       );
+    } finally {
+      setPhotoPicking(false);
     }
   };
 
@@ -899,7 +910,7 @@ function ProfilePickerSheetContent({
                       ? "Loading your saved photos…"
                       : photosError
                         ? photosError
-                        : "Add up to 6 real photos. The first photo is your main photo."}
+                        : `${photoItems.length}/6 photos · Select several at once. The first photo is your main photo.`}
                   </Text>
                   {photosError && (
                     <TouchableOpacity
@@ -914,7 +925,16 @@ function ProfilePickerSheetContent({
                       <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>Try again</Text>
                     </TouchableOpacity>
                   )}
-                  <View style={styles.photoGrid}>
+                  {photoItems.length === 0 && !photosLoading && !photosError && (
+                    <View style={[styles.photoEmptyState, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                      <View style={[styles.photoEmptyIcon, { backgroundColor: theme.primaryLight }]}>
+                        <Ionicons name="images-outline" size={25} color={theme.primary} />
+                      </View>
+                      <Text style={[styles.photoEmptyTitle, { color: theme.textPrimary }]}>Show more of you</Text>
+                      <Text style={[styles.photoEmptyText, { color: theme.textSecondary }]}>Add up to 6 photos. You can select multiple photos in one go.</Text>
+                    </View>
+                  )}
+                  {photoItems.length > 0 && <View style={styles.photoGrid}>
                     {photoItems.map((photo, index) => (
                       <View key={photo.key} style={styles.photoThumbWrap}>
                         <Image
@@ -963,23 +983,29 @@ function ProfilePickerSheetContent({
                         )}
                       </View>
                     ))}
-                  </View>
+                  </View>}
                   <TouchableOpacity
                     style={[
                       styles.photoPickerButton,
                       { borderColor: theme.border, backgroundColor: theme.surface },
                     ]}
                     onPress={choosePhoto}
-                    disabled={!photosLoaded || photosLoading || photosSaving || photoItems.length >= 6}
-                    accessibilityLabel="Choose a photo from your library"
+                    disabled={!photosLoaded || photosLoading || photosSaving || photoPicking || photoItems.length >= 6}
+                    accessibilityLabel="Choose multiple photos from your library"
                   >
-                    {photosSaving ? (
+                    {photosSaving || photoPicking ? (
                       <Ionicons name="sync-outline" size={18} color={theme.primary} />
                     ) : (
                       <Ionicons name="image-outline" size={18} color={theme.primary} />
                     )}
                     <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>
-                      Choose from library
+                      {photoPicking
+                        ? "Opening photo library…"
+                        : photoItems.length >= 6
+                          ? "Photo limit reached"
+                          : photoItems.length > 0
+                            ? `Add ${6 - photoItems.length} more photos`
+                            : "Choose photos"}
                     </Text>
                   </TouchableOpacity>
                 </ScrollView>
@@ -2325,6 +2351,33 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.sm,
     marginBottom: spacing.md,
+  },
+  photoEmptyState: {
+    minHeight: 178,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  photoEmptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  photoEmptyTitle: {
+    ...typography.bodyBold,
+    marginBottom: 4,
+  },
+  photoEmptyText: {
+    ...typography.bodySmall,
+    textAlign: "center",
+    maxWidth: 250,
   },
   photoThumbWrap: {
     width: "31%",
