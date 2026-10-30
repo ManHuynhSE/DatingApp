@@ -15,7 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, darkColors, borderRadius, spacing, typography } from '../src/theme';
 import { datingApi } from '../src/api/datingClient';
 import { useThemeStore } from '../src/store/themeStore';
+import { useLocationStore } from '../src/store/locationStore';
 import ProfilePickerModal from '../src/components/ProfilePickerModal';
+import { requestCurrentCoordinates } from '../src/location/currentLocation';
 
 function calculateAge(birthDate: string): number {
   const parts = birthDate.split('-').map(Number);
@@ -53,6 +55,8 @@ export default function CreateProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === 'dark' ? darkColors : colors;
+  const savedCoordinates = useLocationStore((state) => state.coordinates);
+  const setCoordinates = useLocationStore((state) => state.setCoordinates);
 
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('2000-01-01');
@@ -108,6 +112,8 @@ export default function CreateProfileScreen() {
 
     setIsSaving(true);
     try {
+      const coordinates = savedCoordinates ?? await requestCurrentCoordinates();
+      if (coordinates) setCoordinates(coordinates);
       let finalWard: string | null = ward ? ward.slice(0, 100) : null;
       let finalCity: string | null = city ? city.slice(0, 100) : null;
       if (!finalCity && location.trim()) {
@@ -129,6 +135,8 @@ export default function CreateProfileScreen() {
         job_title: occupation.trim() ? occupation.trim().slice(0, 100) : null,
         city: finalCity,
         ward: finalWard,
+        latitude: coordinates?.latitude ?? null,
+        longitude: coordinates?.longitude ?? null,
         languages: languages.slice(0, 20),
       });
 
@@ -192,39 +200,39 @@ export default function CreateProfileScreen() {
               styles.photosCard,
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Choose profile photos"
           >
-            <View style={styles.photoStrip}>
-              {Array.from({ length: 6 }).map((_, index) => {
-                const photo = photos[index];
-                return (
-                  <View
-                    key={index}
-                    style={[
-                      styles.photoSlot,
-                      {
-                        borderColor: photo ? theme.primary : theme.border,
-                        backgroundColor: theme.background,
-                      },
-                    ]}
-                  >
-                    {photo ? (
-                      <Image source={{ uri: photo }} style={styles.slotImage} />
-                    ) : (
-                      <Ionicons
-                        name="add"
-                        size={22}
-                        color={theme.textTertiary}
-                      />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.photoStrip}
+            >
+              {photos.slice(0, 6).map((photo, index) => (
+                <View
+                  key={`${photo}-${index}`}
+                  style={[styles.photoSlot, { borderColor: theme.border }]}
+                >
+                  <Image source={{ uri: photo }} style={styles.slotImage} />
+                  {index === 0 && (
+                    <View style={[styles.mainPhotoBadge, { backgroundColor: theme.primary }]}>
+                      <Text style={styles.mainPhotoBadgeText}>Main</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+              {photos.length < 6 && (
+                <View style={[styles.addPhotoSlot, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                  <Ionicons name="add" size={23} color={theme.primary} />
+                </View>
+              )}
+            </ScrollView>
             <Text style={[styles.choosePhotoAction, { color: theme.primary }]}>
               {photos.length > 0
-                ? `${photos.length}/6 photos selected · Edit`
-                : 'Choose photos'}
+                ? `${photos.length}/6 photos · Edit or add more`
+                : 'Choose up to 6 photos'}
             </Text>
+            <Text style={[styles.photosHint, { color: theme.textSecondary }]}>You can select several photos at once.</Text>
           </Pressable>
 
           {/* About You */}
@@ -598,10 +606,14 @@ const styles = StyleSheet.create({
   sectionActionText: { ...typography.bodySmall, fontWeight: '700' },
   helper: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.md },
   photosCard: { borderWidth: 1, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm },
-  photoStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  photoSlot: { width: '31%', aspectRatio: 3 / 4, borderWidth: 1, borderStyle: 'dashed', borderRadius: borderRadius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  photoStrip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 100 },
+  photoSlot: { width: 74, height: 98, borderWidth: 1, borderRadius: borderRadius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  addPhotoSlot: { width: 54, height: 70, borderWidth: 1, borderStyle: 'dashed', borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
   slotImage: { width: '100%', height: '100%' },
+  mainPhotoBadge: { position: 'absolute', left: 4, bottom: 4, borderRadius: borderRadius.full, paddingHorizontal: 6, paddingVertical: 2 },
+  mainPhotoBadgeText: { ...typography.captionBold, color: colors.white, fontSize: 9 },
   choosePhotoAction: { ...typography.bodySmall, fontWeight: '700', marginTop: spacing.sm },
+  photosHint: { ...typography.caption, marginTop: 2 },
   input: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, marginTop: 10, color: colors.textPrimary, ...typography.body },
   inputPickerRow: {
     minHeight: 50,

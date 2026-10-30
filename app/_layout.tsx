@@ -7,7 +7,9 @@ import { firebaseAuth } from '../src/auth/firebase';
 import { datingApi } from '../src/api/datingClient';
 import type { UserProfile } from '../src/data/mockData';
 import { useAuthStore } from '../src/store/authStore';
+import { useLocationStore } from '../src/store/locationStore';
 import { useThemeStore } from '../src/store/themeStore';
+import { requestCurrentCoordinates } from '../src/location/currentLocation';
 
 function calculateAge(birthDate: string) {
   const date = new Date(birthDate);
@@ -19,6 +21,7 @@ function calculateAge(birthDate: string) {
 
 export default function RootLayout() {
   const setSession = useAuthStore((state) => state.setSession);
+  const setCoordinates = useLocationStore((state) => state.setCoordinates);
   const mode = useThemeStore((state) => state.mode);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
 
@@ -34,6 +37,7 @@ export default function RootLayout() {
 
       if (!firebaseUser) {
         setSession(null, null);
+        setCoordinates(null);
         return;
       }
 
@@ -43,6 +47,7 @@ export default function RootLayout() {
         if (!isMounted) return;
 
         const backendUser = auth.data.user;
+        let hasProfile = false;
         const user: UserProfile = {
           id: backendUser.id,
           name: backendUser.email?.split('@')[0] || firebaseUser.displayName || '',
@@ -66,6 +71,7 @@ export default function RootLayout() {
         try {
           const result = await datingApi.getUserProfile(backendUser.id);
           const profile = result.data;
+          hasProfile = true;
           const photos = [...(profile.users?.photos ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position);
           user.name = profile.display_name;
           user.age = calculateAge(profile.birth_date);
@@ -89,6 +95,19 @@ export default function RootLayout() {
         }
 
         if (isMounted) setSession(idToken, user);
+
+        // Ask for foreground permission at sign-in, then refresh saved coordinates.
+        // Location is optional: denied permission or unavailable GPS must not block login.
+        void requestCurrentCoordinates().then(async (coordinates) => {
+          if (!isMounted) return;
+          setCoordinates(coordinates);
+          if (!coordinates || !hasProfile) return;
+          try {
+            await datingApi.updateProfile(backendUser.id, coordinates);
+          } catch (error) {
+            console.warn('Could not save current location:', error);
+          }
+        });
       } catch (error) {
         console.error('Unable to load dating account after Firebase sign-in:', error);
       }
@@ -114,6 +133,8 @@ export default function RootLayout() {
           <Stack.Screen name="video-call" options={{ presentation: 'fullScreenModal' }} />
           <Stack.Screen name="edit-profile" options={{ presentation: 'card' }} />
           <Stack.Screen name="profile-picker" options={{ presentation: 'card' }} />
+          <Stack.Screen name="settings" options={{ presentation: 'card' }} />
+          <Stack.Screen name="verify-phone" options={{ presentation: 'card' }} />
           <Stack.Screen name="create-profile" options={{ presentation: 'card' }} />
         </Stack>
       </SafeAreaProvider>

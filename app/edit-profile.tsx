@@ -204,9 +204,9 @@ export default function EditProfileScreen({
     >
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Pressable
-          onPress={() => (embedded ? undefined : router.back())}
+          onPress={() => (embedded ? router.push('/settings') : router.back())}
           style={styles.iconButton}
-          accessibilityLabel={embedded ? "Profile" : "Close edit profile"}
+          accessibilityLabel={embedded ? "Open settings" : "Close edit profile"}
         >
           <Ionicons
             name={embedded ? "settings-outline" : "close"}
