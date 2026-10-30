@@ -13,13 +13,15 @@ export interface UseFirebaseAuthReturn {
 
 export function useFirebaseAuth(): UseFirebaseAuthReturn {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    firebaseAuth.isConfigured ? null : 'Firebase is not configured',
+  );
   const { user, setSession } = useAuthStore();
 
   // Subscribe to Firebase auth state changes
   useEffect(() => {
     if (!firebaseAuth.isConfigured) {
-      setError('Firebase is not configured');
+
       return;
     }
 
@@ -86,7 +88,7 @@ export function useFirebaseAuth(): UseFirebaseAuthReturn {
 
   const signInWithFirebase = async () => {
     if (!firebaseAuth.isConfigured) {
-      setError('Firebase is not configured');
+
       return;
     }
 
