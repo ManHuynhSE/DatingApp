@@ -114,6 +114,15 @@ export default function EditProfileScreen({
       return;
     }
 
+    const selectedPets = current.details.pets.trim();
+    if (selectedPets.length > 50) {
+      Alert.alert(
+        "Pet selection is too long",
+        "Your pet choices must fit within 50 characters. Remove one or more choices and try again.",
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       let ward: string | null = current.ward ?? null;
@@ -140,7 +149,7 @@ export default function EditProfileScreen({
         ward: ward ? ward.slice(0, 100) : null,
         education: current.education.trim() ? current.education.trim().slice(0, 100) : null,
         height_cm: heightCm,
-        pets: current.details.pets.trim() ? [current.details.pets.trim()] : [],
+        pet: selectedPets || null,
         life_style: current.details.exercise
           .split(",")
           .map((value) => value.trim())
@@ -170,7 +179,7 @@ export default function EditProfileScreen({
         details: {
           ...user.details,
           height: response.data.height_cm ? `${response.data.height_cm}cm` : "",
-          pets: response.data.pets?.join(", ") ?? "",
+          pets: response.data.pet ?? "",
           exercise: response.data.life_style?.join(", ") ?? "",
         },
       });

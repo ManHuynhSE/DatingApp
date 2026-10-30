@@ -19,8 +19,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
   FadeInDown,
   FadeInUp,
-  SlideInLeft,
-  SlideInRight,
 } from 'react-native-reanimated';
 import { colors, darkColors, typography, spacing, borderRadius } from '../../src/theme';
 import { useThemeStore } from '../../src/store/themeStore';
@@ -223,7 +221,7 @@ export default function ChatDetailScreen() {
           {messages.map((msg) => (
             <Animated.View
               key={msg.id}
-              entering={(msg.sent ? SlideInRight : SlideInLeft).duration(230)}
+              entering={FadeInDown.duration(180)}
               style={[
                 styles.messageBubbleWrapper,
                 msg.sent
@@ -437,8 +435,8 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
   messageBubbleWrapper: { maxWidth: '82%', marginBottom: spacing.xs },
   sentBubbleWrapper: { alignSelf: 'flex-end' },
   receivedBubbleWrapper: { alignSelf: 'flex-start' },
-  messageBubble: { paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderRadius: borderRadius.xl },
-  sentBubble: { backgroundColor: theme.primary, borderBottomRightRadius: spacing.xs },
+  messageBubble: { alignSelf: 'flex-start', paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderRadius: borderRadius.xl },
+  sentBubble: { alignSelf: 'flex-end', backgroundColor: theme.primary, borderBottomRightRadius: spacing.xs },
   receivedBubble: {
     backgroundColor: theme.surface,
     borderBottomLeftRadius: spacing.xs,

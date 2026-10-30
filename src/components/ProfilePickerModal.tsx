@@ -151,7 +151,9 @@ function ProfilePickerSheetContent({
       details?.education ??
       "",
   );
-  const [tempPet, setTempPet] = useState(() => details?.pets ?? "");
+  const [tempPets, setTempPets] = useState<string[]>(() =>
+    (details?.pets ?? "").split(",").map((pet) => pet.trim()).filter(Boolean),
+  );
   const [tempPhotos, setTempPhotos] = useState<string[]>(
     () => draft?.photos ?? user?.photos ?? [],
   );
@@ -270,7 +272,7 @@ function ProfilePickerSheetContent({
 
     if (isPetField) {
       if (baseDetails) {
-        update({ details: { ...baseDetails, pets: tempPet } });
+        update({ details: { ...baseDetails, pets: tempPets.join(", ") } });
       }
       animateClose(handleFinishModal);
       return;
@@ -475,7 +477,11 @@ function ProfilePickerSheetContent({
   };
 
   const selectPetBadge = (badge: string) => {
-    setTempPet((prev) => (prev === badge ? "" : badge));
+    setTempPets((previous) => {
+      if (previous.includes(badge)) return previous.filter((pet) => pet !== badge);
+      if (badge === "Không nuôi thú cưng") return [badge];
+      return [...previous.filter((pet) => pet !== "Không nuôi thú cưng"), badge];
+    });
   };
 
   const addPhoto = (photo: string) => {
@@ -1193,7 +1199,7 @@ function ProfilePickerSheetContent({
                   </View>
                 </View>
               ) : isPetField ? (
-                /* 5. Pets Picker (Badges single select) */
+                /* 5. Pets Picker (multi-select, stored as one profile string) */
                 <ScrollView contentContainerStyle={styles.scrollPadding}>
                   <Text
                     style={[
@@ -1201,11 +1207,11 @@ function ProfilePickerSheetContent({
                       { color: theme.textSecondary },
                     ]}
                   >
-                    Chọn 1 lựa chọn về thú cưng phù hợp với bạn:
+                    Chọn các lựa chọn phù hợp với bạn:
                   </Text>
                   <View style={styles.badgeWrap}>
                     {petListData.map((badge) => {
-                      const isSelected = tempPet === badge;
+                      const isSelected = tempPets.includes(badge);
                       return (
                         <Pressable
                           key={badge}

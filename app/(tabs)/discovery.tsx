@@ -368,7 +368,7 @@ export default function DiscoveryScreen() {
                 height: profile.height_cm ? `${profile.height_cm}cm` : "",
                 smoking: "",
                 drinking: "",
-                pets: profile.pets?.join(", ") ?? "",
+                pets: profile.pet ?? "",
                 children: "",
                 zodiac: "",
                 religion: "",

@@ -13,12 +13,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import SpringPressable from '@/components/SpringPressable';
 import { colors, darkColors, borderRadius, spacing, typography } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { datingApi, type DatingMatchItem } from '@/api/datingClient';
 
 const FALLBACK_PHOTO = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300';
+const springFadeInDown = (delay = 0) =>
+  FadeInDown.delay(delay).springify().damping(22).stiffness(240).mass(0.85);
 
 function calculateAge(birthDate?: string) {
   if (!birthDate) return null;
@@ -102,7 +105,11 @@ export default function MatchesScreen() {
     if (!item.partner.profile) return;
     router.push({
       pathname: '/profile-detail',
-      params: { userId: item.partner.id, source: 'matches' },
+      params: {
+        userId: item.partner.id,
+        source: 'matches',
+        distance_km: item.partner.distance_km == null ? '' : String(item.partner.distance_km),
+      },
     });
   };
 
@@ -112,13 +119,13 @@ export default function MatchesScreen() {
     const context = [profile?.job_title, profile?.city].filter(Boolean).join(' · ');
 
     return (
-      <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}>
-       <Pressable
+      <Animated.View entering={springFadeInDown(Math.min(index, 8) * 45)}>
+       <SpringPressable
           accessibilityRole="button"
           accessibilityLabel={`View ${profile?.display_name ?? 'match'} profile`}
           disabled={!profile}
           onPress={() => openProfile(item)}
-          style={({ pressed }) => [styles.matchCard, pressed && styles.matchCardPressed, !profile && styles.matchCardUnavailable]}
+          style={[styles.matchCard, !profile && styles.matchCardUnavailable]}
         >
         <View style={styles.photoWrap}>
           <Image source={{ uri: getPartnerPhoto(item) }} style={styles.avatar} />
@@ -150,14 +157,14 @@ export default function MatchesScreen() {
         <View style={styles.openButton}>
           <Ionicons name="chevron-forward" size={19} color={theme.primary} />
         </View>
-        </Pressable>
+        </SpringPressable>
       </Animated.View>
     );
   };
 
   const listHeader = (
     <View>
-      <Animated.View entering={FadeInDown.duration(360)} style={styles.pageHeader}>
+      <Animated.View entering={springFadeInDown()} style={styles.pageHeader}>
         <View style={styles.eyebrowRow}>
           <View style={styles.eyebrowDot} />
           <Text style={styles.eyebrow}>YOUR CONNECTIONS</Text>
@@ -173,18 +180,18 @@ export default function MatchesScreen() {
       </Animated.View>
 
       {matches.length > 0 && (
-        <View style={styles.noteCard}>
+        <Animated.View entering={springFadeInDown(90)} style={styles.noteCard}>
           <View style={styles.noteIcon}>
             <Ionicons name="sparkles-outline" size={20} color={theme.primary} />
           </View>
           <Text style={styles.noteText}>Say hello and see where the conversation goes.</Text>
-        </View>
+        </Animated.View>
       )}
 
-      <View style={styles.listHeading}>
+      <Animated.View entering={springFadeInDown(140)} style={styles.listHeading}>
         <Text style={styles.listTitle}>People you matched with</Text>
         <Text style={styles.listCount}>{matches.length}</Text>
-      </View>
+      </Animated.View>
     </View>
   );
 
@@ -222,7 +229,7 @@ export default function MatchesScreen() {
           renderItem={renderMatch}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={(
-            <View style={styles.emptyState}>
+            <Animated.View entering={springFadeInDown(180)} style={styles.emptyState}>
               <View style={styles.emptyArtwork}>
                 <View style={styles.emptyHalo} />
                 <Ionicons name="heart" size={38} color={theme.primary} />
@@ -238,7 +245,7 @@ export default function MatchesScreen() {
                 <Text style={styles.discoverButtonText}>Explore profiles</Text>
                 <Ionicons name="arrow-forward" size={17} color={theme.white} />
               </Pressable>
-            </View>
+            </Animated.View>
           )}
           contentContainerStyle={styles.emptyListContent}
           showsVerticalScrollIndicator={false}

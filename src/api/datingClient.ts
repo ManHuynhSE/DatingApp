@@ -60,7 +60,7 @@ export interface DatingProfile {
   gender: 'male' | 'female' | 'non_binary' | 'other';
   bio: string | null;
   job_title: string | null;
-  pets: string[];
+  pet: string | null;
   life_style: string[];
   hobbies: Hobby[];
   education: string | null;
@@ -186,6 +186,7 @@ export interface DatingMatchItem {
   partner: {
     id: string;
     status: string;
+    distance_km?: number | null;
     profile: Pick<
       DatingProfile,
       'display_name' | 'birth_date' | 'gender' | 'bio' | 'city' | 'ward' | 'job_title' | 'is_verified'
@@ -225,7 +226,7 @@ export interface CreateDatingProfileInput {
   gender: 'male' | 'female' | 'non_binary' | 'other';
   bio?: string | null;
   job_title?: string | null;
-  pets?: string[];
+  pet?: string | null;
   life_style?: string[];
   hobbies?: Hobby[];
   education?: string | null;
@@ -243,7 +244,7 @@ export interface UpdateDatingProfileInput {
   gender?: 'male' | 'female' | 'non_binary' | 'other';
   bio?: string | null;
   job_title?: string | null;
-  pets?: string[];
+  pet?: string | null;
   life_style?: string[];
   hobbies?: Hobby[];
   education?: string | null;

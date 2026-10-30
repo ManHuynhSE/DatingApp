@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,15 +10,23 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
-import { datingApi, type DatingProfile } from '../src/api/datingClient';
-import { useAuthStore } from '../src/store/authStore';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import {
+  colors,
+  darkColors,
+  typography,
+  spacing,
+  borderRadius,
+  shadows,
+} from "../src/theme";
+import { datingApi, type DatingProfile } from "../src/api/datingClient";
+import { useAuthStore } from "../src/store/authStore";
+import { useThemeStore } from "../src/store/themeStore";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const PHOTO_HEIGHT = SCREEN_WIDTH * 1.1;
 
 const calculateAge = (birthDate: string) => {
@@ -36,15 +44,26 @@ const calculateAge = (birthDate: string) => {
 
 export default function ProfileDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ userId?: string; distance_km?: string }>();
-  const currentUserId = useAuthStore((state) => state.user?.id);
   const params = useLocalSearchParams<{
-    userId?: string | string[];
+    userId?: string;
+    distance_km?: string;
     source?: string | string[];
   }>();
-  const routeUserId = Array.isArray(params.userId) ? params.userId[0] : params.userId;
-  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const mode = useThemeStore((state) => state.mode);
+  const theme = mode === "dark" ? darkColors : colors;
+  const styles = createStyles(theme);
   const currentUserId = useAuthStore((state) => state.user?.id);
+  // const params = useLocalSearchParams<{
+  //   userId?: string | string[];
+  //   source?: string | string[];
+  // }>();
+  const routeUserId = Array.isArray(params.userId)
+    ? params.userId[0]
+    : params.userId;
+  const source = Array.isArray(params.source)
+    ? params.source[0]
+    : params.source;
+  // const currentUserId = useAuthStore((state) => state.user?.id);
   const userId = routeUserId || currentUserId;
   const [profile, setProfile] = useState<DatingProfile | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
@@ -53,43 +72,61 @@ export default function ProfileDetailScreen() {
 
   const handleLike = async () => {
     if (!profile || isSubmittingAction) return;
-    setIsSubmittingAction(true);
-    if (currentUserId) {
-      try {
-        const res = await datingApi.createSwipe(currentUserId, profile.user_id, 'like');
-        if (res.isMatch) {
-          router.replace({
-            pathname: '/match-found',
-            params: {
-              matchedUserId: profile.user_id,
-              matchedName: profile.display_name,
-              matchedPhoto: photoUrls[0] || '',
-            },
-          });
-          return;
-        }
-      } catch (err) {
-        console.warn('Swipe like failed:', err);
-      }
+    if (!currentUserId) {
+      Alert.alert("Sign in required", "Sign in before liking a profile.");
+      return;
     }
-    router.back();
+    setIsSubmittingAction(true);
+    try {
+      const res = await datingApi.createSwipe(
+        currentUserId,
+        profile.user_id,
+        "like",
+      );
+      if (res.isMatch) {
+        router.replace({
+          pathname: "/match-found",
+          params: {
+            matchedUserId: profile.user_id,
+            matchedName: profile.display_name,
+            matchedPhoto: photoUrls[0] || "",
+          },
+        });
+        return;
+      }
+      router.back();
+    } catch (err) {
+      Alert.alert(
+        "Couldn't like profile",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setIsSubmittingAction(false);
+    }
   };
 
   const handlePass = async () => {
     if (!profile || isSubmittingAction) return;
-    setIsSubmittingAction(true);
-    if (currentUserId) {
-      try {
-        await datingApi.createSwipe(currentUserId, profile.user_id, 'pass');
-      } catch (err) {
-        console.warn('Swipe pass failed:', err);
-      }
+    if (!currentUserId) {
+      Alert.alert("Sign in required", "Sign in before passing on a profile.");
+      return;
     }
-    router.back();
+    setIsSubmittingAction(true);
+    try {
+      await datingApi.createSwipe(currentUserId, profile.user_id, "pass");
+      router.back();
+    } catch (err) {
+      Alert.alert(
+        "Couldn't pass on profile",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setIsSubmittingAction(false);
+    }
   };
   const loading = Boolean(userId) && loadedUserId !== userId;
   const isOwnProfile = Boolean(userId && userId === currentUserId);
-  const isMatchedProfile = source === 'matches';
+  const isMatchedProfile = source === "matches";
   const hideProfileActions = isOwnProfile || isMatchedProfile;
 
   useEffect(() => {
@@ -101,14 +138,16 @@ export default function ProfileDetailScreen() {
         if (!active) return;
         setError(null);
         if (!response.success || !response.data) {
-          throw new Error('Profile not found');
+          throw new Error("Profile not found");
         }
         setProfile(response.data);
       })
       .catch((err) => {
         if (active) {
           setProfile(null);
-          setError(err instanceof Error ? err.message : 'Failed to load profile');
+          setError(
+            err instanceof Error ? err.message : "Failed to load profile",
+          );
         }
       })
       .finally(() => {
@@ -122,8 +161,13 @@ export default function ProfileDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View
+          style={[
+            styles.container,
+            { justifyContent: "center", alignItems: "center" },
+          ]}
+        >
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       </SafeAreaView>
     );
@@ -131,18 +175,27 @@ export default function ProfileDetailScreen() {
 
   if (error || !profile) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar barStyle="dark-content" />
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerBtn}
+          >
+            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Profile</Text>
           <View style={styles.headerBtn} />
         </View>
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <View
+          style={[
+            styles.container,
+            { justifyContent: "center", alignItems: "center" },
+          ]}
+        >
           <Text style={styles.errorText}>
-            {error || (userId ? 'Profile not found' : 'Sign in to view a profile')}
+            {error ||
+              (userId ? "Profile not found" : "Sign in to view a profile")}
           </Text>
         </View>
       </SafeAreaView>
@@ -155,12 +208,18 @@ export default function ProfileDetailScreen() {
     return a.position - b.position;
   });
   const photoUrls = sortedPhotos.map((p) => p.url);
-  const selectedPets = profile.pets ?? [];
+  const selectedPets = profile.pet
+    ? profile.pet.split(",").map((pet) => pet.trim()).filter(Boolean)
+    : [];
   const selectedLifestyle = profile.life_style ?? [];
   const selectedLanguages = profile.languages ?? [];
   const hasProfileDetails = Boolean(
-    profile.job_title || profile.education || profile.height_cm
-      || selectedPets.length || selectedLifestyle.length || selectedLanguages.length,
+    profile.job_title ||
+    profile.education ||
+    profile.height_cm ||
+    selectedPets.length ||
+    selectedLifestyle.length ||
+    selectedLanguages.length,
   );
   const renderChoice = (label: string) => (
     <View key={label} style={styles.choiceChip}>
@@ -169,24 +228,38 @@ export default function ProfileDetailScreen() {
   );
   const renderScalarChoice = (value: string | null | undefined) => {
     if (value) return renderChoice(value);
-    return isOwnProfile ? <Text style={styles.emptyDetail}>Not added yet</Text> : null;
+    return isOwnProfile ? (
+      <Text style={styles.emptyDetail}>Not added yet</Text>
+    ) : null;
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
 
       {/* Profile detail header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.headerBtn}
+        >
+          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={() => Alert.alert('Profile menu', 'You can hide, report or block this profile here.')}
+          onPress={() =>
+            Alert.alert(
+              "Profile menu",
+              "You can hide, report or block this profile here.",
+            )
+          }
         >
-          <Ionicons name="ellipsis-horizontal" size={24} color={colors.textPrimary} />
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={24}
+            color={theme.textPrimary}
+          />
         </TouchableOpacity>
       </View>
 
@@ -198,7 +271,9 @@ export default function ProfileDetailScreen() {
         {/* Hero Photo */}
         <View style={styles.heroContainer}>
           <Image
-            source={{ uri: photoUrls[0] || 'https://picsum.photos/seed/profile/700/900' }}
+            source={{
+              uri: photoUrls[0] || "https://picsum.photos/seed/profile/700/900",
+            }}
             style={styles.heroImage}
             resizeMode="cover"
           />
@@ -210,27 +285,33 @@ export default function ProfileDetailScreen() {
               </Text>
               {profile.is_verified && (
                 <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark" size={12} color={colors.white} />
+                  <Ionicons name="checkmark" size={12} color={theme.white} />
                 </View>
               )}
             </View>
             <View style={styles.pronounsChip}>
               <Text style={styles.pronounsText}>
-                {profile.gender === 'female'
-                  ? 'She/Her'
-                  : profile.gender === 'male'
-                    ? 'He/Him'
+                {profile.gender === "female"
+                  ? "She/Her"
+                  : profile.gender === "male"
+                    ? "He/Him"
                     : profile.gender}
               </Text>
             </View>
-            <Text style={styles.occupation}>{profile.job_title || 'Open to meeting someone new'}</Text>
+            <Text style={styles.occupation}>
+              {profile.job_title || "Open to meeting someone new"}
+            </Text>
           </View>
         </View>
 
         {/* Location */}
         <View style={styles.section}>
           <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={18} color={colors.primary} />
+            <Ionicons
+              name="location-outline"
+              size={18}
+              color={theme.primary}
+            />
             <Text style={styles.locationDistance}>
               {(() => {
                 const distanceKmVal =
@@ -239,15 +320,15 @@ export default function ProfileDetailScreen() {
                 const distanceLabel =
                   distanceKmVal !== null && distanceKmVal !== undefined
                     ? distanceKmVal < 1
-                      ? '< 1 km away'
+                      ? "< 1 km away"
                       : `${distanceKmVal} km away`
                     : null;
                 const locationString = [profile.ward, profile.city]
                   .filter(Boolean)
-                  .join(', ');
+                  .join(", ");
                 return (
-                  [distanceLabel, locationString].filter(Boolean).join(' · ') ||
-                  'Location not shared'
+                  [distanceLabel, locationString].filter(Boolean).join(" · ") ||
+                  "Location not shared"
                 );
               })()}
             </Text>
@@ -259,7 +340,9 @@ export default function ProfileDetailScreen() {
         {/* About me */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About me</Text>
-          <Text style={styles.bioText}>{profile.bio || 'No bio provided yet'}</Text>
+          <Text style={styles.bioText}>
+            {profile.bio || "No bio provided yet"}
+          </Text>
         </View>
 
         <View style={styles.divider} />
@@ -273,14 +356,18 @@ export default function ProfileDetailScreen() {
                 {(profile.job_title || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>Occupation</Text>
-                    <View style={styles.choiceList}>{renderScalarChoice(profile.job_title)}</View>
+                    <View style={styles.choiceList}>
+                      {renderScalarChoice(profile.job_title)}
+                    </View>
                   </View>
                 )}
 
                 {(profile.education || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>Education</Text>
-                    <View style={styles.choiceList}>{renderScalarChoice(profile.education)}</View>
+                    <View style={styles.choiceList}>
+                      {renderScalarChoice(profile.education)}
+                    </View>
                   </View>
                 )}
 
@@ -288,7 +375,9 @@ export default function ProfileDetailScreen() {
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>Height</Text>
                     <View style={styles.choiceList}>
-                      {renderScalarChoice(profile.height_cm ? `${profile.height_cm} cm` : null)}
+                      {renderScalarChoice(
+                        profile.height_cm ? `${profile.height_cm} cm` : null,
+                      )}
                     </View>
                   </View>
                 )}
@@ -297,9 +386,11 @@ export default function ProfileDetailScreen() {
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>Pets</Text>
                     <View style={styles.choiceList}>
-                      {selectedPets.length
-                        ? selectedPets.map(renderChoice)
-                        : <Text style={styles.emptyDetail}>Not added yet</Text>}
+                      {selectedPets.length ? (
+                        selectedPets.map(renderChoice)
+                      ) : (
+                        <Text style={styles.emptyDetail}>Not added yet</Text>
+                      )}
                     </View>
                   </View>
                 )}
@@ -308,9 +399,11 @@ export default function ProfileDetailScreen() {
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>Lifestyle</Text>
                     <View style={styles.choiceList}>
-                      {selectedLifestyle.length
-                        ? selectedLifestyle.map(renderChoice)
-                        : <Text style={styles.emptyDetail}>Not added yet</Text>}
+                      {selectedLifestyle.length ? (
+                        selectedLifestyle.map(renderChoice)
+                      ) : (
+                        <Text style={styles.emptyDetail}>Not added yet</Text>
+                      )}
                     </View>
                   </View>
                 )}
@@ -319,9 +412,11 @@ export default function ProfileDetailScreen() {
                   <View style={[styles.fieldGroup, styles.fieldGroupLast]}>
                     <Text style={styles.fieldLabel}>Languages</Text>
                     <View style={styles.choiceList}>
-                      {selectedLanguages.length
-                        ? selectedLanguages.map(renderChoice)
-                        : <Text style={styles.emptyDetail}>Not added yet</Text>}
+                      {selectedLanguages.length ? (
+                        selectedLanguages.map(renderChoice)
+                      ) : (
+                        <Text style={styles.emptyDetail}>Not added yet</Text>
+                      )}
                     </View>
                   </View>
                 )}
@@ -350,18 +445,34 @@ export default function ProfileDetailScreen() {
         {/* Action buttons */}
         {!hideProfileActions && (
           <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.passButton} onPress={() => router.back()}>
-              <Ionicons name="close" size={32} color={colors.error} />
+            <TouchableOpacity
+              style={styles.passButton}
+              onPress={handlePass}
+              disabled={isSubmittingAction}
+            >
+              <Ionicons name="close" size={32} color={theme.error} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.likeButton} onPress={() => router.push('/match-found')}>
-              <Ionicons name="checkmark" size={32} color={colors.success} />
+            <TouchableOpacity
+              style={styles.likeButton}
+              onPress={handleLike}
+              disabled={isSubmittingAction}
+            >
+              <Ionicons name="checkmark" size={32} color={theme.success} />
             </TouchableOpacity>
           </View>
         )}
 
         {/* Hide and Report */}
         {!hideProfileActions && (
-          <TouchableOpacity style={styles.reportLink} onPress={() => Alert.alert('Hide and report', 'This profile has been hidden from your discovery list.')}>
+          <TouchableOpacity
+            style={styles.reportLink}
+            onPress={() =>
+              Alert.alert(
+                "Hide and report",
+                "This profile has been hidden from your discovery list.",
+              )
+            }
+          >
             <Text style={styles.reportText}>Hide and Report Profile</Text>
           </TouchableOpacity>
         )}
@@ -372,38 +483,39 @@ export default function ProfileDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: typeof colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: theme.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: theme.borderLight,
+    backgroundColor: theme.background,
   },
   headerBtn: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: typography.h3.fontSize,
     fontWeight: typography.h3.fontWeight,
-    color: colors.textPrimary,
+    color: theme.textPrimary,
   },
   errorText: {
     fontSize: typography.body.fontSize,
-    color: colors.error,
-    textAlign: 'center',
+    color: theme.error,
+    textAlign: "center",
   },
   progressBar: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: spacing.base,
     gap: 4,
     marginBottom: spacing.sm,
@@ -419,14 +531,14 @@ const styles = StyleSheet.create({
   heroContainer: {
     width: SCREEN_WIDTH,
     height: PHOTO_HEIGHT,
-    position: 'relative',
+    position: "relative",
   },
   heroImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   heroOverlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
@@ -434,42 +546,42 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     paddingTop: spacing.xxxl,
     // Gradient-like effect with semi-transparent background
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: spacing.xs,
   },
   heroName: {
     fontSize: typography.h1.fontSize,
     fontWeight: typography.h1.fontWeight,
-    color: colors.white,
+    color: theme.white,
     marginRight: spacing.sm,
   },
   verifiedBadge: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#4A90D9',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#4A90D9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   pronounsChip: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: "rgba(255,255,255,0.25)",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginBottom: spacing.xs,
   },
   pronounsText: {
     fontSize: typography.caption.fontSize,
-    color: colors.white,
+    color: theme.white,
   },
   occupation: {
     fontSize: typography.bodySmall.fontSize,
-    color: colors.white,
+    color: theme.white,
     opacity: 0.9,
   },
   section: {
@@ -479,35 +591,35 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: typography.h3.fontSize,
     fontWeight: typography.h3.fontWeight,
-    color: colors.textPrimary,
+    color: theme.textPrimary,
     marginBottom: spacing.md,
   },
   locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.xs,
     marginBottom: spacing.xs,
   },
   locationDistance: {
     fontSize: typography.bodySmall.fontSize,
-    color: colors.textSecondary,
+    color: theme.textSecondary,
   },
   locationCity: {
     fontSize: typography.bodySmall.fontSize,
-    color: colors.textSecondary,
+    color: theme.textSecondary,
     marginLeft: spacing.xl + 2,
   },
   bioText: {
     fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 24,
   },
   detailPanel: {
     padding: spacing.base,
-    backgroundColor: colors.white,
+    backgroundColor: theme.surface,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#EEEAE4',
+    borderColor: theme.borderLight,
   },
   fieldGroup: {
     gap: spacing.sm,
@@ -518,54 +630,54 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: typography.bodySmall.fontSize,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontWeight: "600",
+    color: theme.textPrimary,
   },
   choiceList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
   },
   choiceChip: {
     minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    backgroundColor: '#FAF8F5',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#E9E4DD',
+    borderColor: theme.border,
     borderRadius: borderRadius.full,
   },
   choiceChipText: {
     fontSize: typography.bodySmall.fontSize,
-    color: colors.textSecondary,
+    color: theme.textSecondary,
   },
   emptyDetail: {
     fontSize: typography.bodySmall.fontSize,
-    color: colors.textTertiary,
-    fontStyle: 'italic',
+    color: theme.textTertiary,
+    fontStyle: "italic",
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: theme.border,
     marginHorizontal: spacing.lg,
   },
   photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
   },
   galleryPhoto: {
     width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.sm) / 2,
-    height: (SCREEN_WIDTH - spacing.lg * 2 - spacing.sm) / 2 * 1.2,
+    height: ((SCREEN_WIDTH - spacing.lg * 2 - spacing.sm) / 2) * 1.2,
     borderRadius: borderRadius.md,
   },
   actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: spacing.xxl,
     paddingVertical: spacing.xl,
   },
@@ -573,31 +685,31 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: theme.surface,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
-    borderColor: colors.error,
+    borderColor: theme.error,
     ...shadows.md,
   },
   likeButton: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: theme.surface,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
-    borderColor: colors.success,
+    borderColor: theme.success,
     ...shadows.md,
   },
   reportLink: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: spacing.base,
   },
   reportText: {
     fontSize: typography.bodySmall.fontSize,
-    color: colors.textTertiary,
-    textDecorationLine: 'underline',
+    color: theme.textTertiary,
+    textDecorationLine: "underline",
   },
 });
