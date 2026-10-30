@@ -90,6 +90,20 @@ export interface ProfilePickerModalProps {
   type: string;
   field?: string;
   onClose: () => void;
+  initialData?: {
+    city?: string;
+    ward?: string;
+    languages?: string[];
+    interestedIn?: 'male' | 'female' | 'everyone';
+    photos?: string[];
+    birthDate?: string;
+    [key: string]: any;
+  };
+  onSelectAddress?: (address: { city: string; ward: string; fullAddress: string }) => void;
+  onSelectLanguages?: (languages: string[]) => void;
+  onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
+  onSelectPhotos?: (photos: string[]) => void;
+  onSelectBirthDate?: (birthDate: string, age: number) => void;
 }
 
 export default function ProfilePickerModal({
@@ -97,6 +111,12 @@ export default function ProfilePickerModal({
   type,
   field,
   onClose,
+  initialData,
+  onSelectAddress,
+  onSelectLanguages,
+  onSelectInterestedIn,
+  onSelectPhotos,
+  onSelectBirthDate,
 }: ProfilePickerModalProps) {
   if (!visible) return null;
 
@@ -106,6 +126,12 @@ export default function ProfilePickerModal({
       type={type}
       field={field}
       onClose={onClose}
+      initialData={initialData}
+      onSelectAddress={onSelectAddress}
+      onSelectLanguages={onSelectLanguages}
+      onSelectInterestedIn={onSelectInterestedIn}
+      onSelectPhotos={onSelectPhotos}
+      onSelectBirthDate={onSelectBirthDate}
     />
   );
 }
@@ -114,10 +140,30 @@ function ProfilePickerSheetContent({
   type,
   field,
   onClose,
+  initialData,
+  onSelectAddress,
+  onSelectLanguages,
+  onSelectInterestedIn,
+  onSelectPhotos,
+  onSelectBirthDate,
 }: {
   type: string;
   field?: string;
   onClose: () => void;
+  initialData?: {
+    city?: string;
+    ward?: string;
+    languages?: string[];
+    interestedIn?: 'male' | 'female' | 'everyone';
+    photos?: string[];
+    birthDate?: string;
+    [key: string]: any;
+  };
+  onSelectAddress?: (address: { city: string; ward: string; fullAddress: string }) => void;
+  onSelectLanguages?: (languages: string[]) => void;
+  onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
+  onSelectPhotos?: (photos: string[]) => void;
+  onSelectBirthDate?: (birthDate: string, age: number) => void;
 }) {
   const themeMode = useThemeStore((state) => state.mode);
   const theme = themeMode === "dark" ? darkColors : colors;
@@ -169,8 +215,67 @@ function ProfilePickerSheetContent({
   const [photosError, setPhotosError] = useState<string | null>(null);
   const [photoLoadAttempt, setPhotoLoadAttempt] = useState(0);
   const [tempLanguages, setTempLanguages] = useState<string[]>(
-    () => draft?.languages ?? user?.languages ?? [],
+    () => initialData?.languages ?? draft?.languages ?? user?.languages ?? [],
   );
+  const [tempInterestedIn, setTempInterestedIn] = useState<"male" | "female" | "everyone">(
+    () => initialData?.interestedIn ?? "everyone",
+  );
+  // Birth Date States
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const [tempYear, setTempYear] = useState(() => {
+    if (initialData?.birthDate) {
+      const parts = initialData.birthDate.split('-').map(Number);
+      if (parts.length === 3 && parts[0]) return parts[0];
+    }
+    return new Date().getFullYear() - 22;
+  });
+  const [tempMonth, setTempMonth] = useState(() => {
+    if (initialData?.birthDate) {
+      const parts = initialData.birthDate.split('-').map(Number);
+      if (parts.length === 3 && parts[1]) return parts[1];
+    }
+    return 1;
+  });
+  const [tempDay, setTempDay] = useState(() => {
+    if (initialData?.birthDate) {
+      const parts = initialData.birthDate.split('-').map(Number);
+      if (parts.length === 3 && parts[2]) return parts[2];
+    }
+    return 1;
+  });
+
+  const maxDays = useMemo(() => {
+    return new Date(tempYear, tempMonth, 0).getDate();
+  }, [tempYear, tempMonth]);
+
+  const effectiveDay = Math.min(tempDay, maxDays);
+
+  const tempAge = useMemo(() => {
+    const today = new Date();
+    let a = today.getFullYear() - tempYear;
+    const m = today.getMonth() + 1 - tempMonth;
+    if (m < 0 || (m === 0 && today.getDate() < effectiveDay)) {
+      a--;
+    }
+    return a;
+  }, [tempYear, tempMonth, effectiveDay]);
+
+  const availableYears = useMemo(() => {
+    const years: number[] = [];
+    for (let y = currentYear - 18; y >= currentYear - 100; y--) {
+      years.push(y);
+    }
+    return years;
+  }, [currentYear]);
+
+  const availableMonths = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => i + 1);
+  }, []);
+
+  const availableDays = useMemo(() => {
+    return Array.from({ length: maxDays }, (_, i) => i + 1);
+  }, [maxDays]);
+
   const [tempInterests, setTempInterests] = useState<string[]>(
     () => draft?.interests ?? user?.interests ?? [],
   );
@@ -184,8 +289,8 @@ function ProfilePickerSheetContent({
       : [];
   });
 
-  const cityVal = draft?.city ?? user?.city ?? "";
-  const wardVal = draft?.ward ?? user?.ward ?? "";
+  const cityVal = initialData?.city ?? draft?.city ?? user?.city ?? "";
+  const wardVal = initialData?.ward ?? draft?.ward ?? user?.ward ?? "";
   const [tempCity, setTempCity] = useState(cityVal);
   const [tempWard, setTempWard] = useState(wardVal);
   const [addressStep, setAddressStep] = useState<"city" | "ward">(() =>
@@ -334,11 +439,15 @@ function ProfilePickerSheetContent({
 
     if (isAddressField) {
       const fullAddress = [tempWard, tempCity].filter(Boolean).join(", ");
-      update({
-        location: fullAddress,
-        city: tempCity || undefined,
-        ward: tempWard || undefined,
-      });
+      if (onSelectAddress) {
+        onSelectAddress({ city: tempCity, ward: tempWard, fullAddress });
+      } else {
+        update({
+          location: fullAddress,
+          city: tempCity || undefined,
+          ward: tempWard || undefined,
+        });
+      }
       animateClose(handleFinishModal);
       return;
     }
@@ -349,7 +458,39 @@ function ProfilePickerSheetContent({
     }
 
     if (type === "languages") {
-      update({ languages: tempLanguages });
+      if (onSelectLanguages) {
+        onSelectLanguages(tempLanguages);
+      } else {
+        update({ languages: tempLanguages });
+      }
+      animateClose(handleFinishModal);
+      return;
+    }
+
+    if (type === "birth_date") {
+      if (tempAge < 18) {
+        Alert.alert(
+          "Age requirement",
+          "You must be at least 18 years old to join HeartSync.",
+        );
+        return;
+      }
+      if (tempAge > 120) {
+        Alert.alert("Invalid date", "Please select a valid birth date.");
+        return;
+      }
+      const formatted = `${tempYear}-${String(tempMonth).padStart(2, "0")}-${String(effectiveDay).padStart(2, "0")}`;
+      if (onSelectBirthDate) {
+        onSelectBirthDate(formatted, tempAge);
+      }
+      animateClose(handleFinishModal);
+      return;
+    }
+
+    if (type === "interested_in") {
+      if (onSelectInterestedIn) {
+        onSelectInterestedIn(tempInterestedIn);
+      }
       animateClose(handleFinishModal);
       return;
     }
@@ -428,6 +569,8 @@ function ProfilePickerSheetContent({
   // ─── Modal Title ───────────────────────────────────────────────────────────
   const title = useMemo(() => {
     if (type === "photos") return "Photos";
+    if (type === "birth_date") return "Date of Birth";
+    if (type === "interested_in") return "I'm interested in";
     if (isAddressField) return "Address";
     if (type === "languages") return "Languages";
     if (type === "interests") return "My Interests";
@@ -955,6 +1098,345 @@ function ProfilePickerSheetContent({
                       );
                     }}
                   />
+                </View>
+              ) : type === "birth_date" ? (
+                /* Birth Date Picker */
+                <View style={styles.flex}>
+                  {/* Top Preview Card */}
+                  <View
+                    style={[
+                      styles.birthDateSummaryCard,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: tempAge >= 18 ? theme.border : theme.error,
+                      },
+                    ]}
+                  >
+                    <View style={styles.birthDateSummaryLeft}>
+                      <Text
+                        style={[styles.birthDateValueText, { color: theme.textPrimary }]}
+                      >
+                        {String(effectiveDay).padStart(2, "0")} / {String(tempMonth).padStart(2, "0")} / {tempYear}
+                      </Text>
+                      <Text
+                        style={[typography.caption, { color: theme.textSecondary }]}
+                      >
+                        Day / Month / Year
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.birthDateAgeBadge,
+                        {
+                          backgroundColor:
+                            tempAge >= 18 ? theme.primaryLight : "rgba(239, 68, 68, 0.15)",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={tempAge >= 18 ? "checkmark-circle" : "alert-circle"}
+                        size={16}
+                        color={tempAge >= 18 ? theme.primary : theme.error}
+                      />
+                      <Text
+                        style={[
+                          styles.birthDateAgeText,
+                          { color: tempAge >= 18 ? theme.primary : theme.error },
+                        ]}
+                      >
+                        {tempAge >= 18 ? `${tempAge} years old` : "Must be 18+"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Direct Numeric Input Row */}
+                  <View style={styles.dateInputRow}>
+                    <View style={styles.dateInputCol}>
+                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                        Day
+                      </Text>
+                      <TextInput
+                        value={String(effectiveDay)}
+                        onChangeText={(t) => {
+                          const n = parseInt(t.replace(/\D/g, ""), 10);
+                          if (!Number.isNaN(n) && n >= 1 && n <= 31) {
+                            setTempDay(n);
+                          }
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        style={[
+                          styles.dateInputField,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                            color: theme.textPrimary,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <View style={styles.dateInputCol}>
+                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                        Month
+                      </Text>
+                      <TextInput
+                        value={String(tempMonth)}
+                        onChangeText={(t) => {
+                          const n = parseInt(t.replace(/\D/g, ""), 10);
+                          if (!Number.isNaN(n) && n >= 1 && n <= 12) {
+                            setTempMonth(n);
+                          }
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        style={[
+                          styles.dateInputField,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                            color: theme.textPrimary,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <View style={styles.dateInputColYear}>
+                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                        Year
+                      </Text>
+                      <TextInput
+                        value={String(tempYear)}
+                        onChangeText={(t) => {
+                          const n = parseInt(t.replace(/\D/g, ""), 10);
+                          if (!Number.isNaN(n) && n >= 1900 && n <= currentYear) {
+                            setTempYear(n);
+                          }
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        style={[
+                          styles.dateInputField,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                            color: theme.textPrimary,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+
+                  {/* 3 Interactive Columns */}
+                  <View style={styles.dateColumnsContainer}>
+                    {/* Days Column */}
+                    <View style={styles.dateColumn}>
+                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                        Day
+                      </Text>
+                      <FlatList
+                        data={availableDays}
+                        keyExtractor={(item) => `day-${item}`}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.dateColumnList}
+                        renderItem={({ item }) => {
+                          const isSelected = item === effectiveDay;
+                          return (
+                            <Pressable
+                              onPress={() => setTempDay(item)}
+                              style={[
+                                styles.dateItem,
+                                isSelected && {
+                                  backgroundColor: theme.primary,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dateItemText,
+                                  {
+                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "400",
+                                  },
+                                ]}
+                              >
+                                {String(item).padStart(2, "0")}
+                              </Text>
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    </View>
+
+                    {/* Months Column */}
+                    <View style={[styles.dateColumn, styles.dateColumnMonth]}>
+                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                        Month
+                      </Text>
+                      <FlatList
+                        data={availableMonths}
+                        keyExtractor={(item) => `month-${item}`}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.dateColumnList}
+                        renderItem={({ item }) => {
+                          const isSelected = item === tempMonth;
+                          return (
+                            <Pressable
+                              onPress={() => setTempMonth(item)}
+                              style={[
+                                styles.dateItem,
+                                isSelected && {
+                                  backgroundColor: theme.primary,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dateItemText,
+                                  {
+                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "400",
+                                  },
+                                ]}
+                              >
+                                {MONTH_NAMES[item - 1]}
+                              </Text>
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    </View>
+
+                    {/* Years Column */}
+                    <View style={styles.dateColumn}>
+                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                        Year
+                      </Text>
+                      <FlatList
+                        data={availableYears}
+                        keyExtractor={(item) => `year-${item}`}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.dateColumnList}
+                        renderItem={({ item }) => {
+                          const isSelected = item === tempYear;
+                          return (
+                            <Pressable
+                              onPress={() => setTempYear(item)}
+                              style={[
+                                styles.dateItem,
+                                isSelected && {
+                                  backgroundColor: theme.primary,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dateItemText,
+                                  {
+                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "400",
+                                  },
+                                ]}
+                              >
+                                {item}
+                              </Text>
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : type === "interested_in" ? (
+                /* Interested In Picker */
+                <View style={styles.flex}>
+                  <Text
+                    style={[
+                      styles.helper,
+                      { color: theme.textSecondary, marginBottom: spacing.md },
+                    ]}
+                  >
+                    Select who you would like to see in your discovery feed:
+                  </Text>
+                  <View style={{ gap: spacing.sm, paddingHorizontal: spacing.base }}>
+                    {INTERESTED_OPTIONS.map((item) => {
+                      const isSelected = tempInterestedIn === item.value;
+                      return (
+                        <Pressable
+                          key={item.value}
+                          onPress={() => setTempInterestedIn(item.value)}
+                          style={[
+                            styles.selectRow,
+                            {
+                              backgroundColor: theme.surface,
+                              borderColor: isSelected
+                                ? theme.primary
+                                : theme.border,
+                              borderWidth: isSelected ? 1.5 : 1,
+                              paddingVertical: spacing.md,
+                            },
+                          ]}
+                        >
+                          <View style={styles.interestedOptionRow}>
+                            <View
+                              style={[
+                                styles.interestedOptionIconBox,
+                                {
+                                  backgroundColor: isSelected
+                                    ? theme.primaryLight
+                                    : theme.background,
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name={item.icon as any}
+                                size={20}
+                                color={
+                                  isSelected
+                                    ? theme.primary
+                                    : theme.textSecondary
+                                }
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  styles.selectRowText,
+                                  {
+                                    color: isSelected
+                                      ? theme.primary
+                                      : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "500",
+                                  },
+                                ]}
+                              >
+                                {item.label}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.previewBoxText,
+                                  { color: theme.textSecondary, marginTop: 2 },
+                                ]}
+                              >
+                                {item.subtitle}
+                              </Text>
+                            </View>
+                          </View>
+                          <Ionicons
+                            name={
+                              isSelected
+                                ? "radio-button-on"
+                                : "radio-button-off"
+                            }
+                            size={22}
+                            color={
+                              isSelected ? theme.primary : theme.textTertiary
+                            }
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
               ) : type === "interests" ? (
                 /* 3. Interests (Hobbies) Picker */
@@ -2084,5 +2566,113 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     ...typography.body,
     fontSize: 15,
+  },
+  interestedOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  birthDateSummaryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+  },
+  birthDateSummaryLeft: {
+    gap: 2,
+  },
+  birthDateValueText: {
+    ...typography.h3,
+    fontSize: 18,
+    letterSpacing: 1,
+  },
+  birthDateAgeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  birthDateAgeText: {
+    ...typography.captionBold,
+    fontSize: 13,
+  },
+  dateInputRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+  },
+  dateInputCol: {
+    flex: 1,
+  },
+  dateInputColYear: {
+    flex: 1.3,
+  },
+  dateInputLabel: {
+    ...typography.caption,
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  dateInputField: {
+    height: 42,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    textAlign: "center",
+    ...typography.bodyBold,
+    fontSize: 16,
+  },
+  dateColumnsContainer: {
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+  },
+  dateColumn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "rgba(150, 150, 150, 0.15)",
+    borderRadius: borderRadius.md,
+    overflow: "hidden",
+  },
+  dateColumnMonth: {
+    flex: 1.2,
+  },
+  dateColumnHeader: {
+    ...typography.captionBold,
+    textAlign: "center",
+    paddingVertical: 6,
+    backgroundColor: "rgba(150, 150, 150, 0.08)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(150, 150, 150, 0.2)",
+  },
+  dateColumnList: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  dateItem: {
+    height: 38,
+    borderRadius: borderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 2,
+  },
+  dateItemText: {
+    ...typography.body,
+    fontSize: 14,
+  },
+  interestedOptionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

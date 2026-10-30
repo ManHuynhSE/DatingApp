@@ -18,6 +18,7 @@ import { colors, typography, spacing, borderRadius } from '../src/theme';
 import { useDiscoveryStore } from '../src/store/discoveryStore';
 import { useAuthStore } from '../src/store/authStore';
 import { datingApi } from '../src/api/datingClient';
+import { RangeSlider, SingleSlider } from '../src/components/ui/Sliders';
 
 type GenderOption = 'Male' | 'Female' | 'Nonbinary';
 
@@ -58,6 +59,7 @@ export default function FiltersScreen() {
   const [showLanguageInput, setShowLanguageInput] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(!!userId);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   const genderOptions: GenderOption[] = ['Male', 'Female', 'Nonbinary'];
 
@@ -217,6 +219,7 @@ export default function FiltersScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
         <ScrollView
+          scrollEnabled={scrollEnabled}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -265,7 +268,12 @@ export default function FiltersScreen() {
 
           {/* Age range */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Age range:</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>Age range:</Text>
+              <Text style={styles.rangeValueBadge}>
+                {ageMin} – {parseInt(ageMax, 10) >= 80 ? '80+' : ageMax}
+              </Text>
+            </View>
             <View style={styles.rangeContainer}>
               <View style={styles.rangeInputWrapper}>
                 <Text style={styles.rangeLabel}>Min</Text>
@@ -291,17 +299,19 @@ export default function FiltersScreen() {
                 />
               </View>
             </View>
-            <View style={styles.sliderTrack}>
-              <View
-                style={[
-                  styles.sliderFill,
-                  {
-                    left: `${Math.max(0, Math.min(100, ((parseInt(ageMin, 10) || 18) - 18) / 0.62))}%`,
-                    right: `${Math.max(0, Math.min(100, 100 - ((parseInt(ageMax, 10) || 80) - 18) / 0.62))}%`,
-                  },
-                ]}
-              />
-            </View>
+            <RangeSlider
+              min={18}
+              max={80}
+              low={Math.max(18, Math.min(80, parseInt(ageMin, 10) || 18))}
+              high={Math.max(18, Math.min(80, parseInt(ageMax, 10) || 80))}
+              step={1}
+              minRange={0}
+              onValueChange={(newLow, newHigh) => {
+                setAgeMin(String(newLow));
+                setAgeMax(String(newHigh));
+              }}
+              onDragStateChange={(isDragging) => setScrollEnabled(!isDragging)}
+            />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabelText}>18</Text>
               <Text style={styles.sliderLabelText}>80+</Text>
@@ -310,9 +320,11 @@ export default function FiltersScreen() {
 
           {/* Distance */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Maximum distance:</Text>
-            <View style={styles.distanceRow}>
-              <Text style={styles.distanceValue}>{distance} km</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>Maximum distance:</Text>
+              <Text style={styles.rangeValueBadge}>
+                {parseInt(distance, 10) >= 80 ? '80+ km' : `${distance} km`}
+              </Text>
             </View>
             <View style={styles.rangeContainer}>
               <View style={styles.rangeInputWrapper}>
@@ -325,17 +337,16 @@ export default function FiltersScreen() {
                 />
               </View>
             </View>
-            <View style={styles.sliderTrack}>
-              <View
-                style={[
-                  styles.sliderFill,
-                  {
-                    left: '0%',
-                    right: `${Math.max(0, Math.min(100, 100 - ((parseInt(distance, 10) || 10) - 10) / 0.7))}%`,
-                  },
-                ]}
-              />
-            </View>
+            <SingleSlider
+              min={10}
+              max={80}
+              value={Math.max(10, Math.min(80, parseInt(distance, 10) || 10))}
+              step={1}
+              onValueChange={(newVal) => {
+                setDistance(String(newVal));
+              }}
+              onDragStateChange={(isDragging) => setScrollEnabled(!isDragging)}
+            />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabelText}>10 km</Text>
               <Text style={styles.sliderLabelText}>80+ km</Text>
@@ -612,6 +623,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: colors.primary,
     borderRadius: 2,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  rangeValueBadge: {
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
+    color: colors.primary,
   },
   sliderLabels: {
     flexDirection: 'row',
