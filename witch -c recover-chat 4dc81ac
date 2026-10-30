@@ -1,0 +1,28 @@
+[33m2881444[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/chat[m[33m, [m[1;31morigin/feat/chat[m[33m)[m refs/remotes/origin/feat/chat@{0}: update by push
+[33m2881444[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/chat[m[33m, [m[1;31morigin/feat/chat[m[33m)[m HEAD@{0}: checkout: moving from master to feat/chat
+[33m4dc81ac[m[33m ([m[1;32mmaster[m[33m)[m refs/heads/master@{0}: commit: chat ui
+[33m4dc81ac[m[33m ([m[1;32mmaster[m[33m)[m HEAD@{1}: commit: chat ui
+[33m2881444[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/chat[m[33m, [m[1;31morigin/feat/chat[m[33m)[m refs/heads/feat/chat@{0}: branch: Created from master
+[33m732dc45[m[33m ([m[1;31morigin/feature[m[33m)[m refs/remotes/origin/feature@{0}: pull: storing head
+[33m9f22482[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m refs/remotes/origin/master@{0}: pull: fast-forward
+[33m2881444[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/chat[m[33m, [m[1;31morigin/feat/chat[m[33m)[m refs/remotes/origin/master@{1}: update by push
+[33m2881444[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/chat[m[33m, [m[1;31morigin/feat/chat[m[33m)[m refs/heads/master@{1}: commit: add edit profile(location,heigth,education,pet,occupation,lifestyle) and matches tab
+[33m2881444[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/chat[m[33m, [m[1;31morigin/feat/chat[m[33m)[m HEAD@{2}: commit: add edit profile(location,heigth,education,pet,occupation,lifestyle) and matches tab
+[33mac9b226[m refs/remotes/origin/master@{2}: update by push
+[33mac9b226[m refs/heads/master@{2}: commit: fix expo go connection
+[33mac9b226[m HEAD@{3}: commit: fix expo go connection
+[33m93747e2[m refs/remotes/origin/master@{3}: update by push
+[33m93747e2[m refs/heads/master@{3}: commit: integrate with backend
+[33m93747e2[m HEAD@{4}: commit: integrate with backend
+[33me0ccbaf[m refs/remotes/origin/master@{4}: update by push
+[33me0ccbaf[m refs/heads/master@{4}: commit: feat: rebuild profile editing and fix firebase web auth
+[33me0ccbaf[m HEAD@{5}: commit: feat: rebuild profile editing and fix firebase web auth
+[33me6514e1[m refs/remotes/origin/HEAD@{0}: fetch
+[33me6514e1[m refs/remotes/origin/master@{5}: update by push
+[33me6514e1[m refs/heads/master@{5}: commit: overhaul ui/ux include discovery,message,profile + fix login,register + profile info now actual info from database
+[33me6514e1[m HEAD@{6}: commit: overhaul ui/ux include discovery,message,profile + fix login,register + profile info now actual info from database
+[33m2e18d27[m refs/remotes/origin/master@{6}: update by push
+[33m2e18d27[m refs/heads/master@{6}: commit: init
+[33m2e18d27[m HEAD@{7}: commit: init
+[33m030d3a1[m refs/heads/master@{7}: commit (initial): Initial commit
+[33m030d3a1[m HEAD@{8}: commit (initial): Initial commit

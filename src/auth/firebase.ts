@@ -1,5 +1,6 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Platform } from 'react-native';
+import { Firestore, getFirestore } from 'firebase/firestore';
 import {
   Auth,
   createUserWithEmailAndPassword,
@@ -28,9 +29,11 @@ const isConfigured = Object.values(firebaseConfig).every(Boolean);
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
+let firestore: Firestore | null = null;
 
 if (isConfigured) {
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  firestore = getFirestore(app);
   if (Platform.OS === 'web') {
     auth = getAuth(app);
   } else {
@@ -45,6 +48,8 @@ if (isConfigured) {
     }
   }
 }
+
+export const firebaseDb = firestore;
 
 export const firebaseAuth = {
   isConfigured,

@@ -49,6 +49,7 @@ export default function EditProfileScreen({
   const user = useAuthStore((state) => state.user);
   const updateUser = useAuthStore((state) => state.updateUser);
   const mode = useThemeStore((state) => state.mode);
+  const toggleMode = useThemeStore((state) => state.toggleMode);
   const theme = mode === "dark" ? darkColors : colors;
   const draft = useProfileEditStore((state) => state.draft);
   const start = useProfileEditStore((state) => state.start);
@@ -206,11 +207,27 @@ export default function EditProfileScreen({
         <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
           Profile
         </Text>
-        <Pressable onPress={save} style={styles.saveButton} disabled={saving}>
-          <Text style={[styles.saveText, { color: theme.primary }]}>
-            {saving ? "Saving" : "Save"}
-          </Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          {embedded && (
+            <Pressable
+              onPress={toggleMode}
+              style={styles.themeButton}
+              accessibilityRole="button"
+              accessibilityLabel={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              <Ionicons
+                name={mode === "dark" ? "sunny-outline" : "moon-outline"}
+                size={21}
+                color={theme.textPrimary}
+              />
+            </Pressable>
+          )}
+          <Pressable onPress={save} style={styles.saveButton} disabled={saving}>
+            <Text style={[styles.saveText, { color: theme.primary }]}>
+              {saving ? "Saving" : "Save"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -244,7 +261,18 @@ export default function EditProfileScreen({
               <Text style={[styles.profileName, { color: theme.textPrimary }]}>
                 {current.name || "Your name"}, {current.age || "--"}
               </Text>
-              <Pressable onPress={() => router.push("/profile-detail")}>
+              <Pressable
+                onPress={() => {
+                  if (!user?.id) {
+                    Alert.alert("Profile unavailable", "Sign in to preview your profile.");
+                    return;
+                  }
+                  router.push({
+                    pathname: "/profile-detail",
+                    params: { userId: user.id },
+                  });
+                }}
+              >
                 <Text style={[styles.preview, { color: theme.textSecondary }]}>
                   Preview profile <Ionicons name="chevron-forward" size={15} />
                 </Text>
@@ -517,6 +545,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: { ...typography.h3 },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  themeButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: borderRadius.full,
+  },
   saveButton: {
     minWidth: 52,
     minHeight: 44,

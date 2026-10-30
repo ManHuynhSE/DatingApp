@@ -38,8 +38,16 @@ export default function ProfileDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ userId?: string; distance_km?: string }>();
   const currentUserId = useAuthStore((state) => state.user?.id);
+  const params = useLocalSearchParams<{
+    userId?: string | string[];
+    source?: string | string[];
+  }>();
+  const routeUserId = Array.isArray(params.userId) ? params.userId[0] : params.userId;
+  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const userId = routeUserId || currentUserId;
   const [profile, setProfile] = useState<DatingProfile | null>(null);
-  const [loading, setLoading] = useState(!!params.userId);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
@@ -79,24 +87,37 @@ export default function ProfileDetailScreen() {
     }
     router.back();
   };
+  const loading = Boolean(userId) && loadedUserId !== userId;
+  const isOwnProfile = Boolean(userId && userId === currentUserId);
+  const isMatchedProfile = source === 'matches';
+  const hideProfileActions = isOwnProfile || isMatchedProfile;
 
   useEffect(() => {
-    if (params.userId) {
-      datingApi
-        .getProfileByUserId(params.userId, true, true)
-        .then((response) => {
-          if (response.success && response.data) {
-            setProfile(response.data);
-          }
-        })
-        .catch((err) => {
+    if (!userId) return;
+    let active = true;
+    datingApi
+      .getProfileByUserId(userId, true, true)
+      .then((response) => {
+        if (!active) return;
+        setError(null);
+        if (!response.success || !response.data) {
+          throw new Error('Profile not found');
+        }
+        setProfile(response.data);
+      })
+      .catch((err) => {
+        if (active) {
+          setProfile(null);
           setError(err instanceof Error ? err.message : 'Failed to load profile');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    }
-  }, [params.userId]);
+        }
+      })
+      .finally(() => {
+        if (active) setLoadedUserId(userId);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
   if (loading) {
     return (
@@ -120,7 +141,9 @@ export default function ProfileDetailScreen() {
           <View style={styles.headerBtn} />
         </View>
         <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={styles.errorText}>{error || 'Profile not found'}</Text>
+          <Text style={styles.errorText}>
+            {error || (userId ? 'Profile not found' : 'Sign in to view a profile')}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -132,6 +155,22 @@ export default function ProfileDetailScreen() {
     return a.position - b.position;
   });
   const photoUrls = sortedPhotos.map((p) => p.url);
+  const selectedPets = profile.pets ?? [];
+  const selectedLifestyle = profile.life_style ?? [];
+  const selectedLanguages = profile.languages ?? [];
+  const hasProfileDetails = Boolean(
+    profile.job_title || profile.education || profile.height_cm
+      || selectedPets.length || selectedLifestyle.length || selectedLanguages.length,
+  );
+  const renderChoice = (label: string) => (
+    <View key={label} style={styles.choiceChip}>
+      <Text style={styles.choiceChipText}>{label}</Text>
+    </View>
+  );
+  const renderScalarChoice = (value: string | null | undefined) => {
+    if (value) return renderChoice(value);
+    return isOwnProfile ? <Text style={styles.emptyDetail}>Not added yet</Text> : null;
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -225,75 +264,67 @@ export default function ProfileDetailScreen() {
 
         <View style={styles.divider} />
 
-        {/* My details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My details</Text>
-          <View style={styles.chipsContainer}>
-            {profile.height_cm && (
-              <View style={styles.detailChip}>
-                <Ionicons name="resize-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.detailChipText}>{profile.height_cm}cm</Text>
-              </View>
-            )}
-            {profile.education ? (
-              <View style={styles.detailChip}>
-                <Ionicons name="school-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.detailChipText}>{profile.education}</Text>
-              </View>
-            ) : null}
-            {profile.pet ? (
-              <View style={styles.detailChip}>
-                <Ionicons name="paw-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.detailChipText}>{profile.pet}</Text>
-              </View>
-            ) : null}
-            {profile.life_style && profile.life_style.length > 0 ? (
-              <View style={styles.detailChip}>
-                <Ionicons name="barbell-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.detailChipText}>{profile.life_style.join(', ')}</Text>
-              </View>
-            ) : null}
-            {profile.languages && profile.languages.length > 0 && (
-              <View style={styles.detailChip}>
-                <Ionicons name="language-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.detailChipText}>{profile.languages.join(', ')}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* Hobbies / Interests */}
-        {profile.hobbies && profile.hobbies.length > 0 && (
+        {/* Profile details */}
+        {(hasProfileDetails || isOwnProfile) && (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>My interests</Text>
-              <View style={styles.chipsContainer}>
-                {profile.hobbies.map((hobby) => (
-                  <View key={hobby.id} style={styles.languageChip}>
-                    <Text style={styles.languageChipText}>{hobby.name}</Text>
+              <Text style={styles.sectionTitle}>Profile details</Text>
+              <View style={styles.detailPanel}>
+                {(profile.job_title || isOwnProfile) && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Occupation</Text>
+                    <View style={styles.choiceList}>{renderScalarChoice(profile.job_title)}</View>
                   </View>
-                ))}
-              </View>
-            </View>
-            <View style={styles.divider} />
-          </>
-        )}
+                )}
 
-        <View style={styles.divider} />
-
-        {/* I communicate in */}
-        {profile.languages && profile.languages.length > 0 && (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>I communicate in</Text>
-              <View style={styles.chipsContainer}>
-                {profile.languages.map((lang, i) => (
-                  <View key={i} style={styles.languageChip}>
-                    <Text style={styles.languageChipText}>{lang}</Text>
+                {(profile.education || isOwnProfile) && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Education</Text>
+                    <View style={styles.choiceList}>{renderScalarChoice(profile.education)}</View>
                   </View>
-                ))}
+                )}
+
+                {(profile.height_cm || isOwnProfile) && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Height</Text>
+                    <View style={styles.choiceList}>
+                      {renderScalarChoice(profile.height_cm ? `${profile.height_cm} cm` : null)}
+                    </View>
+                  </View>
+                )}
+
+                {(selectedPets.length > 0 || isOwnProfile) && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Pets</Text>
+                    <View style={styles.choiceList}>
+                      {selectedPets.length
+                        ? selectedPets.map(renderChoice)
+                        : <Text style={styles.emptyDetail}>Not added yet</Text>}
+                    </View>
+                  </View>
+                )}
+
+                {(selectedLifestyle.length > 0 || isOwnProfile) && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Lifestyle</Text>
+                    <View style={styles.choiceList}>
+                      {selectedLifestyle.length
+                        ? selectedLifestyle.map(renderChoice)
+                        : <Text style={styles.emptyDetail}>Not added yet</Text>}
+                    </View>
+                  </View>
+                )}
+
+                {(selectedLanguages.length > 0 || isOwnProfile) && (
+                  <View style={[styles.fieldGroup, styles.fieldGroupLast]}>
+                    <Text style={styles.fieldLabel}>Languages</Text>
+                    <View style={styles.choiceList}>
+                      {selectedLanguages.length
+                        ? selectedLanguages.map(renderChoice)
+                        : <Text style={styles.emptyDetail}>Not added yet</Text>}
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
             <View style={styles.divider} />
@@ -317,27 +348,23 @@ export default function ProfileDetailScreen() {
         )}
 
         {/* Action buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.passButton}
-            onPress={handlePass}
-            disabled={isSubmittingAction}
-          >
-            <Ionicons name="close" size={32} color={colors.error} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.likeButton}
-            onPress={handleLike}
-            disabled={isSubmittingAction}
-          >
-            <Ionicons name="checkmark" size={32} color={colors.success} />
-          </TouchableOpacity>
-        </View>
+        {!hideProfileActions && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={styles.passButton} onPress={() => router.back()}>
+              <Ionicons name="close" size={32} color={colors.error} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.likeButton} onPress={() => router.push('/match-found')}>
+              <Ionicons name="checkmark" size={32} color={colors.success} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Hide and Report */}
-        <TouchableOpacity style={styles.reportLink} onPress={() => Alert.alert('Hide and report', 'This profile has been hidden from your discovery list.')}>
-          <Text style={styles.reportText}>Hide and Report Profile</Text>
-        </TouchableOpacity>
+        {!hideProfileActions && (
+          <TouchableOpacity style={styles.reportLink} onPress={() => Alert.alert('Hide and report', 'This profile has been hidden from your discovery list.')}>
+            <Text style={styles.reportText}>Hide and Report Profile</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -348,7 +375,7 @@ export default function ProfileDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.white,
   },
   header: {
     flexDirection: 'row',
@@ -475,47 +502,51 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
-  chipsContainer: {
+  detailPanel: {
+    padding: spacing.base,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#EEEAE4',
+  },
+  fieldGroup: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  fieldGroupLast: {
+    marginBottom: 0,
+  },
+  fieldLabel: {
+    fontSize: typography.bodySmall.fontSize,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  choiceList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  detailChip: {
+  choiceChip: {
+    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    gap: spacing.xs,
+    backgroundColor: '#FAF8F5',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E9E4DD',
+    borderRadius: borderRadius.full,
   },
-  detailChipText: {
+  choiceChipText: {
     fontSize: typography.bodySmall.fontSize,
     color: colors.textSecondary,
   },
-  interestChip: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  interestChipText: {
+  emptyDetail: {
     fontSize: typography.bodySmall.fontSize,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  languageChip: {
-    backgroundColor: colors.secondaryLight,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  languageChipText: {
-    fontSize: typography.bodySmall.fontSize,
-    color: colors.secondary,
-    fontWeight: '500',
+    color: colors.textTertiary,
+    fontStyle: 'italic',
   },
   divider: {
     height: 1,
