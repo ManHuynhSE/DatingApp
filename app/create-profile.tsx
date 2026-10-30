@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -8,19 +8,23 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, darkColors, borderRadius, spacing, typography } from '../src/theme';
-import { datingApi } from '../src/api/datingClient';
-import { useThemeStore } from '../src/store/themeStore';
-import { useLocationStore } from '../src/store/locationStore';
-import ProfilePickerModal from '../src/components/ProfilePickerModal';
-import { requestCurrentCoordinates } from '../src/location/currentLocation';
+} from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  colors,
+  darkColors,
+  borderRadius,
+  spacing,
+  typography,
+} from "../src/theme";
+import { datingApi } from "../src/api/datingClient";
+import { useThemeStore } from "../src/store/themeStore";
+import ProfilePickerModal from "../src/components/ProfilePickerModal";
 
 function calculateAge(birthDate: string): number {
-  const parts = birthDate.split('-').map(Number);
+  const parts = birthDate.split("-").map(Number);
   if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
     const today = new Date();
     let age = today.getFullYear() - parts[0];
@@ -43,7 +47,7 @@ function calculateAge(birthDate: string): number {
 }
 
 function formatDisplayDate(birthDate: string): string {
-  const parts = birthDate.split('-');
+  const parts = birthDate.split("-");
   if (parts.length === 3) {
     const [y, m, d] = parts;
     return `${d}/${m}/${y}`;
@@ -54,21 +58,26 @@ function formatDisplayDate(birthDate: string): string {
 export default function CreateProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const mode = useThemeStore((state) => state.mode);
-  const theme = mode === 'dark' ? darkColors : colors;
-  const savedCoordinates = useLocationStore((state) => state.coordinates);
-  const setCoordinates = useLocationStore((state) => state.setCoordinates);
+  const theme = mode === "dark" ? darkColors : colors;
 
-  const [name, setName] = useState('');
-  const [birthDate, setBirthDate] = useState('2000-01-01');
-  const [gender, setGender] = useState<'male' | 'female' | 'non_binary'>('male');
-  const [occupation, setOccupation] = useState('');
-  const [city, setCity] = useState('');
-  const [ward, setWard] = useState('');
-  const [location, setLocation] = useState('');
-  const [about, setAbout] = useState('');
+  const [name, setName] = useState("");
+  const [birthDate, setBirthDate] = useState("2000-01-01");
+  const [gender, setGender] = useState<"male" | "female" | "non_binary">(
+    "male",
+  );
+  const [occupation, setOccupation] = useState("");
+  const [city, setCity] = useState("");
+  const [ward, setWard] = useState("");
+  const [location, setLocation] = useState("");
+  const [about, setAbout] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
-  const [interestedIn, setInterestedIn] = useState<'male' | 'female' | 'everyone'>('everyone');
-  const [languages, setLanguages] = useState<string[]>(['Vietnamese', 'English']);
+  const [interestedIn, setInterestedIn] = useState<
+    "male" | "female" | "everyone"
+  >("everyone");
+  const [languages, setLanguages] = useState<string[]>([
+    "Vietnamese",
+    "English",
+  ]);
   const [isSaving, setIsSaving] = useState(false);
   const [activePicker, setActivePicker] = useState<{
     type: string;
@@ -91,8 +100,8 @@ export default function CreateProfileScreen() {
   const finish = async () => {
     if (!name.trim() || !birthDate || !userId) {
       Alert.alert(
-        'Complete your profile',
-        'Please enter your name and select your birth date.',
+        "Complete your profile",
+        "Please enter your name and select your birth date.",
       );
       return;
     }
@@ -100,27 +109,28 @@ export default function CreateProfileScreen() {
     const ageNum = calculateAge(birthDate);
     if (ageNum < 18) {
       Alert.alert(
-        'Age requirement',
-        'You must be at least 18 years old to join HeartSync.',
+        "Age requirement",
+        "You must be at least 18 years old to join HeartSync.",
       );
       return;
     }
     if (ageNum > 120) {
-      Alert.alert('Invalid birth date', 'Please select a valid birth date.');
+      Alert.alert("Invalid birth date", "Please select a valid birth date.");
       return;
     }
 
     setIsSaving(true);
     try {
-      const coordinates = savedCoordinates ?? await requestCurrentCoordinates();
-      if (coordinates) setCoordinates(coordinates);
       let finalWard: string | null = ward ? ward.slice(0, 100) : null;
       let finalCity: string | null = city ? city.slice(0, 100) : null;
       if (!finalCity && location.trim()) {
-        const parts = location.split(',').map((p) => p.trim()).filter(Boolean);
+        const parts = location
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
         if (parts.length > 1) {
           finalWard = parts[0].slice(0, 100);
-          finalCity = parts.slice(1).join(', ').slice(0, 100);
+          finalCity = parts.slice(1).join(", ").slice(0, 100);
         } else if (parts.length === 1) {
           finalCity = parts[0].slice(0, 100);
         }
@@ -135,42 +145,40 @@ export default function CreateProfileScreen() {
         job_title: occupation.trim() ? occupation.trim().slice(0, 100) : null,
         city: finalCity,
         ward: finalWard,
-        latitude: coordinates?.latitude ?? null,
-        longitude: coordinates?.longitude ?? null,
         languages: languages.slice(0, 20),
       });
 
       if (profile.success) {
-        router.replace('/(tabs)/discovery');
+        router.replace("/(tabs)/discovery");
       }
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : 'Please check your connection and try again.';
-      Alert.alert('Unable to save profile', message);
+          : "Please check your connection and try again.";
+      Alert.alert("Unable to save profile", message);
     } finally {
       setIsSaving(false);
     }
   };
 
   const interestedInLabel =
-    interestedIn === 'male'
-      ? 'Men (Male)'
-      : interestedIn === 'female'
-        ? 'Women (Female)'
-        : 'Everyone';
+    interestedIn === "male"
+      ? "Men (Male)"
+      : interestedIn === "female"
+        ? "Women (Female)"
+        : "Everyone";
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
-      edges={['top']}
+      edges={["top"]}
     >
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Pressable
-          onPress={() => router.replace('/(auth)/sign-in')}
+          onPress={() => router.replace("/(auth)/sign-in")}
           hitSlop={12}
-          style={styles.iconButton}
+          style={styles.primaryButton}
           accessibilityLabel="Back to sign in"
         >
           <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
@@ -178,360 +186,349 @@ export default function CreateProfileScreen() {
         <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
           Create your profile
         </Text>
-        <View style={styles.iconButtonPlaceholder} />
+        <View style={styles.primaryButton} />
       </View>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.progressLabel}>Let&apos;s get to know you</Text>
-        <View style={styles.progressTrack}><View style={styles.progressFill} /></View>
+        <View style={styles.progressTrack}>
+          <View style={styles.progressFill} />
+        </View>
 
-          {/* Photos */}
-          <SectionTitle
-            title="Add your photos"
-            theme={theme}
-            action="Choose"
-            onActionPress={() => openPicker('photos')}
-          />
-          <Text style={[styles.helper, { color: theme.textSecondary }]}>
-            Your main photo is how you appear in the swipe view.
-          </Text>
-          <Pressable
-            onPress={() => openPicker('photos')}
-            style={[
-              styles.photosCard,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Choose profile photos"
-          >
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.photoStrip}
-            >
-              {photos.slice(0, 6).map((photo, index) => (
-                <View
-                  key={`${photo}-${index}`}
-                  style={[styles.photoSlot, { borderColor: theme.border }]}
-                >
-                  <Image source={{ uri: photo }} style={styles.slotImage} />
-                  {index === 0 && (
-                    <View style={[styles.mainPhotoBadge, { backgroundColor: theme.primary }]}>
-                      <Text style={styles.mainPhotoBadgeText}>Main</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-              {photos.length < 6 && (
-                <View style={[styles.addPhotoSlot, { borderColor: theme.border, backgroundColor: theme.background }]}>
-                  <Ionicons name="add" size={23} color={theme.primary} />
-                </View>
-              )}
-            </ScrollView>
-            <Text style={[styles.choosePhotoAction, { color: theme.primary }]}>
-              {photos.length > 0
-                ? `${photos.length}/6 photos · Edit or add more`
-                : 'Choose up to 6 photos'}
-            </Text>
-            <Text style={[styles.photosHint, { color: theme.textSecondary }]}>You can select several photos at once.</Text>
-          </Pressable>
-
-          {/* About You */}
-          <SectionTitle title="About you" theme={theme} />
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Full name"
-            placeholderTextColor={theme.textTertiary}
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-                color: theme.textPrimary,
-              },
-            ]}
-          />
-
-          {/* Birth Date Picker Trigger */}
-          <Pressable
-            onPress={() => openPicker('birth_date')}
-            style={[
-              styles.inputPickerRow,
-              {
-                backgroundColor: theme.surface,
-                borderColor: birthDate ? theme.primary : theme.border,
-              },
-            ]}
-          >
-            <View style={styles.inputPickerContent}>
-              <Ionicons
-                name="calendar-outline"
-                size={20}
-                color={birthDate ? theme.primary : theme.textTertiary}
-              />
-              <Text
-                style={[
-                  styles.inputPickerText,
-                  {
-                    color: birthDate ? theme.textPrimary : theme.textTertiary,
-                    fontWeight: birthDate ? '600' : '400',
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {birthDate
-                  ? `${formatDisplayDate(birthDate)}${age !== null ? ` (${age} years old)` : ''}`
-                  : 'Date of birth (DD/MM/YYYY)'}
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={theme.textTertiary}
-            />
-          </Pressable>
-
-          <TextInput
-            value={occupation}
-            onChangeText={setOccupation}
-            placeholder="Occupation"
-            placeholderTextColor={theme.textTertiary}
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-                color: theme.textPrimary,
-              },
-            ]}
-          />
-
-          {/* Location Picker Trigger */}
-          <Pressable
-            onPress={() => openPicker('detail', 'location')}
-            style={[
-              styles.inputPickerRow,
-              {
-                backgroundColor: theme.surface,
-                borderColor: location ? theme.primary : theme.border,
-              },
-            ]}
-          >
-            <View style={styles.inputPickerContent}>
-              <Ionicons
-                name="location-outline"
-                size={20}
-                color={location ? theme.primary : theme.textTertiary}
-              />
-              <Text
-                style={[
-                  styles.inputPickerText,
-                  {
-                    color: location ? theme.textPrimary : theme.textTertiary,
-                    fontWeight: location ? '600' : '400',
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {location || 'Location (City, Ward)'}
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={theme.textTertiary}
-            />
-          </Pressable>
-
-          <TextInput
-            value={about}
-            onChangeText={setAbout}
-            placeholder="Tell people a little about yourself..."
-            placeholderTextColor={theme.textTertiary}
-            style={[
-              styles.input,
-              styles.about,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-                color: theme.textPrimary,
-              },
-            ]}
-            multiline
-          />
-
-          {/* Gender */}
-          <SectionTitle title="Gender" theme={theme} />
-          <View style={styles.genderRow}>
-            {(['male', 'female', 'non_binary'] as const).map((g) => {
-              const isSelected = gender === g;
+        {/* Photos */}
+        <SectionTitle
+          title="Add your photos"
+          theme={theme}
+          action="Choose"
+          onActionPress={() => openPicker("photos")}
+        />
+        <Text style={[styles.helper, { color: theme.textSecondary }]}>
+          Your main photo is how you appear in the swipe view.
+        </Text>
+        <Pressable
+          onPress={() => openPicker("photos")}
+          style={[
+            styles.photosCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.photoStrip}>
+            {Array.from({ length: 6 }).map((_, index) => {
+              const photo = photos[index];
               return (
-                <Pressable
-                  key={g}
+                <View
+                  key={index}
                   style={[
-                    styles.genderOption,
+                    styles.photoSlot,
                     {
-                      backgroundColor: isSelected
-                        ? theme.primaryLight
-                        : theme.surface,
-                      borderColor: isSelected ? theme.primary : theme.border,
+                      borderColor: photo ? theme.primary : theme.border,
+                      backgroundColor: theme.background,
                     },
                   ]}
-                  onPress={() => setGender(g)}
                 >
-                  <Text
-                    style={[
-                      styles.genderOptionText,
-                      {
-                        color: isSelected ? theme.primary : theme.textSecondary,
-                        fontWeight: isSelected ? '700' : '500',
-                      },
-                    ]}
-                  >
-                    {g === 'male'
-                      ? 'Male'
-                      : g === 'female'
-                        ? 'Female'
-                        : 'Non-binary'}
-                  </Text>
-                </Pressable>
+                  {photo ? (
+                    <Image source={{ uri: photo }} style={styles.slotImage} />
+                  ) : (
+                    <Ionicons name="add" size={22} color={theme.textTertiary} />
+                  )}
+                </View>
               );
             })}
           </View>
+          <Text style={[styles.choosePhotoAction, { color: theme.primary }]}>
+            {photos.length > 0
+              ? `${photos.length}/6 photos selected · Edit`
+              : "Choose photos"}
+          </Text>
+        </Pressable>
 
-          {/* Your Preferences */}
-          <SectionTitle title="Your preferences" theme={theme} />
+        {/* About You */}
+        <SectionTitle title="About you" theme={theme} />
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="Full name"
+          placeholderTextColor={theme.textTertiary}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              color: theme.textPrimary,
+            },
+          ]}
+        />
 
-          {/* Interested in */}
-          <Pressable
-            onPress={() => openPicker('interested_in')}
-            style={[
-              styles.preferenceCard,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <View style={styles.preferenceHeader}>
-              <View style={styles.preferenceIconTitle}>
-                <Ionicons
-                  name="heart-outline"
-                  size={20}
-                  color={theme.primary}
-                />
-                <Text
-                  style={[
-                    styles.preferenceTitle,
-                    { color: theme.textPrimary },
-                  ]}
-                >
-                  I&apos;m interested in
-                </Text>
-              </View>
-              <View style={styles.preferenceValueRow}>
-                <Text
-                  style={[
-                    styles.preferenceValueHighlight,
-                    { color: theme.primary },
-                  ]}
-                >
-                  {interestedInLabel}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={theme.textTertiary}
-                />
-              </View>
-            </View>
-          </Pressable>
-
-          {/* Languages */}
-          <Pressable
-            onPress={() => openPicker('languages')}
-            style={[
-              styles.preferenceCard,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <View style={styles.preferenceHeader}>
-              <View style={styles.preferenceIconTitle}>
-                <Ionicons
-                  name="globe-outline"
-                  size={20}
-                  color={theme.secondary}
-                />
-                <Text
-                  style={[
-                    styles.preferenceTitle,
-                    { color: theme.textPrimary },
-                  ]}
-                >
-                  Languages
-                </Text>
-              </View>
-              <View style={styles.preferenceValueRow}>
-                <Text
-                  style={[
-                    styles.preferenceCountBadge,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  {languages.length > 0
-                    ? `${languages.length}/10 selected`
-                    : 'Add languages'}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={theme.textTertiary}
-                />
-              </View>
-            </View>
-            {languages.length > 0 && (
-              <View style={styles.tagsContainer}>
-                {languages.map((lang) => (
-                  <View
-                    key={lang}
-                    style={[
-                      styles.tagBadge,
-                      { backgroundColor: theme.primaryLight },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.tagBadgeText, { color: theme.primary }]}
-                    >
-                      {lang}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </Pressable>
-
-          {/* Submit Button */}
-          <Pressable
-            style={[
-              styles.primaryButton,
-              { backgroundColor: theme.primary },
-              isSaving && { opacity: 0.7 },
-            ]}
-            onPress={finish}
-            disabled={isSaving}
-          >
-            <Text style={styles.primaryText}>
-              {isSaving ? 'Saving...' : 'Continue to HeartSync'}
+        {/* Birth Date Picker Trigger */}
+        <Pressable
+          onPress={() => openPicker("birth_date")}
+          style={[
+            styles.inputPickerRow,
+            {
+              backgroundColor: theme.surface,
+              borderColor: birthDate ? theme.primary : theme.border,
+            },
+          ]}
+        >
+          <View style={styles.inputPickerContent}>
+            <Ionicons
+              name="calendar-outline"
+              size={20}
+              color={birthDate ? theme.primary : theme.textTertiary}
+            />
+            <Text
+              style={[
+                styles.inputPickerText,
+                {
+                  color: birthDate ? theme.textPrimary : theme.textTertiary,
+                  fontWeight: birthDate ? "600" : "400",
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {birthDate
+                ? `${formatDisplayDate(birthDate)}${age !== null ? ` (${age} years old)` : ""}`
+                : "Date of birth (DD/MM/YYYY)"}
             </Text>
-          </Pressable>
-        </ScrollView>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={theme.textTertiary}
+          />
+        </Pressable>
+
+        <TextInput
+          value={occupation}
+          onChangeText={setOccupation}
+          placeholder="Occupation"
+          placeholderTextColor={theme.textTertiary}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              color: theme.textPrimary,
+            },
+          ]}
+        />
+
+        {/* Location Picker Trigger */}
+        <Pressable
+          onPress={() => openPicker("detail", "location")}
+          style={[
+            styles.inputPickerRow,
+            {
+              backgroundColor: theme.surface,
+              borderColor: location ? theme.primary : theme.border,
+            },
+          ]}
+        >
+          <View style={styles.inputPickerContent}>
+            <Ionicons
+              name="location-outline"
+              size={20}
+              color={location ? theme.primary : theme.textTertiary}
+            />
+            <Text
+              style={[
+                styles.inputPickerText,
+                {
+                  color: location ? theme.textPrimary : theme.textTertiary,
+                  fontWeight: location ? "600" : "400",
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {location || "Location (City, Ward)"}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={theme.textTertiary}
+          />
+        </Pressable>
+
+        <TextInput
+          value={about}
+          onChangeText={setAbout}
+          placeholder="Tell people a little about yourself..."
+          placeholderTextColor={theme.textTertiary}
+          style={[
+            styles.input,
+            styles.about,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              color: theme.textPrimary,
+            },
+          ]}
+          multiline
+        />
+
+        {/* Gender */}
+        <SectionTitle title="Gender" theme={theme} />
+        <View style={styles.genderRow}>
+          {(["male", "female", "non_binary"] as const).map((g) => {
+            const isSelected = gender === g;
+            return (
+              <Pressable
+                key={g}
+                style={[
+                  styles.genderOption,
+                  {
+                    backgroundColor: isSelected
+                      ? theme.primaryLight
+                      : theme.surface,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => setGender(g)}
+              >
+                <Text
+                  style={[
+                    styles.genderOptionText,
+                    {
+                      color: isSelected ? theme.primary : theme.textSecondary,
+                      fontWeight: isSelected ? "700" : "500",
+                    },
+                  ]}
+                >
+                  {g === "male"
+                    ? "Male"
+                    : g === "female"
+                      ? "Female"
+                      : "Non-binary"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Your Preferences */}
+        <SectionTitle title="Your preferences" theme={theme} />
+
+        {/* Interested in */}
+        <Pressable
+          onPress={() => openPicker("interested_in")}
+          style={[
+            styles.preferenceCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.preferenceHeader}>
+            <View style={styles.preferenceIconTitle}>
+              <Ionicons name="heart-outline" size={20} color={theme.primary} />
+              <Text
+                style={[styles.preferenceTitle, { color: theme.textPrimary }]}
+              >
+                I&apos;m interested in
+              </Text>
+            </View>
+            <View style={styles.preferenceValueRow}>
+              <Text
+                style={[
+                  styles.preferenceValueHighlight,
+                  { color: theme.primary },
+                ]}
+              >
+                {interestedInLabel}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={theme.textTertiary}
+              />
+            </View>
+          </View>
+        </Pressable>
+
+        {/* Languages */}
+        <Pressable
+          onPress={() => openPicker("languages")}
+          style={[
+            styles.preferenceCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.preferenceHeader}>
+            <View style={styles.preferenceIconTitle}>
+              <Ionicons
+                name="globe-outline"
+                size={20}
+                color={theme.secondary}
+              />
+              <Text
+                style={[styles.preferenceTitle, { color: theme.textPrimary }]}
+              >
+                Languages
+              </Text>
+            </View>
+            <View style={styles.preferenceValueRow}>
+              <Text
+                style={[
+                  styles.preferenceCountBadge,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                {languages.length > 0
+                  ? `${languages.length}/10 selected`
+                  : "Add languages"}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={theme.textTertiary}
+              />
+            </View>
+          </View>
+          {languages.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {languages.map((lang) => (
+                <View
+                  key={lang}
+                  style={[
+                    styles.tagBadge,
+                    { backgroundColor: theme.primaryLight },
+                  ]}
+                >
+                  <Text style={[styles.tagBadgeText, { color: theme.primary }]}>
+                    {lang}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </Pressable>
+
+        {/* Submit Button */}
+        <Pressable
+          style={[
+            styles.primaryButton,
+            { backgroundColor: theme.primary },
+            isSaving && { opacity: 0.7 },
+          ]}
+          onPress={finish}
+          disabled={isSaving}
+        >
+          <Text style={styles.primaryText}>
+            {isSaving ? "Saving..." : "Continue to HeartSync"}
+          </Text>
+        </Pressable>
+      </ScrollView>
 
       <ProfilePickerModal
         visible={activePicker !== null}
-        type={activePicker?.type ?? 'detail'}
+        type={activePicker?.type ?? "detail"}
         field={activePicker?.field}
         onClose={closePicker}
         initialData={{
@@ -540,7 +537,7 @@ export default function CreateProfileScreen() {
           languages,
           interestedIn,
           photos,
-          birthDate: birthDate || '2000-01-01',
+          birthDate: birthDate || "2000-01-01",
         }}
         onSelectAddress={({ city: selCity, ward: selWard, fullAddress }) => {
           setCity(selCity);
@@ -593,41 +590,97 @@ function SectionTitle({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
-  header: { height: 76, paddingHorizontal: spacing.base, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.border },
-  iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  iconButtonPlaceholder: { width: 40, height: 40 },
+  header: {
+    height: 76,
+    paddingHorizontal: spacing.base,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
   content: { padding: spacing.base, paddingBottom: 50 },
-  progressLabel: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: 8 },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: colors.primaryLight, marginBottom: spacing.xl },
-  progressFill: { width: '25%', height: '100%', borderRadius: 4, backgroundColor: colors.primary },
-  sectionTitle: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.lg, marginBottom: 6 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionActionText: { ...typography.bodySmall, fontWeight: '700' },
-  helper: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.md },
-  photosCard: { borderWidth: 1, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm },
-  photoStrip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 100 },
-  photoSlot: { width: 74, height: 98, borderWidth: 1, borderRadius: borderRadius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  addPhotoSlot: { width: 54, height: 70, borderWidth: 1, borderStyle: 'dashed', borderRadius: borderRadius.md, alignItems: 'center', justifyContent: 'center' },
-  slotImage: { width: '100%', height: '100%' },
-  mainPhotoBadge: { position: 'absolute', left: 4, bottom: 4, borderRadius: borderRadius.full, paddingHorizontal: 6, paddingVertical: 2 },
-  mainPhotoBadgeText: { ...typography.captionBold, color: colors.white, fontSize: 9 },
-  choosePhotoAction: { ...typography.bodySmall, fontWeight: '700', marginTop: spacing.sm },
-  photosHint: { ...typography.caption, marginTop: 2 },
-  input: { height: 50, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, marginTop: 10, color: colors.textPrimary, ...typography.body },
+  progressLabel: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primaryLight,
+    marginBottom: spacing.xl,
+  },
+  progressFill: {
+    width: "25%",
+    height: "100%",
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    marginTop: spacing.lg,
+    marginBottom: 6,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sectionActionText: { ...typography.bodySmall, fontWeight: "700" },
+  helper: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  photosCard: {
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  photoStrip: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  photoSlot: {
+    width: "31%",
+    aspectRatio: 3 / 4,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: borderRadius.md,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  slotImage: { width: "100%", height: "100%" },
+  choosePhotoAction: {
+    ...typography.bodySmall,
+    fontWeight: "700",
+    marginTop: spacing.sm,
+  },
+  input: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: 10,
+    color: colors.textPrimary,
+    ...typography.body,
+  },
   inputPickerRow: {
     minHeight: 50,
     borderWidth: 1,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md,
     marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   inputPickerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     flex: 1,
     marginRight: spacing.sm,
@@ -638,12 +691,12 @@ const styles = StyleSheet.create({
   },
   about: {
     height: 110,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     paddingTop: spacing.md,
   },
   genderRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginTop: 8,
   },
@@ -663,38 +716,38 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   preferenceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   preferenceIconTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   preferenceTitle: {
     ...typography.bodyBold,
   },
   preferenceValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   preferenceValueHighlight: {
     ...typography.bodySmall,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   preferenceCountBadge: {
     ...typography.bodySmall,
   },
   tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
     marginTop: spacing.sm + 2,
     paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(150, 150, 150, 0.2)',
+    borderTopColor: "rgba(150, 150, 150, 0.2)",
   },
   tagBadge: {
     paddingHorizontal: spacing.sm + 2,
@@ -708,8 +761,8 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: borderRadius.md,
     marginTop: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryText: {
     ...typography.bodyBold,
