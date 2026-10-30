@@ -79,7 +79,7 @@ export default function RootLayout() {
           user.aboutMe = profile.bio ?? '';
           user.photos = photos.map((photo) => photo.url);
           user.education = profile.education ?? '';
-          user.details = { ...user.details, height: profile.height_cm ? `${profile.height_cm}cm` : '', education: profile.education ?? '', pets: profile.pet ?? '', exercise: profile.life_style?.join(', ') ?? '' };
+          user.details = { ...user.details, height: profile.height_cm ? `${profile.height_cm}cm` : '', education: profile.education ?? '', pets: profile.pets?.join(', ') ?? '', exercise: profile.life_style?.join(', ') ?? '' };
           user.hobbies = profile.hobbies ?? [];
           user.interests = profile.hobbies?.map((h) => h.name) ?? [];
           user.languages = profile.languages ?? [];

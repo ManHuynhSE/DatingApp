@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { borderRadius, colors, darkColors, spacing, typography } from '@/theme';
 import { datingApi, type ChatConversationSummary, type DatingMatchItem } from '@/api/datingClient';
 import { useAuthStore } from '@/store/authStore';
@@ -118,33 +119,37 @@ export default function InboxScreen() {
     }
   };
 
-  const renderMatch = ({ item }: { item: NewMatch }) => (
-    <Pressable onPress={() => openNewMatch(item)} style={styles.matchItem}>
-      <View style={styles.matchAvatarFrame}>
-        <Image source={{ uri: item.image }} style={styles.matchAvatar} />
-        <View style={styles.matchHeart}>
-          <Ionicons name="heart" size={11} color={theme.white} />
+  const renderMatch = ({ item, index }: { item: NewMatch; index: number }) => (
+    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(300)}>
+      <Pressable onPress={() => openNewMatch(item)} style={styles.matchItem}>
+        <View style={styles.matchAvatarFrame}>
+          <Image source={{ uri: item.image }} style={styles.matchAvatar} />
+          <View style={styles.matchHeart}>
+            <Ionicons name="heart" size={11} color={theme.white} />
+          </View>
         </View>
-      </View>
-      <Text style={styles.matchName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
-    </Pressable>
+        <Text style={styles.matchName} numberOfLines={1}>{item.name.split(' ')[0]}</Text>
+      </Pressable>
+    </Animated.View>
   );
 
-  const renderChat = ({ item }: { item: ChatRow }) => (
-    <Pressable
-      onPress={() => router.push(`/chat/${item.id}`)}
-      style={({ pressed }) => [styles.chatRow, pressed && styles.chatRowPressed]}
-    >
-      <Image source={{ uri: item.image }} style={styles.chatAvatar} />
-      <View style={styles.chatBody}>
-        <View style={styles.chatTopLine}>
-          <Text style={styles.chatName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.chatTime}>{item.timestamp}</Text>
+  const renderChat = ({ item, index }: { item: ChatRow; index: number }) => (
+    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 40).duration(300)}>
+      <Pressable
+        onPress={() => router.push(`/chat/${item.id}`)}
+        style={({ pressed }) => [styles.chatRow, pressed && styles.chatRowPressed]}
+      >
+        <Image source={{ uri: item.image }} style={styles.chatAvatar} />
+        <View style={styles.chatBody}>
+          <View style={styles.chatTopLine}>
+            <Text style={styles.chatName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.chatTime}>{item.timestamp}</Text>
+          </View>
+          <Text style={styles.chatPreview} numberOfLines={1}>{item.preview}</Text>
         </View>
-        <Text style={styles.chatPreview} numberOfLines={1}>{item.preview}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={17} color={theme.textTertiary} />
-    </Pressable>
+        <Ionicons name="chevron-forward" size={17} color={theme.textTertiary} />
+      </Pressable>
+    </Animated.View>
   );
 
   return (
@@ -154,7 +159,7 @@ export default function InboxScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
+        <Animated.View entering={FadeInDown.duration(320)} style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>HEARTSYNC</Text>
             <Text style={styles.title}>Messages</Text>
@@ -162,7 +167,7 @@ export default function InboxScreen() {
           <View style={styles.headerIcon}>
             <Ionicons name="chatbubbles-outline" size={22} color={theme.primary} />
           </View>
-        </View>
+        </Animated.View>
 
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>

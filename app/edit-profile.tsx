@@ -140,7 +140,7 @@ export default function EditProfileScreen({
         ward: ward ? ward.slice(0, 100) : null,
         education: current.education.trim() ? current.education.trim().slice(0, 100) : null,
         height_cm: heightCm,
-        pet: current.details.pets.trim() || null,
+        pets: current.details.pets.trim() ? [current.details.pets.trim()] : [],
         life_style: current.details.exercise
           .split(",")
           .map((value) => value.trim())
@@ -170,7 +170,7 @@ export default function EditProfileScreen({
         details: {
           ...user.details,
           height: response.data.height_cm ? `${response.data.height_cm}cm` : "",
-          pets: response.data.pet ?? "",
+          pets: response.data.pets?.join(", ") ?? "",
           exercise: response.data.life_style?.join(", ") ?? "",
         },
       });

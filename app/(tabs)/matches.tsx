@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { colors, darkColors, borderRadius, spacing, typography } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -105,19 +106,20 @@ export default function MatchesScreen() {
     });
   };
 
-  const renderMatch = ({ item }: { item: DatingMatchItem }) => {
+  const renderMatch = ({ item, index }: { item: DatingMatchItem; index: number }) => {
     const profile = item.partner.profile;
     const age = calculateAge(profile?.birth_date);
     const context = [profile?.job_title, profile?.city].filter(Boolean).join(' · ');
 
     return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`View ${profile?.display_name ?? 'match'} profile`}
-        disabled={!profile}
-        onPress={() => openProfile(item)}
-        style={({ pressed }) => [styles.matchCard, pressed && styles.matchCardPressed, !profile && styles.matchCardUnavailable]}
-      >
+      <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 45).duration(320)}>
+       <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View ${profile?.display_name ?? 'match'} profile`}
+          disabled={!profile}
+          onPress={() => openProfile(item)}
+          style={({ pressed }) => [styles.matchCard, pressed && styles.matchCardPressed, !profile && styles.matchCardUnavailable]}
+        >
         <View style={styles.photoWrap}>
           <Image source={{ uri: getPartnerPhoto(item) }} style={styles.avatar} />
           <View style={styles.photoHeart}>
@@ -148,13 +150,14 @@ export default function MatchesScreen() {
         <View style={styles.openButton}>
           <Ionicons name="chevron-forward" size={19} color={theme.primary} />
         </View>
-      </Pressable>
+        </Pressable>
+      </Animated.View>
     );
   };
 
   const listHeader = (
     <View>
-      <View style={styles.pageHeader}>
+      <Animated.View entering={FadeInDown.duration(360)} style={styles.pageHeader}>
         <View style={styles.eyebrowRow}>
           <View style={styles.eyebrowDot} />
           <Text style={styles.eyebrow}>YOUR CONNECTIONS</Text>
@@ -167,7 +170,7 @@ export default function MatchesScreen() {
           </View>
         </View>
         <Text style={styles.subtitleHeader}>A mutual like is a lovely place to start.</Text>
-      </View>
+      </Animated.View>
 
       {matches.length > 0 && (
         <View style={styles.noteCard}>

@@ -60,7 +60,7 @@ export interface DatingProfile {
   gender: 'male' | 'female' | 'non_binary' | 'other';
   bio: string | null;
   job_title: string | null;
-  pet: string | null;
+  pets: string[];
   life_style: string[];
   hobbies: Hobby[];
   education: string | null;
@@ -175,7 +175,7 @@ export interface CreateDatingProfileInput {
   gender: 'male' | 'female' | 'non_binary' | 'other';
   bio?: string | null;
   job_title?: string | null;
-  pet?: string | null;
+  pets?: string[];
   life_style?: string[];
   hobbies?: Hobby[];
   education?: string | null;
@@ -193,7 +193,7 @@ export interface UpdateDatingProfileInput {
   gender?: 'male' | 'female' | 'non_binary' | 'other';
   bio?: string | null;
   job_title?: string | null;
-  pet?: string | null;
+  pets?: string[];
   life_style?: string[];
   hobbies?: Hobby[];
   education?: string | null;
