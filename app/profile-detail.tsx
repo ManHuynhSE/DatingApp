@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
 import { datingApi, type DatingProfile } from '../src/api/datingClient';
+import { useAuthStore } from '../src/store/authStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_HEIGHT = SCREEN_WIDTH * 1.1;
@@ -35,10 +36,49 @@ const calculateAge = (birthDate: string) => {
 
 export default function ProfileDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ userId?: string }>();
+  const params = useLocalSearchParams<{ userId?: string; distance_km?: string }>();
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const [profile, setProfile] = useState<DatingProfile | null>(null);
   const [loading, setLoading] = useState(!!params.userId);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  const handleLike = async () => {
+    if (!profile || isSubmittingAction) return;
+    setIsSubmittingAction(true);
+    if (currentUserId) {
+      try {
+        const res = await datingApi.createSwipe(currentUserId, profile.user_id, 'like');
+        if (res.isMatch) {
+          router.replace({
+            pathname: '/match-found',
+            params: {
+              matchedUserId: profile.user_id,
+              matchedName: profile.display_name,
+              matchedPhoto: photoUrls[0] || '',
+            },
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('Swipe like failed:', err);
+      }
+    }
+    router.back();
+  };
+
+  const handlePass = async () => {
+    if (!profile || isSubmittingAction) return;
+    setIsSubmittingAction(true);
+    if (currentUserId) {
+      try {
+        await datingApi.createSwipe(currentUserId, profile.user_id, 'pass');
+      } catch (err) {
+        console.warn('Swipe pass failed:', err);
+      }
+    }
+    router.back();
+  };
 
   useEffect(() => {
     if (params.userId) {
@@ -153,7 +193,24 @@ export default function ProfileDetailScreen() {
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={18} color={colors.primary} />
             <Text style={styles.locationDistance}>
-              {[profile.ward, profile.city].filter(Boolean).join(', ') || 'Location not shared'}
+              {(() => {
+                const distanceKmVal =
+                  profile.distance_km ??
+                  (params.distance_km ? Number(params.distance_km) : null);
+                const distanceLabel =
+                  distanceKmVal !== null && distanceKmVal !== undefined
+                    ? distanceKmVal < 1
+                      ? '< 1 km away'
+                      : `${distanceKmVal} km away`
+                    : null;
+                const locationString = [profile.ward, profile.city]
+                  .filter(Boolean)
+                  .join(', ');
+                return (
+                  [distanceLabel, locationString].filter(Boolean).join(' · ') ||
+                  'Location not shared'
+                );
+              })()}
             </Text>
           </View>
         </View>
@@ -261,10 +318,18 @@ export default function ProfileDetailScreen() {
 
         {/* Action buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.passButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.passButton}
+            onPress={handlePass}
+            disabled={isSubmittingAction}
+          >
             <Ionicons name="close" size={32} color={colors.error} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.likeButton} onPress={() => router.push('/match-found')}>
+          <TouchableOpacity
+            style={styles.likeButton}
+            onPress={handleLike}
+            disabled={isSubmittingAction}
+          >
             <Ionicons name="checkmark" size={32} color={colors.success} />
           </TouchableOpacity>
         </View>

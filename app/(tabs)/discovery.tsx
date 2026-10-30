@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -43,53 +44,40 @@ import { discoveryProfiles } from "@/data/mockData";
 import { useDiscoveryStore } from "@/store/discoveryStore";
 import { useThemeStore } from "@/store/themeStore";
 import { useAuthStore } from "@/store/authStore";
-import { datingApi, type DatingProfile, type Hobby } from "@/api/datingClient";
+import {
+  datingApi,
+  DatingApiError,
+  type Hobby,
+  type RecommendationProfile,
+} from "@/api/datingClient";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SWIPE_THRESHOLD = Math.min(Math.max(SCREEN_WIDTH * 0.25, 90), 140);
 
 interface ProfileCard {
-  id: string;
+  id: string; // row profile id
+  userId: string; // candidate user uuid (for impressions, swipes, detail)
   name: string;
   age: number;
   pronouns: string;
   gender: string;
   occupation: string;
-  distance: string;
+  location: string;
+  distanceKm?: number | null;
   city?: string;
   ward?: string;
   languages: string[];
-  hobbies?: Hobby[];
+  hobbies: Hobby[];
+  lifestyle?: string[];
+  pet?: string | null;
+  education?: string | null;
+  height_cm?: number | null;
   verified: boolean;
   image: string;
-  photos?: string[];
+  photos: string[];
   bio?: string;
   isIntro?: boolean;
 }
-
-const mapProfile = (
-  profile: (typeof discoveryProfiles)[number],
-): ProfileCard => ({
-  id: profile.id,
-  name: profile.name,
-  age: profile.age,
-  pronouns: profile.pronouns,
-  gender: profile.pronouns.toLowerCase().includes("she")
-    ? "female"
-    : profile.pronouns.toLowerCase().includes("he")
-      ? "male"
-      : "other",
-  occupation: profile.company
-    ? `${profile.occupation} at ${profile.company}`
-    : profile.occupation,
-  distance: profile.distance,
-  city: profile.location,
-  languages: profile.languages,
-  verified: profile.verified,
-  image: profile.photos[0],
-  photos: profile.photos,
-  bio: profile.aboutMe,
-});
 
 const calculateAge = (birthDate: string) => {
   const date = new Date(birthDate);
@@ -104,16 +92,24 @@ const calculateAge = (birthDate: string) => {
   return age;
 };
 
-const mapDatingProfile = (profile: DatingProfile): ProfileCard => {
+const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
   const photos = profile.users?.photos ?? [];
   const sortedPhotos = [...photos].sort((a, b) => {
     if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
     return a.position - b.position;
   });
-  const primaryPhoto = sortedPhotos[0]?.url;
+  const photoUrls = sortedPhotos.map((p) => p.url);
+  const primaryPhoto =
+    photoUrls[0] ?? `https://picsum.photos/seed/${profile.user_id}/700/900`;
+
+  const locationText =
+    [profile.ward, profile.city].filter(Boolean).join(", ") ||
+    profile.city ||
+    "Nearby";
 
   return {
-    id: profile.user_id,
+    id: profile.id,
+    userId: profile.user_id,
     name: profile.display_name,
     age: calculateAge(profile.birth_date),
     pronouns:
@@ -124,19 +120,53 @@ const mapDatingProfile = (profile: DatingProfile): ProfileCard => {
           : profile.gender,
     gender: profile.gender,
     occupation: profile.job_title ?? "Open to meeting someone new",
-    distance: [profile.ward, profile.city].filter(Boolean).join(", "),
+    location: locationText,
+    distanceKm: profile.distance_km,
     city: profile.city ?? undefined,
     ward: profile.ward ?? undefined,
     languages: profile.languages ?? [],
     hobbies: profile.hobbies ?? [],
+    lifestyle: profile.life_style ?? [],
+    pet: profile.pet ?? null,
+    education: profile.education ?? null,
+    height_cm: profile.height_cm ?? null,
     verified: profile.is_verified,
-    image: primaryPhoto ?? "https://picsum.photos/seed/empty-discovery/700/900",
-    photos: sortedPhotos.map((p) => p.url),
+    image: primaryPhoto,
+    photos: photoUrls.length > 0 ? photoUrls : [primaryPhoto],
     bio: profile.bio ?? undefined,
   };
 };
 
-const PROGRESS_SEGMENTS = 10;
+const mapMockProfile = (
+  profile: (typeof discoveryProfiles)[number],
+): ProfileCard => ({
+  id: profile.id,
+  userId: profile.id,
+  name: profile.name,
+  age: profile.age,
+  pronouns: profile.pronouns,
+  gender: profile.pronouns.toLowerCase().includes("she")
+    ? "female"
+    : profile.pronouns.toLowerCase().includes("he")
+      ? "male"
+      : "other",
+  occupation: profile.company
+    ? `${profile.occupation} at ${profile.company}`
+    : profile.occupation,
+  location: profile.location,
+  distanceKm: Number.parseFloat(profile.distance) || 3.2,
+  city: profile.location,
+  languages: profile.languages,
+  hobbies: (profile.interests || []).map((name) => ({
+    id: name.toLowerCase().replace(/\s+/g, "-"),
+    name,
+    category: "General",
+  })),
+  verified: profile.verified,
+  image: profile.photos[0],
+  photos: profile.photos,
+  bio: profile.aboutMe,
+});
 
 export default function DiscoveryScreen() {
   const router = useRouter();
@@ -145,14 +175,22 @@ export default function DiscoveryScreen() {
   const [remoteProfiles, setRemoteProfiles] = useState<ProfileCard[] | null>(
     null,
   );
-  const [recommendationSessionId, setRecommendationSessionId] = useState<string | null>(null);
+  const [recommendationSessionId, setRecommendationSessionId] = useState<
+    string | null
+  >(null);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
-  const [laidOutProfileKey, setLaidOutProfileKey] = useState<string | null>(null);
-  const [isAppActive, setIsAppActive] = useState(AppState.currentState === "active");
+  const [laidOutProfileKey, setLaidOutProfileKey] = useState<string | null>(
+    null,
+  );
+  const [isAppActive, setIsAppActive] = useState(
+    AppState.currentState === "active",
+  );
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
+
   const nextRecommendationCursorRef = useRef<string | null>(null);
   const loadingMoreRecommendationsRef = useRef(false);
   const recordedImpressionKeysRef = useRef(new Set<string>());
+
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const isSwiping = useSharedValue(false);
@@ -162,17 +200,25 @@ export default function DiscoveryScreen() {
   const likeScaleBoost = useSharedValue(1);
   const passScaleBoost = useSharedValue(1);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const filters = useDiscoveryStore((state) => state.filters);
+
   const swipeRight = useDiscoveryStore((state) => state.swipeRight);
   const swipeLeft = useDiscoveryStore((state) => state.swipeLeft);
   const undoSwipe = useDiscoveryStore((state) => state.undoSwipe);
+  const preferencesVersion = useDiscoveryStore(
+    (state) => state.preferencesVersion,
+  );
+
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === "dark" ? darkColors : colors;
   const styles = resolveThemeStyles(baseStyles, theme);
+
   const currentUser = useAuthStore((state) => state.user);
   const userId = currentUser?.id;
   const isScreenFocused = useIsFocused();
 
+  // Reset photo index in completeSwipe, handleUndo, and loadFirstRecommendationPage
+
+  // Track app active state for visibility impression criteria
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       setIsAppActive(state === "active");
@@ -180,6 +226,7 @@ export default function DiscoveryScreen() {
     return () => subscription.remove();
   }, []);
 
+  // Request recommendations snapshot (First request: GET /api/recommendations/{userId}?limit=20)
   const loadFirstRecommendationPage = useCallback(async () => {
     setIsLoadingProfiles(true);
     setProfileLoadError(null);
@@ -189,22 +236,33 @@ export default function DiscoveryScreen() {
     recordedImpressionKeysRef.current = new Set();
 
     if (!userId) {
-      setRemoteProfiles(null);
+      // Fallback for non-authenticated exploration mode
+      setRemoteProfiles(discoveryProfiles.map(mapMockProfile));
       setIsLoadingProfiles(false);
       return;
     }
 
     try {
-      const response = await datingApi.getRecommendations(userId, { limit: 50 });
-      setRemoteProfiles(response.data.map(mapDatingProfile));
+      const response = await datingApi.getRecommendations(userId, { limit: 20 });
+      const seen = new Set<string>();
+      const candidateList = response.data
+        .map(mapDatingProfile)
+        .filter((cand) => {
+          if (cand.userId === userId) return false;
+          if (seen.has(cand.userId)) return false;
+          seen.add(cand.userId);
+          return true;
+        });
+
+      setRemoteProfiles(candidateList);
       setRecommendationSessionId(response.pagination.sessionId);
       nextRecommendationCursorRef.current = response.pagination.nextCursor;
     } catch (error: unknown) {
-      setProfileLoadError(
+      const msg =
         error instanceof Error
           ? error.message
-          : "Unable to load recommendations from server",
-      );
+          : "Unable to load recommendations from server";
+      setProfileLoadError(msg);
       setRemoteProfiles([]);
     } finally {
       setIsLoadingProfiles(false);
@@ -215,25 +273,44 @@ export default function DiscoveryScreen() {
     void loadFirstRecommendationPage();
   };
 
+  // Cursor pagination (Request next pages: GET /api/recommendations/{userId}?limit=20&cursor={nextCursor})
   const loadMoreRecommendations = useCallback(async () => {
     const cursor = nextRecommendationCursorRef.current;
     if (!userId || !cursor || loadingMoreRecommendationsRef.current) return;
     loadingMoreRecommendationsRef.current = true;
+
     try {
       const response = await datingApi.getRecommendations(userId, {
-        limit: 50,
+        limit: 20,
         cursor,
       });
+
       setRemoteProfiles((current) => {
-        const existingIds = new Set(current?.map((profile) => profile.id) ?? []);
-        const nextProfiles = response.data
+        const existingUserIds = new Set(
+          current?.map((profile) => profile.userId) ?? [],
+        );
+        const nextCandidates = response.data
           .map(mapDatingProfile)
-          .filter((profile) => !existingIds.has(profile.id));
-        return [...(current ?? []), ...nextProfiles];
+          .filter(
+            (profile) =>
+              profile.userId !== userId && !existingUserIds.has(profile.userId),
+          );
+        return [...(current ?? []), ...nextCandidates];
       });
+
       setRecommendationSessionId(response.pagination.sessionId);
       nextRecommendationCursorRef.current = response.pagination.nextCursor;
     } catch (error: unknown) {
+      // When cursor expires or is invalid (HTTP 400), reset session snapshot and restart first request
+      if (
+        (error instanceof DatingApiError && error.status === 400) ||
+        (error instanceof Error &&
+          error.message.toLowerCase().includes("cursor"))
+      ) {
+        nextRecommendationCursorRef.current = null;
+        void loadFirstRecommendationPage();
+        return;
+      }
       if (!remoteProfiles?.length) {
         setProfileLoadError(
           error instanceof Error
@@ -244,12 +321,13 @@ export default function DiscoveryScreen() {
     } finally {
       loadingMoreRecommendationsRef.current = false;
     }
-  }, [remoteProfiles?.length, userId]);
+  }, [loadFirstRecommendationPage, remoteProfiles?.length, userId]);
 
+  // Load recommendations on mount or when userId changes
   useEffect(() => {
     let active = true;
 
-    // Load user's own profile data
+    // Sync user's own profile info
     if (userId) {
       datingApi
         .getUserProfile(userId)
@@ -264,7 +342,6 @@ export default function DiscoveryScreen() {
               return a.position - b.position;
             });
 
-            // Update auth store with real profile data
             setSession(userState?.id || userId, {
               id: userId,
               name: profile.display_name,
@@ -278,7 +355,10 @@ export default function DiscoveryScreen() {
                     : profile.gender,
               occupation: profile.job_title ?? "",
               distance: [profile.ward, profile.city].filter(Boolean).join(", "),
-              location: [profile.ward, profile.city].filter(Boolean).join(", ") || profile.city || "",
+              location:
+                [profile.ward, profile.city].filter(Boolean).join(", ") ||
+                profile.city ||
+                "",
               city: profile.city ?? undefined,
               ward: profile.ward ?? undefined,
               education: profile.education ?? "",
@@ -305,64 +385,66 @@ export default function DiscoveryScreen() {
           }
         })
         .catch(() => {
-          // Silently fail - user profile data not critical
+          // Non-critical background sync
         });
     }
 
-    const recommendationLoadTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
       void loadFirstRecommendationPage();
     }, 0);
 
     return () => {
       active = false;
-      clearTimeout(recommendationLoadTimer);
+      clearTimeout(timer);
     };
   }, [loadFirstRecommendationPage, userId]);
 
-  const filteredProfiles = useMemo(() => {
-    const sourceProfiles =
-      remoteProfiles !== null
-        ? userId
-          ? remoteProfiles.filter((p) => p.id !== userId)
-          : remoteProfiles
-        : discoveryProfiles.map(mapProfile);
-
-    const profiles = sourceProfiles.filter((profile) => {
-      const distance = Number.parseInt(profile.distance, 10);
-      const genderMatches =
-        filters.gender === "everyone" ||
-        (filters.gender === "women" && profile.gender === "female") ||
-        (filters.gender === "men" && profile.gender === "male");
-      const ageMatches =
-        profile.age >= filters.ageRange[0] &&
-        profile.age <= filters.ageRange[1];
-      const distanceMatches =
-        Number.isNaN(distance) || distance <= filters.distance;
-      const languageMatches =
-        filters.languages.length === 0 ||
-        filters.languages.some((language) =>
-          profile.languages.includes(language),
-        );
-      return genderMatches && ageMatches && distanceMatches && languageMatches;
-    });
-    return profiles;
-  }, [filters, remoteProfiles, userId]);
-
+  // When preferences change in filters screen, refresh the ranking snapshot
+  const prevPrefsVersionRef = useRef(preferencesVersion);
   useEffect(() => {
-    if (remoteProfiles !== null && currentIndex >= filteredProfiles.length - 3) {
+    if (preferencesVersion !== prevPrefsVersionRef.current) {
+      prevPrefsVersionRef.current = preferencesVersion;
+      void loadFirstRecommendationPage();
+    }
+  }, [loadFirstRecommendationPage, preferencesVersion]);
+
+  // Order from server ranking snapshot must be preserved directly (no client-side re-sorting)
+  const candidateProfiles = useMemo(() => {
+    if (remoteProfiles !== null) {
+      return remoteProfiles;
+    }
+    return discoveryProfiles.map(mapMockProfile);
+  }, [remoteProfiles]);
+
+  // Pre-load next batch using cursor pagination when nearing end
+  useEffect(() => {
+    if (
+      remoteProfiles !== null &&
+      currentIndex >= candidateProfiles.length - 3 &&
+      nextRecommendationCursorRef.current !== null
+    ) {
       void loadMoreRecommendations();
     }
-  }, [currentIndex, filteredProfiles.length, loadMoreRecommendations, remoteProfiles]);
+  }, [
+    candidateProfiles.length,
+    currentIndex,
+    loadMoreRecommendations,
+    remoteProfiles,
+  ]);
 
-  const activeIndex = currentIndex < filteredProfiles.length ? currentIndex : 0;
-  const currentProfile = filteredProfiles[currentIndex];
-  const isLastCard = currentIndex >= filteredProfiles.length;
+  const currentProfile = candidateProfiles[currentIndex];
+  const isLastCard = currentIndex >= candidateProfiles.length;
   const currentProfileRef = useRef<ProfileCard | undefined>(currentProfile);
   currentProfileRef.current = currentProfile;
 
+  // Visibility Impression recording (POST /api/recommendations/{userId}/impressions)
+  // Contract:
+  // - Body: { sessionId, candidateUserIds: [candidateUserId] }
+  // - Candidate user UUID from profile.user_id, not profile.id
+  // - Only sent after card is rendered, screen is focused, app is active, with 700ms debounce
   const visibleProfileKey =
     recommendationSessionId && currentProfile
-      ? `${recommendationSessionId}:${currentProfile.id}`
+      ? `${recommendationSessionId}:${currentProfile.userId}`
       : null;
 
   const markCurrentProfileLaidOut = useCallback(() => {
@@ -383,22 +465,27 @@ export default function DiscoveryScreen() {
     ) {
       return undefined;
     }
-    const key = `${recommendationSessionId}:${currentProfile.id}`;
+
+    const key = `${recommendationSessionId}:${currentProfile.userId}`;
     if (recordedImpressionKeysRef.current.has(key)) return undefined;
 
-    // Count a card after it remains laid out, focused, and foregrounded briefly.
     const timer = setTimeout(() => {
       if (
         AppState.currentState !== "active" ||
-        currentProfileRef.current?.id !== currentProfile.id
+        currentProfileRef.current?.userId !== currentProfile.userId
       ) {
         return;
       }
       recordedImpressionKeysRef.current.add(key);
       datingApi
-        .recordRecommendationImpressions(userId, recommendationSessionId, [currentProfile.id])
-        .catch(() => recordedImpressionKeysRef.current.delete(key));
+        .recordRecommendationImpressions(userId, recommendationSessionId, [
+          currentProfile.userId,
+        ])
+        .catch(() => {
+          recordedImpressionKeysRef.current.delete(key);
+        });
     }, 700);
+
     return () => clearTimeout(timer);
   }, [
     currentProfile,
@@ -476,10 +563,10 @@ export default function DiscoveryScreen() {
 
       if (!profile.isIntro) {
         if (action === "like") {
-          swipeRight(profile.id);
+          swipeRight(profile.userId);
           if (userId) {
             datingApi
-              .createSwipe(userId, profile.id, "like")
+              .createSwipe(userId, profile.userId, "like")
               .then((res) => {
                 if (res.isMatch) {
                   showSwipeFeedback("It's a Match! 🎉");
@@ -487,7 +574,7 @@ export default function DiscoveryScreen() {
                     router.push({
                       pathname: "/match-found",
                       params: {
-                        matchedUserId: profile.id,
+                        matchedUserId: profile.userId,
                         matchedName: profile.name,
                         matchedPhoto: profile.image,
                       },
@@ -508,10 +595,10 @@ export default function DiscoveryScreen() {
             showSwipeFeedback("Interest sent");
           }
         } else {
-          swipeLeft(profile.id);
+          swipeLeft(profile.userId);
           if (userId) {
             datingApi
-              .createSwipe(userId, profile.id, "pass")
+              .createSwipe(userId, profile.userId, "pass")
               .then(() => {
                 showSwipeFeedback("Passed");
               })
@@ -528,10 +615,10 @@ export default function DiscoveryScreen() {
         }
       }
 
-      setCurrentIndex((prev) => Math.min(prev + 1, filteredProfiles.length));
+      setCurrentIndex((prev) => Math.min(prev + 1, candidateProfiles.length));
     },
     [
-      filteredProfiles.length,
+      candidateProfiles.length,
       isSwiping,
       router,
       showSwipeFeedback,
@@ -689,7 +776,7 @@ export default function DiscoveryScreen() {
   };
 
   const handleUndo = () => {
-    if (currentIndex > 1) {
+    if (currentIndex > 0) {
       undoSwipe();
       setCurrentIndex((prev) => prev - 1);
     }
@@ -801,22 +888,6 @@ export default function DiscoveryScreen() {
     transform: [{ scale: feedbackScale.value }],
   }));
 
-  const renderProgressBar = () => {
-    return (
-      <View style={styles.progressContainer}>
-        {Array.from({ length: PROGRESS_SEGMENTS }).map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.progressSegment,
-              index <= activeIndex && styles.progressSegmentActive,
-            ]}
-          />
-        ))}
-      </View>
-    );
-  };
-
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
@@ -831,7 +902,11 @@ export default function DiscoveryScreen() {
             color={theme.headerIcon ?? theme.textPrimary}
           />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton} onPress={handleUndo}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleUndo}
+          accessibilityLabel="Undo last swipe"
+        >
           <Ionicons
             name="arrow-undo-outline"
             size={22}
@@ -857,52 +932,15 @@ export default function DiscoveryScreen() {
     </View>
   );
 
-  const renderIntroOverlay = () => (
-    <View style={styles.introOverlay}>
-      <View style={styles.introSection}>
-        <View style={styles.introRow}>
-          <View style={styles.introIconContainer}>
-            <Ionicons
-              name="arrow-forward-circle"
-              size={32}
-              color={colors.white}
-            />
-          </View>
-          <View style={styles.introTextContainer}>
-            <Text style={styles.introTitle}>Swipe right if you like</Text>
-            <Text style={styles.introDescription}>
-              Swipe right to express interest and potentially match with this
-              person
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.introDivider} />
-
-      <View style={styles.introSection}>
-        <View style={styles.introRow}>
-          <View style={[styles.introIconContainer, styles.introIconPass]}>
-            <Ionicons name="arrow-back-circle" size={32} color={colors.white} />
-          </View>
-          <View style={styles.introTextContainer}>
-            <Text style={styles.introTitle}>Swipe left to pass</Text>
-            <Text style={styles.introDescription}>
-              Swipe left to skip this profile and move on to the next person
-            </Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-
   const renderCard = () => {
     if (isLoadingProfiles) {
       return (
         <View style={styles.emptyCard}>
-          <Ionicons name="sync-outline" size={52} color={theme.primary} />
-          <Text style={styles.emptyTitle}>Loading profiles...</Text>
-          <Text style={styles.emptySubtitle}>Finding people near you</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={styles.emptyTitle}>Finding recommendations...</Text>
+          <Text style={styles.emptySubtitle}>
+            Matching your profile and preferences
+          </Text>
         </View>
       );
     }
@@ -915,7 +953,7 @@ export default function DiscoveryScreen() {
             size={52}
             color={theme.error}
           />
-          <Text style={styles.emptyTitle}>Unable to load profiles</Text>
+          <Text style={styles.emptyTitle}>Unable to load recommendations</Text>
           <Text style={styles.emptySubtitle}>{profileLoadError}</Text>
           <TouchableOpacity
             style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
@@ -933,33 +971,47 @@ export default function DiscoveryScreen() {
       );
     }
 
-    if (!currentProfile || isLastCard) {
+    if (!currentProfile || isLastCard || candidateProfiles.length === 0) {
       return (
         <View style={styles.emptyCard}>
           <Ionicons
-            name="heart-dislike-outline"
+            name="sparkles-outline"
             size={64}
-            color={theme.textTertiary}
+            color={theme.primary}
           />
-          <Text style={styles.emptyTitle}>No more profiles</Text>
+          <Text style={styles.emptyTitle}>You&apos;re all caught up!</Text>
           <Text style={styles.emptySubtitle}>
-            You&apos;ve seen all active profiles!
+            No more profiles right now. Check back soon or expand your filters to
+            meet more people.
           </Text>
-          <TouchableOpacity
-            style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
-            onPress={() => {
-              setCurrentIndex(0);
-              handleRefresh();
-            }}
-          >
-            <Ionicons
-              name="reload"
-              size={16}
-              color="#fff"
-              style={{ marginRight: 6 }}
-            />
-            <Text style={styles.reloadBtnText}>Refresh</Text>
-          </TouchableOpacity>
+          <View style={styles.emptyActionsRow}>
+            <TouchableOpacity
+              style={[styles.filterActionBtn, { borderColor: theme.primary }]}
+              onPress={() => router.push("/filters")}
+            >
+              <Ionicons
+                name="options-outline"
+                size={16}
+                color={theme.primary}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.filterActionText, { color: theme.primary }]}>
+                Adjust filters
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
+              onPress={handleRefresh}
+            >
+              <Ionicons
+                name="reload"
+                size={16}
+                color="#fff"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.reloadBtnText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
@@ -967,10 +1019,11 @@ export default function DiscoveryScreen() {
     return (
       <GestureDetector gesture={panGesture}>
         <Animated.View
-          key={currentProfile.id}
+          key={currentProfile.userId}
           onLayout={markCurrentProfileLaidOut}
           style={[styles.card, cardStyle]}
         >
+          {/* Card Hero Photo */}
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             <Image
               source={{ uri: currentProfile.image }}
@@ -979,7 +1032,7 @@ export default function DiscoveryScreen() {
             />
           </View>
 
-          {/* Dynamic Reanimated Like / Pass icons (no background) */}
+          {/* Dynamic Reanimated Like / Pass icons */}
           <Animated.View
             pointerEvents="none"
             style={[styles.likeSwipeOverlay, likeIconStyle]}
@@ -1003,25 +1056,24 @@ export default function DiscoveryScreen() {
             />
           </Animated.View>
 
-          {/* Gradient overlay for text */}
-          <View style={styles.cardGradient} />
-
-          {/* Intro overlay for first card */}
-          {currentProfile.isIntro && renderIntroOverlay()}
-
-          {/* Profile info */}
+          {/* Profile Details Container */}
           <Pressable
             style={styles.cardInfo}
             onPress={() =>
               router.push({
                 pathname: "/profile-detail",
                 params: {
-                  userId: currentProfile.id,
+                  userId: currentProfile.userId,
                   name: currentProfile.name,
                   age: String(currentProfile.age),
                   occupation: currentProfile.occupation,
                   city: currentProfile.city ?? "",
                   ward: currentProfile.ward ?? "",
+                  distance_km:
+                    currentProfile.distanceKm !== null &&
+                    currentProfile.distanceKm !== undefined
+                      ? String(currentProfile.distanceKm)
+                      : "",
                   bio: currentProfile.bio ?? "",
                   image: currentProfile.image,
                   verified: String(currentProfile.verified),
@@ -1040,8 +1092,31 @@ export default function DiscoveryScreen() {
               )}
             </View>
 
-            <View style={styles.pronounsChip}>
-              <Text style={styles.pronounsText}>{currentProfile.pronouns}</Text>
+            <View style={styles.tagsRow}>
+              <View style={styles.pronounsChip}>
+                <Text style={styles.pronounsText}>
+                  {currentProfile.pronouns}
+                </Text>
+              </View>
+              {currentProfile.distanceKm !== null &&
+              currentProfile.distanceKm !== undefined ? (
+                <View style={styles.distanceChip}>
+                  <Ionicons name="navigate-outline" size={12} color="#FFF" />
+                  <Text style={styles.distanceText}>
+                    {currentProfile.distanceKm < 1
+                      ? "< 1 km away"
+                      : `${currentProfile.distanceKm} km away`}
+                  </Text>
+                </View>
+              ) : null}
+              {currentProfile.location ? (
+                <View style={styles.locationChip}>
+                  <Ionicons name="location-sharp" size={12} color="#FFF" />
+                  <Text style={styles.locationText} numberOfLines={1}>
+                    {currentProfile.location}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.occupationRow}>
@@ -1050,10 +1125,21 @@ export default function DiscoveryScreen() {
                 size={14}
                 color={colors.white}
               />
-              <Text style={styles.occupationText}>
+              <Text style={styles.occupationText} numberOfLines={1}>
                 {currentProfile.occupation}
               </Text>
             </View>
+
+            {/* Candidate Hobby Tags */}
+            {currentProfile.hobbies && currentProfile.hobbies.length > 0 && (
+              <View style={styles.hobbiesPreviewRow}>
+                {currentProfile.hobbies.slice(0, 3).map((hobby) => (
+                  <View key={hobby.id} style={styles.hobbyPreviewChip}>
+                    <Text style={styles.hobbyPreviewText}>{hobby.name}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </Pressable>
 
           {/* Action buttons on card */}
@@ -1062,6 +1148,7 @@ export default function DiscoveryScreen() {
               style={[styles.actionButton, styles.passButton]}
               onPress={handlePass}
               activeOpacity={0.8}
+              accessibilityLabel="Pass"
             >
               <Ionicons name="close" size={28} color="#9CA3AF" />
             </TouchableOpacity>
@@ -1069,6 +1156,7 @@ export default function DiscoveryScreen() {
               style={[styles.actionButton, styles.likeButton]}
               onPress={handleLike}
               activeOpacity={0.8}
+              accessibilityLabel="Like"
             >
               <Ionicons name="heart" size={26} color="#EF4444" />
             </TouchableOpacity>
@@ -1084,7 +1172,6 @@ export default function DiscoveryScreen() {
       edges={["top"]}
     >
       {renderHeader()}
-      {renderProgressBar()}
       {swipeFeedback ? (
         <Animated.View style={[styles.swipeFeedback, feedbackAnimatedStyle]}>
           <Ionicons name="sparkles" size={16} color={colors.primary} />
@@ -1120,21 +1207,6 @@ const baseStyles = StyleSheet.create({
     ...typography.h3,
     color: colors.textPrimary,
   },
-  progressContainer: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.base,
-    gap: 4,
-    marginBottom: spacing.sm,
-  },
-  progressSegment: {
-    flex: 1,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-  },
-  progressSegmentActive: {
-    backgroundColor: colors.primary,
-  },
   cardContainer: {
     flex: 1,
     paddingHorizontal: spacing.base,
@@ -1157,22 +1229,13 @@ const baseStyles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  cardGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "55%",
-    // RN doesn't support CSS gradients; use layers instead
-    backgroundColor: "transparent",
-  },
-  // Manual gradient layers for React Native
   cardInfo: {
     position: "absolute",
-    bottom: 80,
+    bottom: 84,
     left: 0,
     right: 0,
     paddingHorizontal: spacing.lg,
+    zIndex: 20,
   },
   nameRow: {
     flexDirection: "row",
@@ -1183,9 +1246,9 @@ const baseStyles = StyleSheet.create({
   cardName: {
     ...typography.h2,
     color: colors.white,
-    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowColor: "rgba(0,0,0,0.85)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
   verifiedBadge: {
     backgroundColor: colors.white,
@@ -1195,51 +1258,108 @@ const baseStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  tagsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   pronounsChip: {
-    alignSelf: "flex-start",
     backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
   pronounsText: {
     ...typography.caption,
     color: colors.white,
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  distanceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  distanceText: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  locationChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  locationText: {
+    ...typography.caption,
+    color: colors.white,
+    textShadowColor: "rgba(0,0,0,0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   occupationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
   },
   occupationText: {
     ...typography.bodySmall,
     color: colors.white,
-    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowColor: "rgba(0,0,0,0.85)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
+  },
+  hobbiesPreviewRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: 2,
+  },
+  hobbyPreviewChip: {
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  hobbyPreviewText: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: "500",
   },
   actionButtons: {
     position: "absolute",
-    bottom: spacing.xl,
+    bottom: spacing.lg,
     left: 0,
     right: 0,
     flexDirection: "row",
     justifyContent: "center",
-    gap: spacing.xl,
+    gap: spacing.xxl,
+    zIndex: 25,
   },
   actionButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 3,
+    elevation: 4,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
   },
   passButton: {
     backgroundColor: colors.white,
@@ -1247,60 +1367,11 @@ const baseStyles = StyleSheet.create({
   likeButton: {
     backgroundColor: colors.white,
   },
-  // Intro overlay
-  introOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-    zIndex: 10,
-  },
-  introSection: {
-    paddingVertical: spacing.lg,
-  },
-  introRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.base,
-  },
-  introIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.success,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  introIconPass: {
-    backgroundColor: colors.error,
-  },
-  introTextContainer: {
-    flex: 1,
-  },
-  introTitle: {
-    ...typography.body,
-    color: colors.white,
-    fontWeight: "600",
-    marginBottom: spacing.xs,
-  },
-  introDescription: {
-    ...typography.bodySmall,
-    color: "rgba(255,255,255,0.8)",
-  },
-  introDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
-  // Swipe overlays
   likeSwipeOverlay: {
     position: "absolute",
     top: 32,
     left: 32,
-    zIndex: 20,
+    zIndex: 30,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1308,7 +1379,7 @@ const baseStyles = StyleSheet.create({
     position: "absolute",
     top: 32,
     right: 32,
-    zIndex: 20,
+    zIndex: 30,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1317,28 +1388,59 @@ const baseStyles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 10,
   },
-  // Empty state
   emptyCard: {
     flex: 1,
     borderRadius: borderRadius.lg,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: spacing.xl,
     gap: spacing.md,
   },
   emptyTitle: {
     ...typography.h3,
     color: colors.textPrimary,
+    textAlign: "center",
   },
   emptySubtitle: {
     ...typography.body,
     color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  emptyActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  filterActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+  },
+  filterActionText: {
+    ...typography.captionBold,
+  },
+  reloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+  },
+  reloadBtnText: {
+    ...typography.captionBold,
+    color: colors.white,
   },
   swipeFeedback: {
     position: "absolute",
     top: 86,
     alignSelf: "center",
-    zIndex: 30,
+    zIndex: 35,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
@@ -1355,36 +1457,5 @@ const baseStyles = StyleSheet.create({
   swipeFeedbackText: {
     ...typography.captionBold,
     color: colors.textPrimary,
-  },
-  decisionOverlay: {
-    position: "absolute",
-    top: "38%",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 40,
-  },
-  decisionText: {
-    marginTop: spacing.sm,
-    fontSize: typography.h3.fontSize,
-    fontWeight: "800",
-    letterSpacing: 2,
-    color: colors.white,
-    textShadowColor: "rgba(0,0,0,0.45)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  reloadBtn: {
-    marginTop: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-  },
-  reloadBtnText: {
-    ...typography.captionBold,
-    color: colors.white,
   },
 });

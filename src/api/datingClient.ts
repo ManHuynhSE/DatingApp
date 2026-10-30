@@ -68,6 +68,7 @@ export interface DatingProfile {
   ward: string | null;
   latitude: number | null;
   longitude: number | null;
+  distance_km?: number | null;
   is_verified: boolean;
   languages: string[];
   users?: {
@@ -80,6 +81,55 @@ export interface DatingProfile {
     photos?: DatingPhoto[];
   };
 }
+
+export interface RecommendationProfile {
+  id: string;
+  user_id: string;
+  display_name: string;
+  birth_date: string;
+  gender: 'male' | 'female' | 'non_binary' | 'other' | string;
+  bio: string | null;
+  job_title: string | null;
+  pet: string | null;
+  life_style: string[];
+  hobbies: Hobby[];
+  education: string | null;
+  height_cm: number | null;
+  city: string | null;
+  ward: string | null;
+  distance_km: number | null;
+  is_verified: boolean;
+  languages: string[];
+  users?: {
+    id: string;
+    photos?: DatingPhoto[];
+  };
+}
+
+export interface UserPreferences {
+  id?: string;
+  user_id: string;
+  interested_in: 'male' | 'female' | 'everyone';
+  age_min: number;
+  age_max: number;
+  max_distance_km: number;
+  show_me: boolean;
+  interested_languages: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type UpdateUserPreferencesInput = Partial<
+  Pick<
+    UserPreferences,
+    | 'interested_in'
+    | 'age_min'
+    | 'age_max'
+    | 'max_distance_km'
+    | 'show_me'
+    | 'interested_languages'
+  >
+>;
 
 export interface DatingProfileListResponse {
   success: boolean;
@@ -94,7 +144,7 @@ export interface DatingProfileListResponse {
 
 export interface RecommendationPageResponse {
   success: boolean;
-  data: DatingProfile[];
+  data: RecommendationProfile[];
   pagination: {
     limit: number;
     sessionId: string | null;
@@ -273,10 +323,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const datingApi = {
   health: () => request<{ success: boolean; message: string }>('/health'),
 
-  getRecommendations: (userId: string, options: { limit?: number; cursor?: string } = {}) => {
-    const query = new URLSearchParams({ limit: String(options.limit ?? 50) });
+  getRecommendations: (
+    userId: string,
+    options: { limit?: number; cursor?: string | null } = {},
+  ) => {
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+    const query = new URLSearchParams({ limit: String(limit) });
     if (options.cursor) query.append('cursor', options.cursor);
-    return request<RecommendationPageResponse>(`/recommendations/${userId}?${query.toString()}`);
+    return request<RecommendationPageResponse>(
+      `/recommendations/${userId}?${query.toString()}`,
+    );
   },
 
   recordRecommendationImpressions: (
@@ -289,6 +345,35 @@ export const datingApi = {
       {
         method: 'POST',
         body: JSON.stringify({ sessionId, candidateUserIds }),
+      },
+    ),
+
+  getUserPreferences: (userId: string) =>
+    request<{ success: boolean; data: UserPreferences }>(
+      `/preferences/user/${userId}`,
+    ),
+
+  updateUserPreferences: (
+    userId: string,
+    preferences: UpdateUserPreferencesInput,
+  ) =>
+    request<{ success: boolean; message?: string; data: UserPreferences }>(
+      `/preferences/user/${userId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(preferences),
+      },
+    ),
+
+  upsertUserPreferences: (
+    userId: string,
+    preferences: UpdateUserPreferencesInput,
+  ) =>
+    request<{ success: boolean; message?: string; data: UserPreferences }>(
+      `/preferences/user/${userId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(preferences),
       },
     ),
 
