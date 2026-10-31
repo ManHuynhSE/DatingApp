@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -138,6 +138,50 @@ export default function FiltersScreen() {
     setSelectedLanguages([]);
   };
 
+  const handleAgeChange = useCallback((newLow: number, newHigh: number) => {
+    setAgeMin(String(newLow));
+    setAgeMax(String(newHigh));
+  }, []);
+
+  const handleDistanceChange = useCallback((newVal: number) => {
+    setDistance(String(newVal));
+  }, []);
+
+  const handleDragStateChange = useCallback((isDragging: boolean) => {
+    setScrollEnabled(!isDragging);
+  }, []);
+
+  const handleAgeMinBlur = useCallback(() => {
+    const minVal = parseInt(ageMin, 10);
+    const maxVal = parseInt(ageMax, 10);
+    if (isNaN(minVal) || minVal < 18) {
+      setAgeMin('18');
+    } else if (minVal > 80) {
+      setAgeMin('80');
+    } else if (!isNaN(maxVal) && minVal > maxVal) {
+      setAgeMax(String(minVal));
+    }
+  }, [ageMin, ageMax]);
+
+  const handleAgeMaxBlur = useCallback(() => {
+    const minVal = parseInt(ageMin, 10);
+    const maxVal = parseInt(ageMax, 10);
+    if (isNaN(maxVal) || maxVal < 18) {
+      setAgeMax('18');
+    } else if (maxVal > 80) {
+      setAgeMax('80');
+    } else if (!isNaN(minVal) && maxVal < minVal) {
+      setAgeMin(String(maxVal));
+    }
+  }, [ageMin, ageMax]);
+
+  const handleDistanceBlur = useCallback(() => {
+    const distVal = parseInt(distance, 10);
+    if (isNaN(distVal) || distVal < 10) {
+      setDistance('10');
+    }
+  }, [distance]);
+
   const applyFilters = async () => {
     const min = Math.max(18, Math.min(120, Number.parseInt(ageMin, 10) || 18));
     const max = Math.max(min, Math.min(120, Number.parseInt(ageMax, 10) || 80));
@@ -200,6 +244,9 @@ export default function FiltersScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.headerTitle}>Filters</Text>
+        </View>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.closeBtn}
@@ -207,7 +254,6 @@ export default function FiltersScreen() {
         >
           <Ionicons name="close" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Filters</Text>
         <View style={styles.closeBtn}>
           {isSaving && <ActivityIndicator size="small" color={colors.primary} />}
         </View>
@@ -281,6 +327,7 @@ export default function FiltersScreen() {
                   style={styles.rangeInput}
                   value={ageMin}
                   onChangeText={setAgeMin}
+                  onBlur={handleAgeMinBlur}
                   keyboardType="number-pad"
                   maxLength={3}
                 />
@@ -294,6 +341,7 @@ export default function FiltersScreen() {
                   style={styles.rangeInput}
                   value={ageMax}
                   onChangeText={setAgeMax}
+                  onBlur={handleAgeMaxBlur}
                   keyboardType="number-pad"
                   maxLength={3}
                 />
@@ -306,11 +354,8 @@ export default function FiltersScreen() {
               high={Math.max(18, Math.min(80, parseInt(ageMax, 10) || 80))}
               step={1}
               minRange={0}
-              onValueChange={(newLow, newHigh) => {
-                setAgeMin(String(newLow));
-                setAgeMax(String(newHigh));
-              }}
-              onDragStateChange={(isDragging) => setScrollEnabled(!isDragging)}
+              onValueChange={handleAgeChange}
+              onDragStateChange={handleDragStateChange}
             />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabelText}>18</Text>
@@ -332,6 +377,7 @@ export default function FiltersScreen() {
                   style={styles.rangeInput}
                   value={distance}
                   onChangeText={setDistance}
+                  onBlur={handleDistanceBlur}
                   keyboardType="number-pad"
                   maxLength={5}
                 />
@@ -342,10 +388,8 @@ export default function FiltersScreen() {
               max={80}
               value={Math.max(10, Math.min(80, parseInt(distance, 10) || 10))}
               step={1}
-              onValueChange={(newVal) => {
-                setDistance(String(newVal));
-              }}
-              onDragStateChange={(isDragging) => setScrollEnabled(!isDragging)}
+              onValueChange={handleDistanceChange}
+              onDragStateChange={handleDragStateChange}
             />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabelText}>10 km</Text>
@@ -508,13 +552,23 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   header: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    position: 'relative',
+  },
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeBtn: {
     width: 40,
@@ -526,6 +580,7 @@ const styles = StyleSheet.create({
     fontSize: typography.h2.fontSize,
     fontWeight: typography.h2.fontWeight,
     color: colors.textPrimary,
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,

@@ -1,1461 +1,714 @@
-import React, {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-  useRef,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  AppState,
   View,
   Text,
   StyleSheet,
-  Image,
+  ScrollView,
   TouchableOpacity,
+  Image,
   Dimensions,
-  Pressable,
+  RefreshControl,
   ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  Easing,
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  useAnimatedReaction,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
-import { useIsFocused, useRouter } from "expo-router";
-import {
-  colors,
-  darkColors,
-  typography,
-  spacing,
-  borderRadius,
-  resolveThemeStyles,
-} from "@/theme";
-import { discoveryProfiles } from "@/data/mockData";
-import { useDiscoveryStore } from "@/store/discoveryStore";
-import { useThemeStore } from "@/store/themeStore";
-import { useAuthStore } from "@/store/authStore";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, darkColors, spacing } from '@/theme';
+import { useThemeStore } from '@/store/themeStore';
+import { useAuthStore } from '@/store/authStore';
 import {
   datingApi,
-  DatingApiError,
-  type Hobby,
-  type RecommendationProfile,
-} from "@/api/datingClient";
+  DiscoveryGroup,
+  DiscoveryIntention,
+} from '@/api/datingClient';
+import DiscoveryFeedModal, {
+  DiscoveryFeedTopic,
+} from '@/components/DiscoveryFeedModal';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const SWIPE_THRESHOLD = Math.min(Math.max(SCREEN_WIDTH * 0.25, 90), 140);
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_GAP = spacing.md;
+const CONTAINER_PADDING = spacing.base;
+const CARD_WIDTH = (SCREEN_WIDTH - CONTAINER_PADDING * 2 - CARD_GAP) / 2;
+const CARD_HEIGHT = 205;
 
-interface ProfileCard {
-  id: string; // row profile id
-  userId: string; // candidate user uuid (for impressions, swipes, detail)
-  name: string;
-  age: number;
-  pronouns: string;
-  gender: string;
-  occupation: string;
-  location: string;
-  distanceKm?: number | null;
-  city?: string;
-  ward?: string;
-  languages: string[];
-  hobbies: Hobby[];
-  lifestyle?: string[];
-  pet?: string | null;
-  education?: string | null;
-  height_cm?: number | null;
-  verified: boolean;
-  image: string;
-  photos: string[];
-  bio?: string;
-  isIntro?: boolean;
+function formatMemberCount(count: number): string {
+  try {
+    return new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(count);
+  } catch {
+    return count > 999 ? `${(count / 1000).toFixed(1)}N` : String(count);
+  }
 }
 
-const calculateAge = (birthDate: string) => {
-  const date = new Date(birthDate);
-  const today = new Date();
-  let age = today.getFullYear() - date.getFullYear();
-  if (
-    today.getMonth() < date.getMonth() ||
-    (today.getMonth() === date.getMonth() && today.getDate() < date.getDate())
-  ) {
-    age -= 1;
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+const GROUP_META: Record<
+  string,
+  {
+    title: string;
+    imageUrl: string;
+    glowColor: string;
+    fallbackIcon: keyof typeof Ionicons.glyphMap;
+    description: string;
   }
-  return age;
+> = {
+  'me-phim': {
+    title: 'Hội mê Phim',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Television/3D/television_3d.png',
+    glowColor: 'rgba(255, 77, 141, 0.22)',
+    fallbackIcon: 'tv-outline',
+    description: 'Cùng xem phim, thảo luận về những bộ phim bom tấn và rạp chiếu.',
+  },
+  'me-game': {
+    title: 'Hội mê Game',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Puzzle%20piece/3D/puzzle_piece_3d.png',
+    glowColor: 'rgba(255, 122, 0, 0.22)',
+    fallbackIcon: 'game-controller-outline',
+    description: 'Tìm đồng đội leo rank, chơi co-op và chia sẻ đam mê game.',
+  },
+  'me-nghe-thuat': {
+    title: 'Mê nghệ thuật',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Artist%20palette/3D/artist_palette_3d.png',
+    glowColor: 'rgba(168, 85, 247, 0.22)',
+    fallbackIcon: 'color-palette-outline',
+    description: 'Đam mê hội họa, nhiếp ảnh, thiết kế và nghệ thuật sáng tạo.',
+  },
+  'du-lich': {
+    title: 'Du lịch',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Airplane/3D/airplane_3d.png',
+    glowColor: 'rgba(59, 130, 246, 0.22)',
+    fallbackIcon: 'airplane-outline',
+    description: 'Khám phá những vùng đất mới, phượt và tận hưởng trải nghiệm vi vu.',
+  },
+  'yeu-the-thao': {
+    title: 'Yêu thể thao',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Soccer%20ball/3D/soccer_ball_3d.png',
+    glowColor: 'rgba(34, 197, 94, 0.22)',
+    fallbackIcon: 'football-outline',
+    description: 'Chạy bộ, gym, thể thao và cùng nhau duy trì phong độ năng động.',
+  },
+  'thich-di-nhau': {
+    title: 'Thích đi nhậu',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Beer%20mug/3D/beer_mug_3d.png',
+    glowColor: 'rgba(245, 158, 11, 0.22)',
+    fallbackIcon: 'beer-outline',
+    description: 'Gặp gỡ chill cuối tuần, chuyện trò và cụng ly sảng khoái.',
+  },
+  'me-am-thuc': {
+    title: 'Mê ẩm thực',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Cooking/3D/cooking_3d.png',
+    glowColor: 'rgba(239, 68, 68, 0.22)',
+    fallbackIcon: 'restaurant-outline',
+    description: 'Ăn sập phố phường, nấu nướng và cùng khám phá các món ngon.',
+  },
+  'yeu-thien-nhien': {
+    title: 'Yêu thiên nhiên',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Deciduous%20tree/3D/deciduous_tree_3d.png',
+    glowColor: 'rgba(16, 185, 129, 0.22)',
+    fallbackIcon: 'leaf-outline',
+    description: 'Yêu cây cỏ, dã ngoại cắm trại và hòa mình vào thiên nhiên.',
+  },
+  'yeu-am-nhac': {
+    title: 'Yêu âm nhạc',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Musical%20notes/3D/musical_notes_3d.png',
+    glowColor: 'rgba(236, 72, 153, 0.22)',
+    fallbackIcon: 'musical-notes-outline',
+    description: 'Nghe nhạc, chia sẻ playlist và cùng thưởng thức những giai điệu hay.',
+  },
+  'thich-kham-pha-tri-thuc': {
+    title: 'Thích khám phá tri thức',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Books/3D/books_3d.png',
+    glowColor: 'rgba(99, 102, 241, 0.22)',
+    fallbackIcon: 'book-outline',
+    description: 'Đọc sách, trao đổi kiến thức sâu sắc và tìm hiểu góc nhìn mới.',
+  },
+  'song-tich-cuc': {
+    title: 'Sống tích cực',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Sun/3D/sun_3d.png',
+    glowColor: 'rgba(234, 179, 8, 0.22)',
+    fallbackIcon: 'sunny-outline',
+    description: 'Lan tỏa nguồn năng lượng tươi sáng, phát triển bản thân mỗi ngày.',
+  },
+  'thich-ket-noi': {
+    title: 'Thích kết nối',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Sparkles/3D/sparkles_3d.png',
+    glowColor: 'rgba(20, 184, 166, 0.22)',
+    fallbackIcon: 'people-outline',
+    description: 'Mở rộng vòng kết nối, trò chuyện cởi mở và kết thêm bạn mới.',
+  },
+  'nguoi-yeu': {
+    title: 'Người yêu',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Tulip/3D/tulip_3d.png',
+    glowColor: 'rgba(255, 51, 75, 0.25)',
+    fallbackIcon: 'rose-outline',
+    description: 'Tìm kiếm nửa kia để cùng chia sẻ những khoảnh khắc ngọt ngào.',
+  },
+  'ban-hen-ho-lau-dai': {
+    title: 'Bạn hẹn hò lâu dài',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Ring/3D/ring_3d.png',
+    glowColor: 'rgba(224, 36, 195, 0.22)',
+    fallbackIcon: 'diamond-outline',
+    description: 'Hướng tới mối quan hệ lâu dài, gắn kết và xây dựng tương lai.',
+  },
+  'bat-ki': {
+    title: 'Bất kì',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Gem%20stone/3D/gem_stone_3d.png',
+    glowColor: 'rgba(217, 70, 239, 0.22)',
+    fallbackIcon: 'sparkles-outline',
+    description: 'Gặp gỡ những người có tần số chung, thấu hiểu và lắng nghe.',
+  },
+  'ban-moi': {
+    title: 'Bạn mới',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Hot%20beverage/3D/hot_beverage_3d.png',
+    glowColor: 'rgba(245, 158, 11, 0.22)',
+    fallbackIcon: 'cafe-outline',
+    description: 'Mở rộng vòng kết nối bạn bè, trò chuyện và cùng nhau chia sẻ cuộc sống.',
+  },
+  'chua-ro': {
+    title: 'Chưa rõ',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Crescent%20moon/3D/crescent_moon_3d.png',
+    glowColor: 'rgba(56, 189, 248, 0.24)',
+    fallbackIcon: 'moon-outline',
+    description: 'Vẫn đang khám phá và tìm hiểu bản thân trong các mối quan hệ.',
+  },
 };
 
-const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
-  const photos = profile.users?.photos ?? [];
-  const sortedPhotos = [...photos].sort((a, b) => {
-    if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
-    return a.position - b.position;
-  });
-  const photoUrls = sortedPhotos.map((p) => p.url);
-  const primaryPhoto =
-    photoUrls[0] ?? `https://picsum.photos/seed/${profile.user_id}/700/900`;
-
-  const locationText =
-    [profile.ward, profile.city].filter(Boolean).join(", ") ||
-    profile.city ||
-    "Nearby";
-
-  return {
-    id: profile.id,
-    userId: profile.user_id,
-    name: profile.display_name,
-    age: calculateAge(profile.birth_date),
-    pronouns:
-      profile.gender === "female"
-        ? "She/Her"
-        : profile.gender === "male"
-          ? "He/Him"
-          : profile.gender,
-    gender: profile.gender,
-    occupation: profile.job_title ?? "Open to meeting someone new",
-    location: locationText,
-    distanceKm: profile.distance_km,
-    city: profile.city ?? undefined,
-    ward: profile.ward ?? undefined,
-    languages: profile.languages ?? [],
-    hobbies: profile.hobbies ?? [],
-    lifestyle: profile.life_style ?? [],
-    pet: profile.pet ?? null,
-    education: profile.education ?? null,
-    height_cm: profile.height_cm ?? null,
-    verified: profile.is_verified,
-    image: primaryPhoto,
-    photos: photoUrls.length > 0 ? photoUrls : [primaryPhoto],
-    bio: profile.bio ?? undefined,
-  };
+const INTENTION_META: Record<
+  string,
+  {
+    title: string;
+    imageUrl: string;
+    glowColor: string;
+    fallbackIcon: keyof typeof Ionicons.glyphMap;
+    description: string;
+  }
+> = {
+  'Người yêu': {
+    title: 'Người yêu',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Tulip/3D/tulip_3d.png',
+    glowColor: 'rgba(255, 51, 75, 0.25)',
+    fallbackIcon: 'rose-outline',
+    description: 'Tìm kiếm nửa kia để cùng chia sẻ những khoảnh khắc ngọt ngào.',
+  },
+  'Bạn hẹn hò lâu dài': {
+    title: 'Mối quan hệ nghiêm túc',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Ring/3D/ring_3d.png',
+    glowColor: 'rgba(224, 36, 195, 0.22)',
+    fallbackIcon: 'diamond-outline',
+    description: 'Hướng tới mối quan hệ lâu dài, gắn kết và xây dựng tương lai.',
+  },
+  'Bất kì': {
+    title: 'Bất kì',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Gem%20stone/3D/gem_stone_3d.png',
+    glowColor: 'rgba(217, 70, 239, 0.22)',
+    fallbackIcon: 'sparkles-outline',
+    description: 'Gặp gỡ những người có tần số chung, thấu hiểu và lắng nghe.',
+  },
+  'Bạn mới': {
+    title: 'Bạn mới',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Hot%20beverage/3D/hot_beverage_3d.png',
+    glowColor: 'rgba(245, 158, 11, 0.22)',
+    fallbackIcon: 'cafe-outline',
+    description: 'Mở rộng vòng kết nối bạn bè, trò chuyện và cùng nhau chia sẻ cuộc sống.',
+  },
+  'Chưa rõ': {
+    title: 'Chưa rõ',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Crescent%20moon/3D/crescent_moon_3d.png',
+    glowColor: 'rgba(56, 189, 248, 0.24)',
+    fallbackIcon: 'moon-outline',
+    description: 'Vẫn đang khám phá và tìm hiểu bản thân trong các mối quan hệ.',
+  },
+  'người yêu': {
+    title: 'Người yêu',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Tulip/3D/tulip_3d.png',
+    glowColor: 'rgba(255, 51, 75, 0.25)',
+    fallbackIcon: 'rose-outline',
+    description: 'Tìm kiếm nửa kia để cùng chia sẻ những khoảnh khắc ngọt ngào.',
+  },
+  'bạn hẹn hò lâu dài': {
+    title: 'Mối quan hệ nghiêm túc',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Ring/3D/ring_3d.png',
+    glowColor: 'rgba(224, 36, 195, 0.22)',
+    fallbackIcon: 'diamond-outline',
+    description: 'Hướng tới mối quan hệ lâu dài, gắn kết và xây dựng tương lai.',
+  },
+  'bất kì': {
+    title: 'Bất kì',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Gem%20stone/3D/gem_stone_3d.png',
+    glowColor: 'rgba(217, 70, 239, 0.22)',
+    fallbackIcon: 'sparkles-outline',
+    description: 'Gặp gỡ những người có tần số chung, thấu hiểu và lắng nghe.',
+  },
+  'bạn mới': {
+    title: 'Bạn mới',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Hot%20beverage/3D/hot_beverage_3d.png',
+    glowColor: 'rgba(245, 158, 11, 0.22)',
+    fallbackIcon: 'cafe-outline',
+    description: 'Mở rộng vòng kết nối bạn bè, trò chuyện và cùng nhau chia sẻ cuộc sống.',
+  },
+  'chưa rõ': {
+    title: 'Chưa rõ',
+    imageUrl:
+      'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Crescent%20moon/3D/crescent_moon_3d.png',
+    glowColor: 'rgba(56, 189, 248, 0.24)',
+    fallbackIcon: 'moon-outline',
+    description: 'Vẫn đang khám phá và tìm hiểu bản thân trong các mối quan hệ.',
+  },
 };
-
-const mapMockProfile = (
-  profile: (typeof discoveryProfiles)[number],
-): ProfileCard => ({
-  id: profile.id,
-  userId: profile.id,
-  name: profile.name,
-  age: profile.age,
-  pronouns: profile.pronouns,
-  gender: profile.pronouns.toLowerCase().includes("she")
-    ? "female"
-    : profile.pronouns.toLowerCase().includes("he")
-      ? "male"
-      : "other",
-  occupation: profile.company
-    ? `${profile.occupation} at ${profile.company}`
-    : profile.occupation,
-  location: profile.location,
-  distanceKm: Number.parseFloat(profile.distance) || 3.2,
-  city: profile.location,
-  languages: profile.languages,
-  hobbies: (profile.interests || []).map((name) => ({
-    id: name.toLowerCase().replace(/\s+/g, "-"),
-    name,
-    category: "General",
-  })),
-  verified: profile.verified,
-  image: profile.photos[0],
-  photos: profile.photos,
-  bio: profile.aboutMe,
-});
 
 export default function DiscoveryScreen() {
-  const router = useRouter();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [swipeFeedback, setSwipeFeedback] = useState("");
-  const [remoteProfiles, setRemoteProfiles] = useState<ProfileCard[] | null>(
-    null,
-  );
-  const [recommendationSessionId, setRecommendationSessionId] = useState<
-    string | null
-  >(null);
-  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
-  const [laidOutProfileKey, setLaidOutProfileKey] = useState<string | null>(
-    null,
-  );
-  const [isAppActive, setIsAppActive] = useState(
-    AppState.currentState === "active",
-  );
-  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
-
-  const nextRecommendationCursorRef = useRef<string | null>(null);
-  const loadingMoreRecommendationsRef = useRef(false);
-  const recordedImpressionKeysRef = useRef(new Set<string>());
-
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const isSwiping = useSharedValue(false);
-  const cardEntrance = useSharedValue(1);
-  const feedbackOpacity = useSharedValue(0);
-  const feedbackScale = useSharedValue(0.86);
-  const likeScaleBoost = useSharedValue(1);
-  const passScaleBoost = useSharedValue(1);
-  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const swipeRight = useDiscoveryStore((state) => state.swipeRight);
-  const swipeLeft = useDiscoveryStore((state) => state.swipeLeft);
-  const undoSwipe = useDiscoveryStore((state) => state.undoSwipe);
-  const preferencesVersion = useDiscoveryStore(
-    (state) => state.preferencesVersion,
-  );
-
   const mode = useThemeStore((state) => state.mode);
-  const theme = mode === "dark" ? darkColors : colors;
-  const styles = resolveThemeStyles(baseStyles, theme);
-
+  const theme = mode === 'dark' ? darkColors : colors;
   const currentUser = useAuthStore((state) => state.user);
   const userId = currentUser?.id;
-  const isScreenFocused = useIsFocused();
 
-  // Reset photo index in completeSwipe, handleUndo, and loadFirstRecommendationPage
+  const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Track app active state for visibility impression criteria
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (state) => {
-      setIsAppActive(state === "active");
-    });
-    return () => subscription.remove();
-  }, []);
+  const [serverGroups, setServerGroups] = useState<DiscoveryGroup[] | null>(null);
+  const [serverIntentions, setServerIntentions] = useState<DiscoveryIntention[] | null>(null);
 
-  // Request recommendations snapshot (First request: GET /api/recommendations/{userId}?limit=20)
-  const loadFirstRecommendationPage = useCallback(async () => {
-    setIsLoadingProfiles(true);
-    setProfileLoadError(null);
-    setCurrentIndex(0);
-    setRecommendationSessionId(null);
-    nextRecommendationCursorRef.current = null;
-    recordedImpressionKeysRef.current = new Set();
+  const [imageErrorMap, setImageErrorMap] = useState<Record<string, boolean>>({});
 
-    if (!userId) {
-      // Fallback for non-authenticated exploration mode
-      setRemoteProfiles(discoveryProfiles.map(mapMockProfile));
-      setIsLoadingProfiles(false);
-      return;
-    }
+  // Active Feed Modal
+  const [selectedTopic, setSelectedTopic] = useState<DiscoveryFeedTopic | null>(null);
+  const [feedModalVisible, setFeedModalVisible] = useState(false);
 
-    try {
-      const response = await datingApi.getRecommendations(userId, { limit: 20 });
-      const seen = new Set<string>();
-      const candidateList = response.data
-        .map(mapDatingProfile)
-        .filter((cand) => {
-          if (cand.userId === userId) return false;
-          if (seen.has(cand.userId)) return false;
-          seen.add(cand.userId);
-          return true;
-        });
-
-      setRemoteProfiles(candidateList);
-      setRecommendationSessionId(response.pagination.sessionId);
-      nextRecommendationCursorRef.current = response.pagination.nextCursor;
-    } catch (error: unknown) {
-      const msg =
-        error instanceof Error
-          ? error.message
-          : "Unable to load recommendations from server";
-      setProfileLoadError(msg);
-      setRemoteProfiles([]);
-    } finally {
-      setIsLoadingProfiles(false);
-    }
-  }, [userId]);
-
-  const handleRefresh = () => {
-    void loadFirstRecommendationPage();
-  };
-
-  // Cursor pagination (Request next pages: GET /api/recommendations/{userId}?limit=20&cursor={nextCursor})
-  const loadMoreRecommendations = useCallback(async () => {
-    const cursor = nextRecommendationCursorRef.current;
-    if (!userId || !cursor || loadingMoreRecommendationsRef.current) return;
-    loadingMoreRecommendationsRef.current = true;
-
-    try {
-      const response = await datingApi.getRecommendations(userId, {
-        limit: 20,
-        cursor,
-      });
-
-      setRemoteProfiles((current) => {
-        const existingUserIds = new Set(
-          current?.map((profile) => profile.userId) ?? [],
-        );
-        const nextCandidates = response.data
-          .map(mapDatingProfile)
-          .filter(
-            (profile) =>
-              profile.userId !== userId && !existingUserIds.has(profile.userId),
-          );
-        return [...(current ?? []), ...nextCandidates];
-      });
-
-      setRecommendationSessionId(response.pagination.sessionId);
-      nextRecommendationCursorRef.current = response.pagination.nextCursor;
-    } catch (error: unknown) {
-      // When cursor expires or is invalid (HTTP 400), reset session snapshot and restart first request
-      if (
-        (error instanceof DatingApiError && error.status === 400) ||
-        (error instanceof Error &&
-          error.message.toLowerCase().includes("cursor"))
-      ) {
-        nextRecommendationCursorRef.current = null;
-        void loadFirstRecommendationPage();
-        return;
-      }
-      if (!remoteProfiles?.length) {
-        setProfileLoadError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load more recommendations",
-        );
-      }
-    } finally {
-      loadingMoreRecommendationsRef.current = false;
-    }
-  }, [loadFirstRecommendationPage, remoteProfiles?.length, userId]);
-
-  // Load recommendations on mount or when userId changes
   useEffect(() => {
     let active = true;
 
-    // Sync user's own profile info
-    if (userId) {
-      datingApi
-        .getUserProfile(userId)
-        .then((response) => {
-          if (active && response.success && response.data) {
-            const { setSession } = useAuthStore.getState();
-            const userState = useAuthStore.getState().user;
-            const profile = response.data;
-            const photos = profile.users?.photos ?? [];
-            const sortedPhotos = [...photos].sort((a, b) => {
-              if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
-              return a.position - b.position;
-            });
+    Promise.all([
+      datingApi.getDiscoveryGroups().catch((err) => {
+        console.warn('Get discovery groups error:', err);
+        return null;
+      }),
+      datingApi.getDiscoveryIntentions().catch((err) => {
+        console.warn('Get discovery intentions error:', err);
+        return null;
+      }),
+    ])
+      .then(([groupsRes, intentionsRes]) => {
+        if (!active) return;
+        let hasSuccess = false;
+        if (groupsRes?.success && Array.isArray(groupsRes.data)) {
+          setServerGroups(groupsRes.data);
+          hasSuccess = true;
+        }
+        if (intentionsRes?.success && Array.isArray(intentionsRes.data)) {
+          setServerIntentions(intentionsRes.data);
+          hasSuccess = true;
+        }
 
-            setSession(userState?.id || userId, {
-              id: userId,
-              name: profile.display_name,
-              age: calculateAge(profile.birth_date),
-              verified: profile.is_verified,
-              pronouns:
-                profile.gender === "female"
-                  ? "She/Her"
-                  : profile.gender === "male"
-                    ? "He/Him"
-                    : profile.gender,
-              occupation: profile.job_title ?? "",
-              distance: [profile.ward, profile.city].filter(Boolean).join(", "),
-              location:
-                [profile.ward, profile.city].filter(Boolean).join(", ") ||
-                profile.city ||
-                "",
-              city: profile.city ?? undefined,
-              ward: profile.ward ?? undefined,
-              education: profile.education ?? "",
-              aboutMe: profile.bio ?? "",
-              photos: sortedPhotos.map((p) => p.url),
-              details: {
-                height: profile.height_cm ? `${profile.height_cm}cm` : "",
-                smoking: "",
-                drinking: "",
-                pets: profile.pet ?? "",
-                children: "",
-                zodiac: "",
-                religion: "",
-                education: "",
-                exercise: profile.life_style?.join(", ") ?? "",
-              },
-              interests: profile.hobbies?.map((h) => h.name) ?? [],
-              hobbies: profile.hobbies ?? [],
-              languages: profile.languages ?? [],
-              relationshipGoal: "",
-              profileCompletion: 100,
-              online: true,
-            });
-          }
-        })
-        .catch(() => {
-          // Non-critical background sync
-        });
-    }
-
-    const timer = setTimeout(() => {
-      void loadFirstRecommendationPage();
-    }, 0);
+        if (!hasSuccess && (groupsRes === null || intentionsRes === null)) {
+          setFetchError(
+            'Không thể kết nối đến máy chủ. Vui lòng kéo xuống để thử lại.',
+          );
+        } else {
+          setFetchError(null);
+        }
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.warn('Error fetching discovery data:', err);
+        setFetchError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra');
+      })
+      .finally(() => {
+        if (active) {
+          setInitialLoading(false);
+        }
+      });
 
     return () => {
       active = false;
-      clearTimeout(timer);
     };
-  }, [loadFirstRecommendationPage, userId]);
+  }, [userId]);
 
-  // When preferences change in filters screen, refresh the ranking snapshot
-  const prevPrefsVersionRef = useRef(preferencesVersion);
-  useEffect(() => {
-    if (preferencesVersion !== prevPrefsVersionRef.current) {
-      prevPrefsVersionRef.current = preferencesVersion;
-      void loadFirstRecommendationPage();
-    }
-  }, [loadFirstRecommendationPage, preferencesVersion]);
-
-  // Order from server ranking snapshot must be preserved directly (no client-side re-sorting)
-  const candidateProfiles = useMemo(() => {
-    if (remoteProfiles !== null) {
-      return remoteProfiles;
-    }
-    return discoveryProfiles.map(mapMockProfile);
-  }, [remoteProfiles]);
-
-  // Pre-load next batch using cursor pagination when nearing end
-  useEffect(() => {
-    if (
-      remoteProfiles !== null &&
-      currentIndex >= candidateProfiles.length - 3 &&
-      nextRecommendationCursorRef.current !== null
-    ) {
-      void loadMoreRecommendations();
-    }
-  }, [
-    candidateProfiles.length,
-    currentIndex,
-    loadMoreRecommendations,
-    remoteProfiles,
-  ]);
-
-  const currentProfile = candidateProfiles[currentIndex];
-  const isLastCard = currentIndex >= candidateProfiles.length;
-  const currentProfileRef = useRef<ProfileCard | undefined>(currentProfile);
-  currentProfileRef.current = currentProfile;
-
-  // Visibility Impression recording (POST /api/recommendations/{userId}/impressions)
-  // Contract:
-  // - Body: { sessionId, candidateUserIds: [candidateUserId] }
-  // - Candidate user UUID from profile.user_id, not profile.id
-  // - Only sent after card is rendered, screen is focused, app is active, with 700ms debounce
-  const visibleProfileKey =
-    recommendationSessionId && currentProfile
-      ? `${recommendationSessionId}:${currentProfile.userId}`
-      : null;
-
-  const markCurrentProfileLaidOut = useCallback(() => {
-    if (visibleProfileKey) setLaidOutProfileKey(visibleProfileKey);
-  }, [visibleProfileKey]);
-
-  useEffect(() => {
-    if (
-      remoteProfiles === null ||
-      isLoadingProfiles ||
-      !isScreenFocused ||
-      !isAppActive ||
-      !userId ||
-      !recommendationSessionId ||
-      !currentProfile ||
-      currentProfile.isIntro ||
-      laidOutProfileKey !== visibleProfileKey
-    ) {
-      return undefined;
-    }
-
-    const key = `${recommendationSessionId}:${currentProfile.userId}`;
-    if (recordedImpressionKeysRef.current.has(key)) return undefined;
-
-    const timer = setTimeout(() => {
-      if (
-        AppState.currentState !== "active" ||
-        currentProfileRef.current?.userId !== currentProfile.userId
-      ) {
-        return;
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setFetchError(null);
+    try {
+      const [groupsRes, intentionsRes] = await Promise.all([
+        datingApi.getDiscoveryGroups().catch(() => null),
+        datingApi.getDiscoveryIntentions().catch(() => null),
+      ]);
+      let hasSuccess = false;
+      if (groupsRes?.success && Array.isArray(groupsRes.data)) {
+        setServerGroups(groupsRes.data);
+        hasSuccess = true;
       }
-      recordedImpressionKeysRef.current.add(key);
-      datingApi
-        .recordRecommendationImpressions(userId, recommendationSessionId, [
-          currentProfile.userId,
-        ])
-        .catch(() => {
-          recordedImpressionKeysRef.current.delete(key);
+      if (intentionsRes?.success && Array.isArray(intentionsRes.data)) {
+        setServerIntentions(intentionsRes.data);
+        hasSuccess = true;
+      }
+      if (!hasSuccess && (groupsRes === null || intentionsRes === null)) {
+        setFetchError(
+          'Không thể kết nối đến máy chủ. Vui lòng kéo xuống để thử lại.',
+        );
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Merge server data with visual design metadata - strictly no mock data
+  const cards: DiscoveryFeedTopic[] = useMemo(() => {
+    const result: DiscoveryFeedTopic[] = [];
+    const seenSlugs = new Set<string>();
+
+    // 1. Groups from backend
+    if (serverGroups && serverGroups.length > 0) {
+      for (const group of serverGroups) {
+        if (!group.is_active) continue;
+        const meta = GROUP_META[group.slug];
+        seenSlugs.add(group.slug);
+        result.push({
+          type: 'group',
+          id: group.id || `group-${group.slug}`,
+          slug: group.slug,
+          name: group.name,
+          memberCount: group.member_count ?? 0,
+          isMember: group.is_member ?? false,
+          imageUrl:
+            meta?.imageUrl ||
+            'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Sparkles/3D/sparkles_3d.png',
+          glowColor: meta?.glowColor || 'rgba(255, 77, 141, 0.22)',
+          fallbackIcon: meta?.fallbackIcon || 'people-outline',
+          description: meta?.description || group.name,
         });
-    }, 700);
-
-    return () => clearTimeout(timer);
-  }, [
-    currentProfile,
-    isAppActive,
-    isLoadingProfiles,
-    isScreenFocused,
-    laidOutProfileKey,
-    recommendationSessionId,
-    remoteProfiles,
-    userId,
-    visibleProfileKey,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-    };
-  }, []);
-
-  useLayoutEffect(() => {
-    translateX.set(0);
-    translateY.set(0);
-    likeScaleBoost.set(1);
-    passScaleBoost.set(1);
-    cardEntrance.set(0);
-    cardEntrance.set(
-      withSpring(1, {
-        damping: 16,
-        stiffness: 150,
-      }),
-    );
-    isSwiping.set(false);
-  }, [
-    currentIndex,
-    cardEntrance,
-    isSwiping,
-    likeScaleBoost,
-    passScaleBoost,
-    translateX,
-    translateY,
-  ]);
-
-  const clearSwipeFeedback = useCallback(() => {
-    setSwipeFeedback("");
-  }, []);
-
-  const showSwipeFeedback = useCallback(
-    (message: string) => {
-      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-      setSwipeFeedback(message);
-      feedbackOpacity.set(0);
-      feedbackScale.set(0.86);
-      feedbackOpacity.set(withTiming(1, { duration: 180 }));
-      feedbackScale.set(withSpring(1, { damping: 14, stiffness: 160 }));
-      feedbackTimer.current = setTimeout(() => {
-        feedbackOpacity.set(
-          withTiming(0, { duration: 260 }, (finished) => {
-            if (finished) {
-              runOnJS(clearSwipeFeedback)();
-            }
-          }),
-        );
-      }, 1150);
-    },
-    [clearSwipeFeedback, feedbackOpacity, feedbackScale],
-  );
-
-  const completeSwipe = useCallback(
-    (action: "like" | "pass") => {
-      const profile = currentProfileRef.current;
-      if (!profile) {
-        isSwiping.set(false);
-        return;
       }
-
-      if (!profile.isIntro) {
-        if (action === "like") {
-          swipeRight(profile.userId);
-          if (userId) {
-            datingApi
-              .createSwipe(userId, profile.userId, "like")
-              .then((res) => {
-                if (res.isMatch) {
-                  showSwipeFeedback("It's a Match! 🎉");
-                  setTimeout(() => {
-                    router.push({
-                      pathname: "/match-found",
-                      params: {
-                        matchedUserId: profile.userId,
-                        matchedName: profile.name,
-                        matchedPhoto: profile.image,
-                      },
-                    });
-                  }, 350);
-                } else {
-                  showSwipeFeedback("Interest sent");
-                }
-              })
-              .catch((error: unknown) => {
-                showSwipeFeedback(
-                  error instanceof Error
-                    ? error.message
-                    : "Like could not be saved",
-                );
-              });
-          } else {
-            showSwipeFeedback("Interest sent");
-          }
-        } else {
-          swipeLeft(profile.userId);
-          if (userId) {
-            datingApi
-              .createSwipe(userId, profile.userId, "pass")
-              .then(() => {
-                showSwipeFeedback("Passed");
-              })
-              .catch((error: unknown) => {
-                showSwipeFeedback(
-                  error instanceof Error
-                    ? error.message
-                    : "Pass could not be saved",
-                );
-              });
-          } else {
-            showSwipeFeedback("Passed");
-          }
-        }
-      }
-
-      setCurrentIndex((prev) => Math.min(prev + 1, candidateProfiles.length));
-    },
-    [
-      candidateProfiles.length,
-      isSwiping,
-      router,
-      showSwipeFeedback,
-      swipeLeft,
-      swipeRight,
-      userId,
-    ],
-  );
-
-  const panGesture = Gesture.Pan()
-    .activeOffsetX([-6, 6])
-    .activeOffsetY([-6, 6])
-    .onUpdate((event) => {
-      if (isSwiping.get()) return;
-      translateX.set(event.translationX);
-      translateY.set(event.translationY * 0.65);
-    })
-    .onEnd((event) => {
-      if (isSwiping.get()) return;
-
-      const currentX = translateX.get();
-      const currentY = translateY.get();
-      const shouldLike =
-        currentX >= SWIPE_THRESHOLD ||
-        (event.velocityX > 850 && currentX > 40);
-      const shouldPass =
-        currentX <= -SWIPE_THRESHOLD ||
-        (event.velocityX < -850 && currentX < -40);
-
-      if (shouldLike) {
-        isSwiping.set(true);
-        const targetX = SCREEN_WIDTH * 1.45;
-        const ratio = targetX / Math.max(Math.abs(currentX), 1);
-        const targetY =
-          currentY * Math.min(ratio, 2) + event.velocityY * 0.08;
-
-        translateX.set(
-          withTiming(targetX, {
-            duration: 260,
-            easing: Easing.out(Easing.cubic),
-          }),
-        );
-        translateY.set(
-          withTiming(
-            targetY,
-            {
-              duration: 260,
-              easing: Easing.out(Easing.cubic),
-            },
-            (finished) => {
-              if (finished) {
-                runOnJS(completeSwipe)("like");
-              }
-            },
-          ),
-        );
-      } else if (shouldPass) {
-        isSwiping.set(true);
-        const targetX = -SCREEN_WIDTH * 1.45;
-        const ratio =
-          Math.abs(targetX) / Math.max(Math.abs(currentX), 1);
-        const targetY =
-          currentY * Math.min(ratio, 2) + event.velocityY * 0.08;
-
-        translateX.set(
-          withTiming(targetX, {
-            duration: 260,
-            easing: Easing.out(Easing.cubic),
-          }),
-        );
-        translateY.set(
-          withTiming(
-            targetY,
-            {
-              duration: 260,
-              easing: Easing.out(Easing.cubic),
-            },
-            (finished) => {
-              if (finished) {
-                runOnJS(completeSwipe)("pass");
-              }
-            },
-          ),
-        );
-      } else {
-        translateX.set(
-          withSpring(0, {
-            damping: 16,
-            stiffness: 180,
-            mass: 0.8,
-          }),
-        );
-        translateY.set(
-          withSpring(0, {
-            damping: 16,
-            stiffness: 180,
-            mass: 0.8,
-          }),
-        );
-      }
-    });
-
-  const handleLike = () => {
-    const profile = currentProfileRef.current;
-    if (isSwiping.get() || !profile) return;
-    isSwiping.set(true);
-    likeScaleBoost.set(1.28);
-    translateX.set(
-      withTiming(
-        SCREEN_WIDTH * 1.4,
-        {
-          duration: 340,
-          easing: Easing.out(Easing.cubic),
-        },
-        (finished) => {
-          if (finished) {
-            runOnJS(completeSwipe)("like");
-          }
-        },
-      ),
-    );
-    translateY.set(
-      withTiming(-24, {
-        duration: 340,
-        easing: Easing.out(Easing.cubic),
-      }),
-    );
-  };
-
-  const handlePass = () => {
-    const profile = currentProfileRef.current;
-    if (isSwiping.get() || !profile) return;
-    isSwiping.set(true);
-    passScaleBoost.set(1.28);
-    translateX.set(
-      withTiming(
-        -SCREEN_WIDTH * 1.4,
-        {
-          duration: 340,
-          easing: Easing.out(Easing.cubic),
-        },
-        (finished) => {
-          if (finished) {
-            runOnJS(completeSwipe)("pass");
-          }
-        },
-      ),
-    );
-    translateY.set(
-      withTiming(24, {
-        duration: 340,
-        easing: Easing.out(Easing.cubic),
-      }),
-    );
-  };
-
-  const handleUndo = () => {
-    if (currentIndex > 0) {
-      undoSwipe();
-      setCurrentIndex((prev) => prev - 1);
-    }
-  };
-
-  useAnimatedReaction(
-    () => translateX.value >= SWIPE_THRESHOLD,
-    (isReached, previous) => {
-      if (isReached !== previous) {
-        likeScaleBoost.set(
-          withSpring(isReached ? 1.28 : 1, {
-            damping: 12,
-            stiffness: 220,
-          }),
-        );
-      }
-    },
-  );
-
-  useAnimatedReaction(
-    () => translateX.value <= -SWIPE_THRESHOLD,
-    (isReached, previous) => {
-      if (isReached !== previous) {
-        passScaleBoost.set(
-          withSpring(isReached ? 1.28 : 1, {
-            damping: 12,
-            stiffness: 220,
-          }),
-        );
-      }
-    },
-  );
-
-  const likeIconStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      translateX.value,
-      [15, SWIPE_THRESHOLD * 0.85],
-      [0, 1],
-      Extrapolation.CLAMP,
-    );
-    const baseScale = interpolate(
-      translateX.value,
-      [15, SWIPE_THRESHOLD],
-      [0.65, 1],
-      Extrapolation.CLAMP,
-    );
-    return {
-      opacity,
-      transform: [
-        { scale: baseScale * likeScaleBoost.value },
-        { rotate: "-12deg" },
-      ],
-    };
-  });
-
-  const passIconStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      translateX.value,
-      [-SWIPE_THRESHOLD * 0.85, -15],
-      [1, 0],
-      Extrapolation.CLAMP,
-    );
-    const baseScale = interpolate(
-      translateX.value,
-      [-SWIPE_THRESHOLD, -15],
-      [1, 0.65],
-      Extrapolation.CLAMP,
-    );
-    return {
-      opacity,
-      transform: [
-        { scale: baseScale * passScaleBoost.value },
-        { rotate: "12deg" },
-      ],
-    };
-  });
-
-  const cardStyle = useAnimatedStyle(() => {
-    const rotate = interpolate(
-      translateX.value,
-      [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-      [-12, 0, 12],
-      Extrapolation.CLAMP,
-    );
-    const entranceY = interpolate(
-      cardEntrance.value,
-      [0, 1],
-      [18, 0],
-      Extrapolation.CLAMP,
-    );
-    const entranceScale = interpolate(
-      cardEntrance.value,
-      [0, 1],
-      [0.96, 1],
-      Extrapolation.CLAMP,
-    );
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value + entranceY },
-        { rotate: `${rotate}deg` },
-        { scale: entranceScale },
-      ],
-    };
-  });
-
-  const feedbackAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: feedbackOpacity.value,
-    transform: [{ scale: feedbackScale.value }],
-  }));
-
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={styles.headerLeft}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.push("/(tabs)/profile")}
-          accessibilityLabel="Open profile"
-        >
-          <Ionicons
-            name="person-circle-outline"
-            size={25}
-            color={theme.headerIcon ?? theme.textPrimary}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleUndo}
-          accessibilityLabel="Undo last swipe"
-        >
-          <Ionicons
-            name="arrow-undo-outline"
-            size={22}
-            color={theme.headerIcon ?? theme.textPrimary}
-          />
-        </TouchableOpacity>
-      </View>
-      <Text
-        style={[
-          styles.headerTitle,
-          { color: theme.headerTitle ?? theme.textPrimary },
-        ]}
-      >
-        HeartSync
-      </Text>
-      <TouchableOpacity
-        style={styles.headerButton}
-        onPress={() => router.push("/filters")}
-        accessibilityLabel="Open filters"
-      >
-        <Ionicons name="options-outline" size={22} color={theme.primary} />
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderCard = () => {
-    if (isLoadingProfiles) {
-      return (
-        <View style={styles.emptyCard}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.emptyTitle}>Finding recommendations...</Text>
-          <Text style={styles.emptySubtitle}>
-            Matching your profile and preferences
-          </Text>
-        </View>
-      );
     }
 
-    if (profileLoadError) {
-      return (
-        <View style={styles.emptyCard}>
-          <Ionicons
-            name="cloud-offline-outline"
-            size={52}
-            color={theme.error}
-          />
-          <Text style={styles.emptyTitle}>Unable to load recommendations</Text>
-          <Text style={styles.emptySubtitle}>{profileLoadError}</Text>
-          <TouchableOpacity
-            style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
-            onPress={handleRefresh}
-          >
-            <Ionicons
-              name="reload"
-              size={16}
-              color="#fff"
-              style={{ marginRight: 6 }}
-            />
-            <Text style={styles.reloadBtnText}>Try again</Text>
-          </TouchableOpacity>
-        </View>
-      );
+    // 2. Intentions from backend that are not already present as discovery groups
+    if (serverIntentions && serverIntentions.length > 0) {
+      for (const intention of serverIntentions) {
+        const slug = slugify(intention.value);
+        if (seenSlugs.has(slug)) continue;
+
+        const meta =
+          INTENTION_META[intention.value] ||
+          INTENTION_META[intention.value.toLowerCase()];
+        result.push({
+          type: 'intention',
+          id: `intention-${intention.value}`,
+          value: intention.value,
+          name: meta?.title || intention.value,
+          memberCount: intention.member_count ?? 0,
+          imageUrl:
+            meta?.imageUrl ||
+            'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Sparkles/3D/sparkles_3d.png',
+          glowColor: meta?.glowColor || 'rgba(255, 51, 75, 0.25)',
+          fallbackIcon: meta?.fallbackIcon || 'heart-outline',
+          description: meta?.description || intention.value,
+        });
+      }
     }
 
-    if (!currentProfile || isLastCard || candidateProfiles.length === 0) {
-      return (
-        <View style={styles.emptyCard}>
-          <Ionicons
-            name="sparkles-outline"
-            size={64}
-            color={theme.primary}
-          />
-          <Text style={styles.emptyTitle}>You&apos;re all caught up!</Text>
-          <Text style={styles.emptySubtitle}>
-            No more profiles right now. Check back soon or expand your filters to
-            meet more people.
-          </Text>
-          <View style={styles.emptyActionsRow}>
-            <TouchableOpacity
-              style={[styles.filterActionBtn, { borderColor: theme.primary }]}
-              onPress={() => router.push("/filters")}
-            >
-              <Ionicons
-                name="options-outline"
-                size={16}
-                color={theme.primary}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[styles.filterActionText, { color: theme.primary }]}>
-                Adjust filters
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
-              onPress={handleRefresh}
-            >
-              <Ionicons
-                name="reload"
-                size={16}
-                color="#fff"
-                style={{ marginRight: 6 }}
-              />
-              <Text style={styles.reloadBtnText}>Refresh</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
+    return result;
+  }, [serverGroups, serverIntentions]);
 
-    return (
-      <GestureDetector gesture={panGesture}>
-        <Animated.View
-          key={currentProfile.userId}
-          onLayout={markCurrentProfileLaidOut}
-          style={[styles.card, cardStyle]}
-        >
-          {/* Card Hero Photo */}
-          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            <Image
-              source={{ uri: currentProfile.image }}
-              style={styles.cardImage}
-              resizeMode="cover"
-            />
-          </View>
-
-          {/* Dynamic Reanimated Like / Pass icons */}
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.likeSwipeOverlay, likeIconStyle]}
-          >
-            <Ionicons
-              name="heart"
-              size={98}
-              color="#EF4444"
-              style={styles.floatingSwipeIcon}
-            />
-          </Animated.View>
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.passSwipeOverlay, passIconStyle]}
-          >
-            <Ionicons
-              name="close"
-              size={106}
-              color="#E5E7EB"
-              style={styles.floatingSwipeIcon}
-            />
-          </Animated.View>
-
-          {/* Profile Details Container */}
-          <Pressable
-            style={styles.cardInfo}
-            onPress={() =>
-              router.push({
-                pathname: "/profile-detail",
-                params: {
-                  userId: currentProfile.userId,
-                  name: currentProfile.name,
-                  age: String(currentProfile.age),
-                  occupation: currentProfile.occupation,
-                  city: currentProfile.city ?? "",
-                  ward: currentProfile.ward ?? "",
-                  distance_km:
-                    currentProfile.distanceKm !== null &&
-                    currentProfile.distanceKm !== undefined
-                      ? String(currentProfile.distanceKm)
-                      : "",
-                  bio: currentProfile.bio ?? "",
-                  image: currentProfile.image,
-                  verified: String(currentProfile.verified),
-                },
-              })
-            }
-          >
-            <View style={styles.nameRow}>
-              <Text style={styles.cardName}>
-                {currentProfile.name}, {currentProfile.age}
-              </Text>
-              {currentProfile.verified && (
-                <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color="#4A90D9" />
-                </View>
-              )}
-            </View>
-
-            <View style={styles.tagsRow}>
-              <View style={styles.pronounsChip}>
-                <Text style={styles.pronounsText}>
-                  {currentProfile.pronouns}
-                </Text>
-              </View>
-              {currentProfile.distanceKm !== null &&
-              currentProfile.distanceKm !== undefined ? (
-                <View style={styles.distanceChip}>
-                  <Ionicons name="navigate-outline" size={12} color="#FFF" />
-                  <Text style={styles.distanceText}>
-                    {currentProfile.distanceKm < 1
-                      ? "< 1 km away"
-                      : `${currentProfile.distanceKm} km away`}
-                  </Text>
-                </View>
-              ) : null}
-              {currentProfile.location ? (
-                <View style={styles.locationChip}>
-                  <Ionicons name="location-sharp" size={12} color="#FFF" />
-                  <Text style={styles.locationText} numberOfLines={1}>
-                    {currentProfile.location}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.occupationRow}>
-              <Ionicons
-                name="briefcase-outline"
-                size={14}
-                color={colors.white}
-              />
-              <Text style={styles.occupationText} numberOfLines={1}>
-                {currentProfile.occupation}
-              </Text>
-            </View>
-
-            {/* Candidate Hobby Tags */}
-            {currentProfile.hobbies && currentProfile.hobbies.length > 0 && (
-              <View style={styles.hobbiesPreviewRow}>
-                {currentProfile.hobbies.slice(0, 3).map((hobby) => (
-                  <View key={hobby.id} style={styles.hobbyPreviewChip}>
-                    <Text style={styles.hobbyPreviewText}>{hobby.name}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </Pressable>
-
-          {/* Action buttons on card */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.passButton]}
-              onPress={handlePass}
-              activeOpacity={0.8}
-              accessibilityLabel="Pass"
-            >
-              <Ionicons name="close" size={28} color="#9CA3AF" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.likeButton]}
-              onPress={handleLike}
-              activeOpacity={0.8}
-              accessibilityLabel="Like"
-            >
-              <Ionicons name="heart" size={26} color="#EF4444" />
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </GestureDetector>
-    );
+  const handleTopicPress = (topic: DiscoveryFeedTopic) => {
+    setSelectedTopic(topic);
+    setFeedModalVisible(true);
   };
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
-      edges={["top"]}
+      edges={['top']}
     >
-      {renderHeader()}
-      {swipeFeedback ? (
-        <Animated.View style={[styles.swipeFeedback, feedbackAnimatedStyle]}>
-          <Ionicons name="sparkles" size={16} color={colors.primary} />
-          <Text style={styles.swipeFeedbackText}>{swipeFeedback}</Text>
-        </Animated.View>
-      ) : null}
-      <View style={styles.cardContainer}>{renderCard()}</View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+            Khám Phá
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+            Tìm kiếm những người có chung mục đích và sở thích
+          </Text>
+        </View>
+
+        {/* Loading State */}
+        {initialLoading ? (
+          <View style={styles.stateContainer}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+              Đang tải danh sách nhóm khám phá...
+            </Text>
+          </View>
+        ) : fetchError && cards.length === 0 ? (
+          <View style={styles.stateContainer}>
+            <Ionicons name="cloud-offline-outline" size={54} color={theme.textTertiary} />
+            <Text style={[styles.stateTitle, { color: theme.textPrimary }]}>
+              Không thể tải dữ liệu
+            </Text>
+            <Text style={[styles.stateSubtitle, { color: theme.textSecondary }]}>
+              {fetchError}
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: theme.primary }]}
+              onPress={handleRefresh}
+            >
+              <Ionicons name="refresh" size={16} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.retryBtnText}>Thử lại</Text>
+            </TouchableOpacity>
+          </View>
+        ) : cards.length === 0 ? (
+          <View style={styles.stateContainer}>
+            <Ionicons name="search-outline" size={54} color={theme.textTertiary} />
+            <Text style={[styles.stateTitle, { color: theme.textPrimary }]}>
+              Chưa có nhóm nào
+            </Text>
+            <Text style={[styles.stateSubtitle, { color: theme.textSecondary }]}>
+              Hiện chưa có nhóm khám phá nào đang hoạt động.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: theme.primary }]}
+              onPress={handleRefresh}
+            >
+              <Ionicons name="refresh" size={16} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.retryBtnText}>Tải lại</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* 2-Column Grid */
+          <View style={styles.gridContainer}>
+            {cards.map((topic) => {
+              const hasError = imageErrorMap[topic.id];
+
+              return (
+                <TouchableOpacity
+                  key={topic.id}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: mode === 'dark' ? '#1B1C22' : '#F6F3EC',
+                      borderColor: mode === 'dark' ? '#292B33' : theme.border,
+                    },
+                  ]}
+                  activeOpacity={0.82}
+                  onPress={() => handleTopicPress(topic)}
+                >
+                  {/* Center Visual Art */}
+                  <View style={styles.visualContainer}>
+                    {!hasError && topic.imageUrl ? (
+                      <Image
+                        source={{ uri: topic.imageUrl }}
+                        style={styles.cardImage}
+                        resizeMode="contain"
+                        onError={() =>
+                          setImageErrorMap((prev) => ({
+                            ...prev,
+                            [topic.id]: true,
+                          }))
+                        }
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.fallbackIconWrap,
+                          {
+                            backgroundColor:
+                              topic.glowColor || 'rgba(255, 77, 141, 0.22)',
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={topic.fallbackIcon || 'sparkles-outline'}
+                          size={44}
+                          color={theme.primary}
+                        />
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Card Bottom Row: Title on Left, Count on Right */}
+                  <View style={styles.cardBottomRow}>
+                    <Text
+                      style={[
+                        styles.cardTopicTitle,
+                        { color: theme.textPrimary },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {topic.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cardCountText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {formatMemberCount(topic.memberCount)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Discovery Feed Modal */}
+      <DiscoveryFeedModal
+        visible={feedModalVisible}
+        onClose={() => setFeedModalVisible(false)}
+        topic={selectedTopic}
+      />
     </SafeAreaView>
   );
 }
 
-const baseStyles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+  },
+  scrollContent: {
+    paddingHorizontal: CONTAINER_PADDING,
+    paddingTop: spacing.xs,
+    paddingBottom: 120,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  headerButton: {
-    padding: spacing.xs,
+    marginBottom: spacing.xs,
   },
   headerTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  cardContainer: {
-    flex: 1,
-    paddingHorizontal: spacing.base,
-    paddingBottom: 84,
+  headerSubtitle: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  loadingText: {
+    fontSize: 14,
+    marginTop: 12,
+  },
+  stateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: spacing.lg,
+  },
+  stateTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 14,
+    textAlign: 'center',
+  },
+  stateSubtitle: {
+    fontSize: 14,
+    marginTop: 6,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 18,
+  },
+  retryBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: CARD_GAP,
   },
   card: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'space-between',
+    padding: spacing.base,
+  },
+  visualContainer: {
     flex: 1,
-    borderRadius: borderRadius.lg,
-    overflow: "hidden",
-    backgroundColor: colors.surface,
-    elevation: 4,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    userSelect: "none",
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 6,
+    position: 'relative',
   },
   cardImage: {
-    ...StyleSheet.absoluteFill,
-    width: "100%",
-    height: "100%",
+    width: 92,
+    height: 92,
   },
-  cardInfo: {
-    position: "absolute",
-    bottom: 84,
-    left: 0,
-    right: 0,
-    paddingHorizontal: spacing.lg,
-    zIndex: 20,
+  fallbackIconWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+  cardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 6,
+    marginTop: 4,
   },
-  cardName: {
-    ...typography.h2,
-    color: colors.white,
-    textShadowColor: "rgba(0,0,0,0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  verifiedBadge: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.full,
-    width: 22,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tagsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  pronounsChip: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  pronounsText: {
-    ...typography.caption,
-    color: colors.white,
-    fontWeight: "600",
-  },
-  distanceChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  distanceText: {
-    ...typography.caption,
-    color: colors.white,
-    fontWeight: "600",
-    textShadowColor: "rgba(0,0,0,0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  locationChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  locationText: {
-    ...typography.caption,
-    color: colors.white,
-    textShadowColor: "rgba(0,0,0,0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  occupationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  occupationText: {
-    ...typography.bodySmall,
-    color: colors.white,
-    textShadowColor: "rgba(0,0,0,0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  hobbiesPreviewRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    marginTop: 2,
-  },
-  hobbyPreviewChip: {
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-  },
-  hobbyPreviewText: {
-    ...typography.caption,
-    color: colors.white,
-    fontWeight: "500",
-  },
-  actionButtons: {
-    position: "absolute",
-    bottom: spacing.lg,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: spacing.xxl,
-    zIndex: 25,
-  },
-  actionButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 4,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-  },
-  passButton: {
-    backgroundColor: colors.white,
-  },
-  likeButton: {
-    backgroundColor: colors.white,
-  },
-  likeSwipeOverlay: {
-    position: "absolute",
-    top: 32,
-    left: 32,
-    zIndex: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  passSwipeOverlay: {
-    position: "absolute",
-    top: 32,
-    right: 32,
-    zIndex: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  floatingSwipeIcon: {
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 10,
-  },
-  emptyCard: {
+  cardTopicTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     flex: 1,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-    gap: spacing.md,
+    lineHeight: 19,
   },
-  emptyTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  emptyActionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  filterActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-  },
-  filterActionText: {
-    ...typography.captionBold,
-  },
-  reloadBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-  },
-  reloadBtnText: {
-    ...typography.captionBold,
-    color: colors.white,
-  },
-  swipeFeedback: {
-    position: "absolute",
-    top: 86,
-    alignSelf: "center",
-    zIndex: 35,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.white,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  swipeFeedbackText: {
-    ...typography.captionBold,
-    color: colors.textPrimary,
+  cardCountText: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.2,
   },
 });

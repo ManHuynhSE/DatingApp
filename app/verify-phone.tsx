@@ -7,12 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { datingApi } from "@/api/datingClient";
 import { firebaseAuth } from "@/auth/firebase";
 import { colors, darkColors, spacing, typography } from "@/theme";
@@ -255,8 +255,14 @@ export default function VerifyPhoneScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
+      edges={["top", "bottom"]}
     >
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <View style={styles.titleContainer} pointerEvents="none">
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+            Verify account
+          </Text>
+        </View>
         <Pressable
           onPress={() => router.back()}
           style={styles.back}
@@ -265,9 +271,6 @@ export default function VerifyPhoneScreen() {
         >
           <Ionicons name="arrow-back" size={23} color={theme.textPrimary} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-          Verify account
-        </Text>
         <View style={styles.back} />
       </View>
 
@@ -419,9 +422,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.base,
+    position: "relative",
+  },
+  titleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   back: { width: 36, height: 40, justifyContent: "center" },
-  headerTitle: { ...typography.bodyBold },
+  headerTitle: { ...typography.bodyBold, textAlign: "center" },
   content: { flex: 1, paddingHorizontal: spacing.base, paddingTop: 48 },
   heroIcon: {
     width: 72,

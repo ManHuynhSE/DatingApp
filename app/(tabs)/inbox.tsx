@@ -163,11 +163,7 @@ export default function InboxScreen() {
       >
         <Animated.View entering={springFadeInDown()} style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>HEARTSYNC</Text>
-            <Text style={styles.title}>Messages</Text>
-          </View>
-          <View style={styles.headerIcon}>
-            <Ionicons name="chatbubbles-outline" size={22} color={theme.primary} />
+            <Text style={styles.title}>Chat</Text>
           </View>
         </Animated.View>
 

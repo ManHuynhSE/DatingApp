@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Octicons from '@expo/vector-icons/Octicons';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { colors, darkColors } from '@/theme';
@@ -44,11 +45,11 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="profile"
+        name="swipe"
         options={{
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Ionicons name={focused ? 'person' : 'person-outline'} size={21} color={color} />
+              <Octicons name="flame" size={22} color={color} />
             </View>
           ),
         }}
@@ -58,7 +59,7 @@ export default function TabLayout() {
         options={{
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Ionicons name="heart" size={21} color={color} />
+              <Ionicons name={focused ? 'compass' : 'compass-outline'} size={23} color={color} />
             </View>
           ),
         }}
@@ -73,18 +74,28 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="saved" options={{ href: null }} />
       <Tabs.Screen
         name="inbox"
         options={{
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Ionicons name={focused ? 'paper-plane' : 'paper-plane-outline'} size={21} color={color} />
+              <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={21} color={color} />
               <View style={styles.notificationDot} />
             </View>
           ),
         }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Ionicons name={focused ? 'person' : 'person-outline'} size={21} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen name="saved" options={{ href: null }} />
     </Tabs>
   );
 }

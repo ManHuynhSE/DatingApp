@@ -165,10 +165,6 @@ export default function MatchesScreen() {
   const listHeader = (
     <View>
       <Animated.View entering={springFadeInDown()} style={styles.pageHeader}>
-        <View style={styles.eyebrowRow}>
-          <View style={styles.eyebrowDot} />
-          <Text style={styles.eyebrow}>YOUR CONNECTIONS</Text>
-        </View>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Matches</Text>
           <View style={styles.countPill}>
@@ -241,7 +237,7 @@ export default function MatchesScreen() {
               <Text style={styles.emptyDescription}>
                 Like someone you’re interested in. If they like you back, you’ll find them here.
               </Text>
-              <Pressable onPress={() => router.push('/(tabs)/discovery')} style={styles.discoverButton}>
+              <Pressable onPress={() => router.push('/(tabs)/swipe')} style={styles.discoverButton}>
                 <Text style={styles.discoverButtonText}>Explore profiles</Text>
                 <Ionicons name="arrow-forward" size={17} color={theme.white} />
               </Pressable>

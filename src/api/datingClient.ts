@@ -72,6 +72,7 @@ export interface DatingProfile {
   distance_km?: number | null;
   is_verified: boolean;
   languages: string[];
+  relationship_intention?: string | null;
   users?: {
     id: string;
     email?: string | null;
@@ -101,6 +102,7 @@ export interface RecommendationProfile {
   distance_km: number | null;
   is_verified: boolean;
   languages: string[];
+  relationship_intention?: string | null;
   users?: {
     id: string;
     photos?: DatingPhoto[];
@@ -236,6 +238,7 @@ export interface CreateDatingProfileInput {
   latitude?: number | null;
   longitude?: number | null;
   languages?: string[];
+  relationship_intention?: string | null;
 }
 
 export interface UpdateDatingProfileInput {
@@ -254,6 +257,7 @@ export interface UpdateDatingProfileInput {
   latitude?: number | null;
   longitude?: number | null;
   languages?: string[];
+  relationship_intention?: string | null;
 }
 
 export type UpsertDatingProfileInput = Omit<CreateDatingProfileInput, 'user_id'>;
@@ -278,6 +282,95 @@ export interface DeleteProfileResponse {
   success: boolean;
   message: string;
   deleted: boolean;
+}
+
+export type RelationshipIntentionType =
+  | 'Người yêu'
+  | 'Bạn hẹn hò lâu dài'
+  | 'Bất kì'
+  | 'Bạn mới'
+  | 'Chưa rõ';
+
+export const VALID_RELATIONSHIP_INTENTIONS: RelationshipIntentionType[] = [
+  'Người yêu',
+  'Bạn hẹn hò lâu dài',
+  'Bất kì',
+  'Bạn mới',
+  'Chưa rõ',
+];
+
+export function normalizeRelationshipIntention(
+  value?: string | null,
+): RelationshipIntentionType | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const lower = trimmed.toLowerCase();
+  switch (lower) {
+    case 'người yêu':
+      return 'Người yêu';
+    case 'bạn hẹn hò lâu dài':
+      return 'Bạn hẹn hò lâu dài';
+    case 'bất kì':
+    case 'bất kỳ':
+      return 'Bất kì';
+    case 'bạn mới':
+      return 'Bạn mới';
+    case 'chưa rõ':
+      return 'Chưa rõ';
+    default:
+      if (
+        VALID_RELATIONSHIP_INTENTIONS.includes(
+          trimmed as RelationshipIntentionType,
+        )
+      ) {
+        return trimmed as RelationshipIntentionType;
+      }
+      return null;
+  }
+}
+
+export interface DiscoveryGroup {
+  id: string;
+  slug: string;
+  name: string;
+  is_active: boolean;
+  member_count: number;
+  is_member: boolean;
+}
+
+export interface DiscoveryIntention {
+  value: string;
+  member_count: number;
+}
+
+export interface DiscoveryGroupMembershipResponse {
+  success: boolean;
+  data: {
+    group: {
+      id: string;
+      slug: string;
+      name: string;
+    };
+    membership?: {
+      group_id: string;
+      user_id: string;
+      joined_at: string;
+    };
+    is_member: boolean;
+    removed?: boolean;
+  };
+}
+
+export interface DiscoveryRecommendationPagination {
+  limit: number;
+  sessionId: string;
+  nextCursor?: string;
+}
+
+export interface DiscoveryRecommendationResponse {
+  success: boolean;
+  data: RecommendationProfile[];
+  pagination: DiscoveryRecommendationPagination;
 }
 
 export class DatingApiError extends Error {
@@ -668,6 +761,109 @@ export const datingApi = {
     }
     return body as { success: boolean; data: { customToken: string } };
   },
+
+  updateMyRelationshipIntention: (
+    relationship_intention: RelationshipIntentionType | string | null,
+  ) => {
+    const normalized = normalizeRelationshipIntention(relationship_intention) ?? relationship_intention;
+    return request<{ success: boolean; data?: DatingProfile; message?: string }>(
+      '/profiles/me/relationship-intention',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ relationship_intention: normalized }),
+      },
+    );
+  },
+
+  getDiscoveryIntentions: () =>
+    request<{ success: boolean; data: DiscoveryIntention[] }>(
+      '/discovery-groups/intentions',
+    ),
+
+  getDiscoveryGroups: () =>
+    request<{ success: boolean; data: DiscoveryGroup[] }>(
+      '/discovery-groups',
+    ),
+
+  joinDiscoveryGroup: (slug: string) =>
+    request<DiscoveryGroupMembershipResponse>(
+      `/discovery-groups/${encodeURIComponent(slug)}/members`,
+      { method: 'POST' },
+    ),
+
+  leaveDiscoveryGroup: (slug: string) =>
+    request<DiscoveryGroupMembershipResponse>(
+      `/discovery-groups/${encodeURIComponent(slug)}/members`,
+      { method: 'DELETE' },
+    ),
+
+  getGroupRecommendations: (
+    slug: string,
+    options: {
+      limit?: number;
+      cursor?: string | null;
+      relationshipIntention?: string | null;
+    } = {},
+  ) => {
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (options.cursor) query.append('cursor', options.cursor);
+    if (options.relationshipIntention) {
+      const normalized =
+        normalizeRelationshipIntention(options.relationshipIntention) ??
+        options.relationshipIntention;
+      query.append('relationshipIntention', normalized);
+    }
+    return request<DiscoveryRecommendationResponse>(
+      `/discovery-groups/${encodeURIComponent(slug)}/recommendations?${query.toString()}`,
+    );
+  },
+
+  getIntentionRecommendations: (
+    relationshipIntention: string,
+    options: {
+      limit?: number;
+      cursor?: string | null;
+    } = {},
+  ) => {
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+    const normalized =
+      normalizeRelationshipIntention(relationshipIntention) ??
+      relationshipIntention;
+    const query = new URLSearchParams({
+      relationshipIntention: normalized,
+      limit: String(limit),
+    });
+    if (options.cursor) query.append('cursor', options.cursor);
+    return request<DiscoveryRecommendationResponse>(
+      `/discovery-groups/intentions/recommendations?${query.toString()}`,
+    );
+  },
+
+  recordGroupRecommendationImpressions: (
+    slug: string,
+    sessionId: string,
+    candidateUserIds: string[],
+  ) =>
+    request<{ success: boolean; data?: { recorded: number } }>(
+      `/discovery-groups/${encodeURIComponent(slug)}/recommendations/impressions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, candidateUserIds }),
+      },
+    ),
+
+  recordIntentionRecommendationImpressions: (
+    sessionId: string,
+    candidateUserIds: string[],
+  ) =>
+    request<{ success: boolean; data?: { recorded: number } }>(
+      `/discovery-groups/intentions/recommendations/impressions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, candidateUserIds }),
+      },
+    ),
 };
 
 export interface ChatConversationSummary {

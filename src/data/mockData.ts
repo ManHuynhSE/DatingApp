@@ -26,6 +26,7 @@ export interface UserProfile {
   hobbies?: Hobby[];
   languages: string[];
   relationshipGoal: string;
+  relationship_intention?: string | null;
   profileCompletion: number;
   online: boolean;
   lastActive?: string;

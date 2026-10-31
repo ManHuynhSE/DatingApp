@@ -2,167 +2,172 @@
   {
     "id": "reading",
     "name": "Reading",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "writing",
     "name": "Writing",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "poetry",
     "name": "Poetry",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "painting",
     "name": "Painting",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "drawing",
     "name": "Drawing",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "photography",
     "name": "Photography",
-    "category": "Arts & Culture"
-  },
-  {
-    "id": "music",
-    "name": "Music",
-    "category": "Arts & Culture"
-  },
-  {
-    "id": "singing",
-    "name": "Singing",
-    "category": "Arts & Culture"
-  },
-  {
-    "id": "playing_instruments",
-    "name": "Playing Instruments",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "dancing",
     "name": "Dancing",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "acting",
     "name": "Acting",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "crafts",
     "name": "Arts & Crafts",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "fashion",
     "name": "Fashion",
-    "category": "Arts & Culture"
+    "category": "Arts & Creativity"
   },
   {
     "id": "interior_design",
     "name": "Interior Design",
-    "category": "Arts & Culture"
-  },
-  {
-    "id": "movies",
-    "name": "Watching Movies",
-    "category": "Entertainment"
-  },
-  {
-    "id": "tv_shows",
-    "name": "Watching TV Shows",
-    "category": "Entertainment"
-  },
-  {
-    "id": "anime",
-    "name": "Anime",
-    "category": "Entertainment"
-  },
-  {
-    "id": "manga",
-    "name": "Manga",
-    "category": "Entertainment"
-  },
-  {
-    "id": "gaming",
-    "name": "Gaming",
-    "category": "Entertainment"
-  },
-  {
-    "id": "board_games",
-    "name": "Board Games",
-    "category": "Entertainment"
-  },
-  {
-    "id": "puzzles",
-    "name": "Puzzles",
-    "category": "Entertainment"
-  },
-  {
-    "id": "comedy",
-    "name": "Comedy",
-    "category": "Entertainment"
-  },
-  {
-    "id": "podcasts",
-    "name": "Podcasts",
-    "category": "Entertainment"
-  },
-  {
-    "id": "concerts",
-    "name": "Live Music & Concerts",
-    "category": "Entertainment"
+    "category": "Arts & Creativity"
   },
   {
     "id": "theater",
     "name": "Theater",
-    "category": "Entertainment"
+    "category": "Arts & Creativity"
+  },
+  {
+    "id": "museums",
+    "name": "Museums & Galleries",
+    "category": "Arts & Creativity"
+  },
+  {
+    "id": "content_creation",
+    "name": "Content Creation",
+    "category": "Arts & Creativity"
+  },
+  {
+    "id": "blogging",
+    "name": "Blogging",
+    "category": "Arts & Creativity"
+  },
+  {
+    "id": "makeup",
+    "name": "Makeup & Beauty",
+    "category": "Arts & Creativity"
+  },
+  {
+    "id": "gaming",
+    "name": "Video Games",
+    "category": "Gaming"
+  },
+  {
+    "id": "board_games",
+    "name": "Board Games",
+    "category": "Gaming"
+  },
+  {
+    "id": "puzzles",
+    "name": "Puzzles",
+    "category": "Gaming"
+  },
+  {
+    "id": "esports",
+    "name": "Esports",
+    "category": "Gaming"
+  },
+  {
+    "id": "movies",
+    "name": "Watching Movies",
+    "category": "Movies & Entertainment"
+  },
+  {
+    "id": "tv_shows",
+    "name": "Watching TV Shows",
+    "category": "Movies & Entertainment"
+  },
+  {
+    "id": "anime",
+    "name": "Anime",
+    "category": "Movies & Entertainment"
+  },
+  {
+    "id": "manga",
+    "name": "Manga",
+    "category": "Movies & Entertainment"
+  },
+  {
+    "id": "comics",
+    "name": "Comics",
+    "category": "Movies & Entertainment"
+  },
+  {
+    "id": "comedy",
+    "name": "Comedy",
+    "category": "Movies & Entertainment"
+  },
+  {
+    "id": "podcasts",
+    "name": "Podcasts",
+    "category": "Movies & Entertainment"
+  },
+  {
+    "id": "standup_comedy",
+    "name": "Stand-up Comedy",
+    "category": "Movies & Entertainment"
   },
   {
     "id": "travel",
     "name": "Traveling",
-    "category": "Travel & Outdoors"
+    "category": "Travel & Exploration"
   },
   {
     "id": "road_trips",
     "name": "Road Trips",
-    "category": "Travel & Outdoors"
-  },
-  {
-    "id": "hiking",
-    "name": "Hiking",
-    "category": "Travel & Outdoors"
-  },
-  {
-    "id": "camping",
-    "name": "Camping",
-    "category": "Travel & Outdoors"
+    "category": "Travel & Exploration"
   },
   {
     "id": "backpacking",
     "name": "Backpacking",
-    "category": "Travel & Outdoors"
+    "category": "Travel & Exploration"
   },
   {
     "id": "beach",
     "name": "Beach Trips",
-    "category": "Travel & Outdoors"
+    "category": "Travel & Exploration"
   },
   {
-    "id": "nature",
-    "name": "Exploring Nature",
-    "category": "Travel & Outdoors"
+    "id": "food_travel",
+    "name": "Food Tourism",
+    "category": "Travel & Exploration"
   },
   {
-    "id": "stargazing",
-    "name": "Stargazing",
-    "category": "Travel & Outdoors"
+    "id": "picnics",
+    "name": "Picnics",
+    "category": "Travel & Exploration"
   },
   {
     "id": "cycling",
@@ -206,7 +211,7 @@
   },
   {
     "id": "football",
-    "name": "Football",
+    "name": "American Football",
     "category": "Sports & Fitness"
   },
   {
@@ -232,6 +237,21 @@
   {
     "id": "skateboarding",
     "name": "Skateboarding",
+    "category": "Sports & Fitness"
+  },
+  {
+    "id": "snowboarding",
+    "name": "Snowboarding",
+    "category": "Sports & Fitness"
+  },
+  {
+    "id": "skiing",
+    "name": "Skiing",
+    "category": "Sports & Fitness"
+  },
+  {
+    "id": "surfing",
+    "name": "Surfing",
     "category": "Sports & Fitness"
   },
   {
@@ -270,34 +290,124 @@
     "category": "Food & Drink"
   },
   {
+    "id": "craft_beer",
+    "name": "Craft Beer",
+    "category": "Food & Drink"
+  },
+  {
+    "id": "street_food",
+    "name": "Street Food",
+    "category": "Food & Drink"
+  },
+  {
+    "id": "restaurant_hopping",
+    "name": "Restaurant Hopping",
+    "category": "Food & Drink"
+  },
+  {
+    "id": "pub_crawling",
+    "name": "Pub Crawling",
+    "category": "Socializing & Nightlife"
+  },
+  {
+    "id": "bar_hopping",
+    "name": "Bar Hopping",
+    "category": "Socializing & Nightlife"
+  },
+  {
+    "id": "nightlife",
+    "name": "Nightlife",
+    "category": "Socializing & Nightlife"
+  },
+  {
+    "id": "socializing",
+    "name": "Meeting New People",
+    "category": "Socializing & Nightlife"
+  },
+  {
+    "id": "karaoke",
+    "name": "Karaoke",
+    "category": "Socializing & Nightlife"
+  },
+  {
+    "id": "dancing_salsa",
+    "name": "Salsa Dancing",
+    "category": "Socializing & Nightlife"
+  },
+  {
+    "id": "music",
+    "name": "Listening to Music",
+    "category": "Music"
+  },
+  {
+    "id": "singing",
+    "name": "Singing",
+    "category": "Music"
+  },
+  {
+    "id": "playing_instruments",
+    "name": "Playing Instruments",
+    "category": "Music"
+  },
+  {
+    "id": "concerts",
+    "name": "Live Music & Concerts",
+    "category": "Music"
+  },
+  {
+    "id": "hiking",
+    "name": "Hiking",
+    "category": "Nature & Outdoors"
+  },
+  {
+    "id": "camping",
+    "name": "Camping",
+    "category": "Nature & Outdoors"
+  },
+  {
+    "id": "nature",
+    "name": "Exploring Nature",
+    "category": "Nature & Outdoors"
+  },
+  {
+    "id": "stargazing",
+    "name": "Stargazing",
+    "category": "Nature & Outdoors"
+  },
+  {
     "id": "gardening",
     "name": "Gardening",
-    "category": "Home & Lifestyle"
+    "category": "Nature & Outdoors"
   },
   {
     "id": "plants",
     "name": "Houseplants",
-    "category": "Home & Lifestyle"
+    "category": "Nature & Outdoors"
   },
   {
-    "id": "diy",
-    "name": "DIY Projects",
-    "category": "Home & Lifestyle"
+    "id": "fishing",
+    "name": "Fishing",
+    "category": "Nature & Outdoors"
   },
   {
-    "id": "pets",
-    "name": "Spending Time with Pets",
-    "category": "Home & Lifestyle"
+    "id": "birdwatching",
+    "name": "Birdwatching",
+    "category": "Nature & Outdoors"
   },
   {
-    "id": "volunteering",
-    "name": "Volunteering",
-    "category": "Community & Lifestyle"
+    "id": "sailing",
+    "name": "Sailing",
+    "category": "Nature & Outdoors"
   },
   {
     "id": "environment",
     "name": "Environmental Causes",
-    "category": "Community & Lifestyle"
+    "category": "Nature & Outdoors"
+  },
+  {
+    "id": "pets",
+    "name": "Spending Time with Pets",
+    "category": "Nature & Outdoors"
   },
   {
     "id": "learning",
@@ -340,143 +450,58 @@
     "category": "Learning & Technology"
   },
   {
-    "id": "meditation",
-    "name": "Meditation",
-    "category": "Wellness"
-  },
-  {
-    "id": "mindfulness",
-    "name": "Mindfulness",
-    "category": "Wellness"
-  },
-  {
-    "id": "journaling",
-    "name": "Journaling",
-    "category": "Wellness"
-  },
-  {
-    "id": "fashion_shopping",
-    "name": "Shopping",
-    "category": "Lifestyle"
-  },
-  {
-    "id": "thrifting",
-    "name": "Thrifting",
-    "category": "Lifestyle"
-  },
-  {
-    "id": "socializing",
-    "name": "Meeting New People",
-    "category": "Lifestyle"
-  },
-  {
-    "id": "nightlife",
-    "name": "Nightlife",
-    "category": "Lifestyle"
-  },
-  {
-    "id": "museums",
-    "name": "Museums & Galleries",
-    "category": "Arts & Culture"
-  },
-  {
     "id": "history",
     "name": "History",
     "category": "Learning & Technology"
   },
   {
+    "id": "meditation",
+    "name": "Meditation",
+    "category": "Wellness & Lifestyle"
+  },
+  {
+    "id": "mindfulness",
+    "name": "Mindfulness",
+    "category": "Wellness & Lifestyle"
+  },
+  {
+    "id": "journaling",
+    "name": "Journaling",
+    "category": "Wellness & Lifestyle"
+  },
+  {
+    "id": "fashion_shopping",
+    "name": "Shopping",
+    "category": "Wellness & Lifestyle"
+  },
+  {
+    "id": "thrifting",
+    "name": "Thrifting",
+    "category": "Wellness & Lifestyle"
+  },
+  {
+    "id": "diy",
+    "name": "DIY Projects",
+    "category": "Wellness & Lifestyle"
+  },
+  {
     "id": "cars",
     "name": "Cars",
-    "category": "Lifestyle"
+    "category": "Wellness & Lifestyle"
   },
   {
     "id": "motorcycles",
     "name": "Motorcycles",
-    "category": "Lifestyle"
-  },
-  {
-    "id": "fishing",
-    "name": "Fishing",
-    "category": "Travel & Outdoors"
-  },
-  {
-    "id": "birdwatching",
-    "name": "Birdwatching",
-    "category": "Travel & Outdoors"
-  },
-  {
-    "id": "sailing",
-    "name": "Sailing",
-    "category": "Travel & Outdoors"
-  },
-  {
-    "id": "snowboarding",
-    "name": "Snowboarding",
-    "category": "Sports & Fitness"
-  },
-  {
-    "id": "skiing",
-    "name": "Skiing",
-    "category": "Sports & Fitness"
-  },
-  {
-    "id": "surfing",
-    "name": "Surfing",
-    "category": "Sports & Fitness"
-  },
-  {
-    "id": "makeup",
-    "name": "Makeup & Beauty",
-    "category": "Lifestyle"
+    "category": "Wellness & Lifestyle"
   },
   {
     "id": "collecting",
     "name": "Collecting",
-    "category": "Lifestyle"
+    "category": "Wellness & Lifestyle"
   },
   {
-    "id": "comics",
-    "name": "Comics",
-    "category": "Entertainment"
-  },
-  {
-    "id": "esports",
-    "name": "Esports",
-    "category": "Entertainment"
-  },
-  {
-    "id": "content_creation",
-    "name": "Content Creation",
-    "category": "Arts & Culture"
-  },
-  {
-    "id": "blogging",
-    "name": "Blogging",
-    "category": "Arts & Culture"
-  },
-  {
-    "id": "standup_comedy",
-    "name": "Stand-up Comedy",
-    "category": "Entertainment"
-  },
-  {
-    "id": "karaoke",
-    "name": "Karaoke",
-    "category": "Entertainment"
-  },
-  {
-    "id": "picnics",
-    "name": "Picnics",
-    "category": "Travel & Outdoors"
-  },
-  {
-    "id": "dancing_salsa",
-    "name": "Salsa Dancing",
-    "category": "Arts & Culture"
-  },
-  {
-    "id": "food_travel",
-    "name": "Food Tourism",
-    "category": "Travel & Outdoors"
+    "id": "volunteering",
+    "name": "Volunteering",
+    "category": "Community & Lifestyle"
   }
 ]

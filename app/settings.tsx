@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, darkColors, spacing, typography } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -12,12 +13,14 @@ export default function SettingsScreen() {
   const verified = useAuthStore((state) => state.user?.verified ?? false);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <View style={styles.titleContainer} pointerEvents="none">
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Settings</Text>
+        </View>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
           <Ionicons name="arrow-back" size={23} color={theme.textPrimary} />
         </Pressable>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>Settings</Text>
         <View style={styles.back} />
       </View>
 
@@ -44,9 +47,26 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { height: 56, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base },
+  header: {
+    height: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.base,
+    position: 'relative',
+  },
+  titleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   back: { width: 36, height: 40, justifyContent: 'center' },
-  title: { ...typography.bodyBold },
+  title: { ...typography.bodyBold, textAlign: 'center' },
   sectionLabel: { ...typography.captionBold, marginTop: spacing.xl, marginBottom: spacing.sm, marginHorizontal: spacing.base, letterSpacing: 1 },
   row: { marginHorizontal: spacing.base, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   iconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

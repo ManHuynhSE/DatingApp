@@ -180,13 +180,15 @@ export default function ProfileDetailScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
         <View style={styles.header}>
+          <View style={styles.headerTitleContainer} pointerEvents="none">
+            <Text style={styles.headerTitle}>Profile</Text>
+          </View>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.headerBtn}
           >
             <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Profile</Text>
           <View style={styles.headerBtn} />
         </View>
         <View
@@ -241,13 +243,15 @@ export default function ProfileDetailScreen() {
 
       {/* Profile detail header */}
       <View style={styles.header}>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.headerBtn}
         >
           <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={() =>
@@ -498,14 +502,24 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
     backgroundColor: theme.background,
   },
   header: {
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: theme.borderLight,
     backgroundColor: theme.background,
+    position: "relative",
+  },
+  headerTitleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerBtn: {
     width: 40,
@@ -517,6 +531,7 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
     fontSize: typography.h3.fontSize,
     fontWeight: typography.h3.fontWeight,
     color: theme.textPrimary,
+    textAlign: "center",
   },
   errorText: {
     fontSize: typography.body.fontSize,

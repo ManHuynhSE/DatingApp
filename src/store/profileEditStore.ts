@@ -16,6 +16,8 @@ type Draft = Pick<
   | 'hobbies'
   | 'languages'
   | 'details'
+  | 'relationship_intention'
+  | 'relationshipGoal'
 >;
 
 interface ProfileEditState {
@@ -43,6 +45,8 @@ export const useProfileEditStore = create<ProfileEditState>((set) => ({
         hobbies: user.hobbies ? [...user.hobbies] : [],
         languages: [...user.languages],
         details: { ...user.details },
+        relationship_intention: user.relationship_intention ?? null,
+        relationshipGoal: user.relationshipGoal ?? '',
       },
     }),
   update: (updates) => set((state) => ({

@@ -32,6 +32,8 @@ export const colors = {
   headerTitle: '#18202A',
 };
 
+export type Theme = typeof colors;
+
 export const darkColors = {
   ...colors,
   primaryLight: '#3B2527',

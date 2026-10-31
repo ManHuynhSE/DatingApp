@@ -71,7 +71,7 @@ const completeAuthentication = async (
           params: { userId },
         });
       } else {
-        router.replace('/(tabs)/discovery');
+        router.replace('/(tabs)/swipe');
       }
     }
   } catch (error) {
@@ -230,7 +230,7 @@ export default function SignInScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, styles.demoButton]}
-          onPress={() => router.replace('/(tabs)/discovery')}
+          onPress={() => router.replace('/(tabs)/swipe')}
           activeOpacity={0.8}
         >
           <Ionicons name="sparkles" size={18} color={colors.primary} style={styles.buttonIcon} />

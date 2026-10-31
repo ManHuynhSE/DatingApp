@@ -26,10 +26,12 @@ import { useProfileEditStore } from "../src/store/profileEditStore";
 import { useThemeStore } from "../src/store/themeStore";
 import { datingApi, type Hobby } from "@/api/datingClient";
 import ProfilePickerModal from "../src/components/ProfilePickerModal";
+import { HOBBY_EMOJIS } from "../src/data/hobbies";
 
 const hobbiesCatalog = require("../assets/hobbies_list.json") as Hobby[];
 
 const detailFields = [
+  { field: "relationship_intention", label: "Mục đích hẹn hò", icon: "heart-circle-outline" },
   { field: "location", label: "Address", icon: "location-outline" },
   { field: "height", label: "Height", icon: "resize-outline" },
   { field: "education", label: "Education", icon: "school-outline" },
@@ -165,6 +167,14 @@ export default function EditProfileScreen({
         [response.data.ward, response.data.city].filter(Boolean).join(", ") ||
         response.data.city ||
         "";
+      if (current.relationship_intention !== undefined) {
+        try {
+          await datingApi.updateMyRelationshipIntention(current.relationship_intention);
+        } catch (intentionErr) {
+          console.warn("Could not sync relationship intention:", intentionErr);
+        }
+      }
+
       updateUser({
         name: response.data.display_name,
         photos: current.photos,
@@ -177,6 +187,8 @@ export default function EditProfileScreen({
         hobbies: response.data.hobbies ?? [],
         interests: response.data.hobbies?.map((h) => h.name) ?? current.interests,
         languages: response.data.languages ?? [],
+        relationship_intention: current.relationship_intention ?? response.data.relationship_intention ?? null,
+        relationshipGoal: current.relationship_intention ?? '',
         details: {
           ...user.details,
           height: response.data.height_cm ? `${response.data.height_cm}cm` : "",
@@ -203,6 +215,11 @@ export default function EditProfileScreen({
       edges={["top"]}
     >
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+            Profile
+          </Text>
+        </View>
         <Pressable
           onPress={() => (embedded ? router.push('/settings') : router.back())}
           style={styles.iconButton}
@@ -214,9 +231,6 @@ export default function EditProfileScreen({
             color={theme.textPrimary}
           />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-          Profile
-        </Text>
         <View style={styles.headerActions}>
           {embedded && (
             <Pressable
@@ -309,20 +323,29 @@ export default function EditProfileScreen({
           <View style={styles.chipGrid}>
             {detailFields.map((item) => {
               const value =
-                item.field === "location"
-                  ? current.location ||
-                    [current.ward, current.city].filter(Boolean).join(", ")
-                  : item.field === "occupation"
-                    ? current.occupation
-                    : item.field === "education"
-                      ? current.education
-                      : current.details[
-                          item.field as keyof typeof current.details
-                        ];
+                item.field === "relationship_intention"
+                  ? current.relationship_intention
+                  : item.field === "location"
+                    ? current.location ||
+                      [current.ward, current.city].filter(Boolean).join(", ")
+                    : item.field === "occupation"
+                      ? current.occupation
+                      : item.field === "education"
+                        ? current.education
+                        : current.details[
+                            item.field as keyof typeof current.details
+                          ];
               return (
                 <Pressable
                   key={item.field}
-                  onPress={() => openPicker("detail", item.field)}
+                  onPress={() =>
+                    openPicker(
+                      item.field === "relationship_intention"
+                        ? "relationship_intention"
+                        : "detail",
+                      item.field,
+                    )
+                  }
                   style={[
                     styles.infoChip,
                     {
@@ -438,7 +461,7 @@ export default function EditProfileScreen({
                   style={[styles.tag, { backgroundColor: theme.primaryLight }]}
                 >
                   <Text style={[styles.tagText, { color: theme.primary }]}>
-                    {item}
+                    {HOBBY_EMOJIS[item] ? `${HOBBY_EMOJIS[item]} ` : ""}{item}
                   </Text>
                 </View>
               ))}
@@ -538,6 +561,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.base,
     borderBottomWidth: 1,
+    position: "relative",
+  },
+  headerTitleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconButton: {
     width: 44,
@@ -545,7 +578,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { ...typography.h3 },
+  headerTitle: { ...typography.h3, textAlign: "center" },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",

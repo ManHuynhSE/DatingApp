@@ -9,7 +9,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -36,7 +35,12 @@ import {
 import { useAuthStore } from "../store/authStore";
 import { useProfileEditStore } from "../store/profileEditStore";
 import { useThemeStore } from "../store/themeStore";
-import { datingApi, type DatingPhoto } from "../api/datingClient";
+import {
+  datingApi,
+  normalizeRelationshipIntention,
+  type DatingPhoto,
+} from "../api/datingClient";
+import InterestsPicker from "./InterestsPicker";
 
 const vnAddressData = require("../../assets/vn-address.json") as Record<
   string,
@@ -84,6 +88,44 @@ const INTERESTED_OPTIONS = [
   { value: "everyone", label: "Everyone", subtitle: "Show me everyone", icon: "people-outline" },
 ] as const;
 
+export const RELATIONSHIP_INTENTION_OPTIONS = [
+  {
+    value: "Người yêu",
+    label: "Người yêu",
+    subtitle: "Tìm kiếm người yêu để cùng gắn bó",
+    icon: "heart-outline",
+    emoji: "🌹",
+  },
+  {
+    value: "Bạn hẹn hò lâu dài",
+    label: "Bạn hẹn hò lâu dài",
+    subtitle: "Mối quan hệ nghiêm túc, cùng phát triển tương lai",
+    icon: "diamond-outline",
+    emoji: "💍",
+  },
+  {
+    value: "Bất kì",
+    label: "Bất kì",
+    subtitle: "Cởi mở với mọi khả năng",
+    icon: "sparkles-outline",
+    emoji: "🔮",
+  },
+  {
+    value: "Bạn mới",
+    label: "Bạn mới",
+    subtitle: "Mở rộng vòng kết nối bạn bè, giao lưu",
+    icon: "people-outline",
+    emoji: "✨",
+  },
+  {
+    value: "Chưa rõ",
+    label: "Chưa rõ",
+    subtitle: "Vẫn đang tìm hiểu bản thân muốn gì",
+    icon: "help-circle-outline",
+    emoji: "🌙",
+  },
+] as const;
+
 type PhotoDraftItem = {
   key: string;
   url: string;
@@ -113,6 +155,7 @@ export interface ProfilePickerModalProps {
   onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
   onSelectPhotos?: (photos: string[]) => void;
   onSelectBirthDate?: (birthDate: string, age: number) => void;
+  onSelectRelationshipIntention?: (intention: string | null) => void;
 }
 
 export default function ProfilePickerModal({
@@ -126,6 +169,7 @@ export default function ProfilePickerModal({
   onSelectInterestedIn,
   onSelectPhotos,
   onSelectBirthDate,
+  onSelectRelationshipIntention,
 }: ProfilePickerModalProps) {
   if (!visible) return null;
 
@@ -141,6 +185,7 @@ export default function ProfilePickerModal({
       onSelectInterestedIn={onSelectInterestedIn}
       onSelectPhotos={onSelectPhotos}
       onSelectBirthDate={onSelectBirthDate}
+      onSelectRelationshipIntention={onSelectRelationshipIntention}
     />
   );
 }
@@ -155,6 +200,7 @@ function ProfilePickerSheetContent({
   onSelectInterestedIn,
   onSelectPhotos,
   onSelectBirthDate,
+  onSelectRelationshipIntention,
 }: {
   type: string;
   field?: string;
@@ -173,6 +219,7 @@ function ProfilePickerSheetContent({
   onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
   onSelectPhotos?: (photos: string[]) => void;
   onSelectBirthDate?: (birthDate: string, age: number) => void;
+  onSelectRelationshipIntention?: (intention: string | null) => void;
 }) {
   const themeMode = useThemeStore((state) => state.mode);
   const theme = themeMode === "dark" ? darkColors : colors;
@@ -229,6 +276,17 @@ function ProfilePickerSheetContent({
   );
   const [tempInterestedIn, setTempInterestedIn] = useState<"male" | "female" | "everyone">(
     () => initialData?.interestedIn ?? "everyone",
+  );
+  const [tempRelationshipIntention, setTempRelationshipIntention] = useState<string | null>(
+    () => {
+      const raw =
+        initialData?.relationship_intention ??
+        draft?.relationship_intention ??
+        user?.relationship_intention ??
+        user?.relationshipGoal ??
+        null;
+      return normalizeRelationshipIntention(raw) || raw;
+    },
   );
   // Birth Date States
   const currentYear = useMemo(() => new Date().getFullYear(), []);
@@ -309,7 +367,6 @@ function ProfilePickerSheetContent({
 
   // Search states
   const [langSearch, setLangSearch] = useState("");
-  const [hobbySearch, setHobbySearch] = useState("");
   const [lifestyleSearch, setLifestyleSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
 
@@ -505,6 +562,18 @@ function ProfilePickerSheetContent({
       return;
     }
 
+    if (type === "relationship_intention" || field === "relationship_intention") {
+      update({
+        relationship_intention: tempRelationshipIntention,
+        relationshipGoal: tempRelationshipIntention ?? '',
+      });
+      if (onSelectRelationshipIntention) {
+        onSelectRelationshipIntention(tempRelationshipIntention);
+      }
+      animateClose(handleFinishModal);
+      return;
+    }
+
     if (type === "interests") {
       const selectedHobbies = hobbiesData.filter((h) =>
         tempInterests.includes(h.name),
@@ -581,6 +650,7 @@ function ProfilePickerSheetContent({
     if (type === "photos") return "Photos";
     if (type === "birth_date") return "Date of Birth";
     if (type === "interested_in") return "I'm interested in";
+    if (type === "relationship_intention" || field === "relationship_intention") return "Mục đích hẹn hò";
     if (isAddressField) return "Address";
     if (type === "languages") return "Languages";
     if (type === "interests") return "My Interests";
@@ -598,26 +668,6 @@ function ProfilePickerSheetContent({
     const q = langSearch.toLowerCase().trim();
     return languagesData.filter((l) => l.name.toLowerCase().includes(q));
   }, [langSearch]);
-
-  const hobbySections = useMemo(() => {
-    const q = hobbySearch.toLowerCase().trim();
-    const map = new Map<string, HobbyItem[]>();
-    for (const h of hobbiesData) {
-      if (
-        q &&
-        !h.name.toLowerCase().includes(q) &&
-        !h.category.toLowerCase().includes(q)
-      ) {
-        continue;
-      }
-      if (!map.has(h.category)) map.set(h.category, []);
-      map.get(h.category)!.push(h);
-    }
-    return Array.from(map.entries()).map(([secTitle, data]) => ({
-      title: secTitle,
-      data,
-    }));
-  }, [hobbySearch]);
 
   const filteredLifestyleCategories = useMemo(() => {
     const q = lifestyleSearch.toLowerCase().trim();
@@ -1388,7 +1438,12 @@ function ProfilePickerSheetContent({
                   <Text
                     style={[
                       styles.helper,
-                      { color: theme.textSecondary, marginBottom: spacing.md },
+                      {
+                        color: theme.textSecondary,
+                        paddingHorizontal: spacing.base,
+                        marginTop: spacing.xs,
+                        marginBottom: spacing.md,
+                      },
                     ]}
                   >
                     Select who you would like to see in your discovery feed:
@@ -1473,109 +1528,33 @@ function ProfilePickerSheetContent({
                     })}
                   </View>
                 </View>
-              ) : type === "interests" ? (
-                /* 3. Interests (Hobbies) Picker */
+              ) : type === "relationship_intention" || field === "relationship_intention" ? (
+                /* Relationship Intention Picker */
                 <View style={styles.flex}>
-                  <View
+                  <Text
                     style={[
-                      styles.searchBox,
+                      styles.helper,
                       {
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
+                        color: theme.textSecondary,
+                        paddingHorizontal: spacing.base,
+                        marginTop: spacing.xs,
+                        marginBottom: spacing.md,
                       },
                     ]}
                   >
-                    <Ionicons
-                      name="search-outline"
-                      size={18}
-                      color={theme.textTertiary}
-                    />
-                    <TextInput
-                      value={hobbySearch}
-                      onChangeText={setHobbySearch}
-                      placeholder="Tìm kiếm sở thích..."
-                      placeholderTextColor={theme.textTertiary}
-                      style={[styles.searchInput, { color: theme.textPrimary }]}
-                      autoCorrect={false}
-                    />
-                    {hobbySearch.length > 0 && (
-                      <Pressable onPress={() => setHobbySearch("")} hitSlop={8}>
-                        <Ionicons
-                          name="close-circle"
-                          size={18}
-                          color={theme.textTertiary}
-                        />
-                      </Pressable>
-                    )}
-                  </View>
-
-                  <View style={styles.countBadgeRow}>
-                    <Ionicons
-                      name="sparkles-outline"
-                      size={16}
-                      color={theme.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.countBadgeText,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      Đã chọn:{" "}
-                      <Text style={{ color: theme.primary, fontWeight: "700" }}>
-                        {tempInterests.length}
-                      </Text>
-                      /{MAX_INTERESTS} sở thích
-                    </Text>
-                  </View>
-
-                  {tempInterests.length > 0 && (
-                    <View style={styles.previewBox}>
-                      <Text
-                        numberOfLines={2}
-                        style={[
-                          styles.previewBoxText,
-                          { color: theme.textSecondary },
-                        ]}
-                      >
-                        <Text
-                          style={{ fontWeight: "700", color: theme.textPrimary }}
-                        >
-                          Đang chọn:{" "}
-                        </Text>
-                        {tempInterests.join(", ")}
-                      </Text>
-                    </View>
-                  )}
-
-                  <SectionList
-                    sections={hobbySections}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.listPadding}
-                    stickySectionHeadersEnabled={false}
-                    keyboardShouldPersistTaps="handled"
-                    renderSectionHeader={({ section: { title: sTitle } }) => (
-                      <View
-                        style={[
-                          styles.sectionHeaderBox,
-                          { backgroundColor: theme.background },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.sectionHeaderText,
-                            { color: theme.primary },
-                          ]}
-                        >
-                          {sTitle}
-                        </Text>
-                      </View>
-                    )}
-                    renderItem={({ item }) => {
-                      const isSelected = tempInterests.includes(item.name);
+                    Chọn mục đích hẹn hò để tìm kiếm những người có chung định hướng:
+                  </Text>
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: 20 }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {RELATIONSHIP_INTENTION_OPTIONS.map((item) => {
+                      const isSelected = tempRelationshipIntention === item.value;
                       return (
                         <Pressable
-                          onPress={() => toggleInterest(item.name)}
+                          key={item.value}
+                          onPress={() => setTempRelationshipIntention(item.value)}
                           style={[
                             styles.selectRow,
                             {
@@ -1584,27 +1563,52 @@ function ProfilePickerSheetContent({
                                 ? theme.primary
                                 : theme.border,
                               borderWidth: isSelected ? 1.5 : 1,
+                              paddingVertical: spacing.md,
                             },
                           ]}
                         >
-                          <Text
-                            style={[
-                              styles.selectRowText,
-                              {
-                                color: isSelected
-                                  ? theme.primary
-                                  : theme.textPrimary,
-                                fontWeight: isSelected ? "700" : "500",
-                              },
-                            ]}
-                          >
-                            {item.name}
-                          </Text>
+                          <View style={styles.interestedOptionRow}>
+                            <View
+                              style={[
+                                styles.interestedOptionIconBox,
+                                {
+                                  backgroundColor: isSelected
+                                    ? theme.primaryLight
+                                    : theme.background,
+                                },
+                              ]}
+                            >
+                              <Text style={{ fontSize: 20 }}>{item.emoji}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  styles.selectRowText,
+                                  {
+                                    color: isSelected
+                                      ? theme.primary
+                                      : theme.textPrimary,
+                                    fontWeight: isSelected ? "700" : "500",
+                                  },
+                                ]}
+                              >
+                                {item.label}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.previewBoxText,
+                                  { color: theme.textSecondary, marginTop: 2 },
+                                ]}
+                              >
+                                {item.subtitle}
+                              </Text>
+                            </View>
+                          </View>
                           <Ionicons
                             name={
                               isSelected
-                                ? "checkmark-circle"
-                                : "ellipse-outline"
+                                ? "radio-button-on"
+                                : "radio-button-off"
                             }
                             size={22}
                             color={
@@ -1613,9 +1617,100 @@ function ProfilePickerSheetContent({
                           />
                         </Pressable>
                       );
-                    }}
-                  />
+                    })}
+
+                    {/* Option to clear/reset */}
+                    <Pressable
+                      onPress={() => setTempRelationshipIntention(null)}
+                      style={[
+                        styles.selectRow,
+                        {
+                          backgroundColor: theme.surface,
+                          borderColor:
+                            tempRelationshipIntention === null
+                              ? theme.primary
+                              : theme.border,
+                          borderWidth:
+                            tempRelationshipIntention === null ? 1.5 : 1,
+                          paddingVertical: spacing.md,
+                        },
+                      ]}
+                    >
+                      <View style={styles.interestedOptionRow}>
+                        <View
+                          style={[
+                            styles.interestedOptionIconBox,
+                            {
+                              backgroundColor:
+                                tempRelationshipIntention === null
+                                  ? theme.primaryLight
+                                  : theme.background,
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="close-circle-outline"
+                            size={20}
+                            color={
+                              tempRelationshipIntention === null
+                                ? theme.primary
+                                : theme.textSecondary
+                            }
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              styles.selectRowText,
+                              {
+                                color:
+                                  tempRelationshipIntention === null
+                                    ? theme.primary
+                                    : theme.textPrimary,
+                                fontWeight:
+                                  tempRelationshipIntention === null
+                                    ? "700"
+                                    : "500",
+                              },
+                            ]}
+                          >
+                            Không chọn
+                          </Text>
+                          <Text
+                            style={[
+                              styles.previewBoxText,
+                              { color: theme.textSecondary, marginTop: 2 },
+                            ]}
+                          >
+                            Để trống mục đích hẹn hò
+                          </Text>
+                        </View>
+                      </View>
+                      <Ionicons
+                        name={
+                          tempRelationshipIntention === null
+                            ? "radio-button-on"
+                            : "radio-button-off"
+                        }
+                        size={22}
+                        color={
+                          tempRelationshipIntention === null
+                            ? theme.primary
+                            : theme.textTertiary
+                        }
+                      />
+                    </Pressable>
+                  </ScrollView>
                 </View>
+              ) : type === "interests" ? (
+                /* 3. Interests (Hobbies) Picker */
+                <InterestsPicker
+                  selected={tempInterests}
+                  onToggle={toggleInterest}
+                  onClearAll={() => setTempInterests([])}
+                  theme={theme}
+                  maxSelection={MAX_INTERESTS}
+                />
               ) : isAddressField ? (
                 /* 4. Address Picker (City & Ward) */
                 <View style={styles.flex}>

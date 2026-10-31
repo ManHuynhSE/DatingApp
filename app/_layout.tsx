@@ -89,6 +89,8 @@ export default function RootLayout() {
           user.hobbies = profile.hobbies ?? [];
           user.interests = profile.hobbies?.map((h) => h.name) ?? [];
           user.languages = profile.languages ?? [];
+          user.relationship_intention = profile.relationship_intention ?? null;
+          user.relationshipGoal = profile.relationship_intention ?? '';
           user.profileCompletion = 100;
         } catch {
           // A user may sign in before creating a profile; keep the real backend user id.
@@ -117,7 +119,7 @@ export default function RootLayout() {
       isMounted = false;
       unsubscribe();
     };
-  }, [setSession]);
+  }, [setCoordinates, setSession]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

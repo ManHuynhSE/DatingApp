@@ -78,6 +78,7 @@ export default function CreateProfileScreen() {
     "Vietnamese",
     "English",
   ]);
+  const [relationshipIntention, setRelationshipIntention] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activePicker, setActivePicker] = useState<{
     type: string;
@@ -149,7 +150,14 @@ export default function CreateProfileScreen() {
       });
 
       if (profile.success) {
-        router.replace("/(tabs)/discovery");
+        if (relationshipIntention) {
+          try {
+            await datingApi.updateMyRelationshipIntention(relationshipIntention);
+          } catch (e) {
+            console.warn("Could not set relationship intention on profile creation:", e);
+          }
+        }
+        router.replace("/(tabs)/swipe");
       }
     } catch (error) {
       const message =
@@ -175,6 +183,11 @@ export default function CreateProfileScreen() {
       edges={["top"]}
     >
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+            Create your profile
+          </Text>
+        </View>
         <Pressable
           onPress={() => router.replace("/(auth)/sign-in")}
           hitSlop={12}
@@ -183,9 +196,6 @@ export default function CreateProfileScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-          Create your profile
-        </Text>
         <View style={styles.primaryButton} />
       </View>
       <ScrollView
@@ -449,6 +459,48 @@ export default function CreateProfileScreen() {
           </View>
         </Pressable>
 
+        {/* Relationship intention */}
+        <Pressable
+          onPress={() => openPicker("relationship_intention")}
+          style={[
+            styles.preferenceCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.preferenceHeader}>
+            <View style={styles.preferenceIconTitle}>
+              <Ionicons
+                name="heart-circle-outline"
+                size={20}
+                color={theme.primary}
+              />
+              <Text
+                style={[styles.preferenceTitle, { color: theme.textPrimary }]}
+              >
+                Mục đích hẹn hò
+              </Text>
+            </View>
+            <View style={styles.preferenceValueRow}>
+              <Text
+                style={[
+                  styles.preferenceValueHighlight,
+                  { color: theme.primary },
+                ]}
+              >
+                {relationshipIntention || "Chọn mục đích"}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={theme.textTertiary}
+              />
+            </View>
+          </View>
+        </Pressable>
+
         {/* Languages */}
         <Pressable
           onPress={() => openPicker("languages")}
@@ -536,6 +588,7 @@ export default function CreateProfileScreen() {
           ward,
           languages,
           interestedIn,
+          relationship_intention: relationshipIntention,
           photos,
           birthDate: birthDate || "2000-01-01",
         }}
@@ -549,6 +602,9 @@ export default function CreateProfileScreen() {
         }}
         onSelectInterestedIn={(selectedInterestedIn) => {
           setInterestedIn(selectedInterestedIn);
+        }}
+        onSelectRelationshipIntention={(selectedIntention) => {
+          setRelationshipIntention(selectedIntention);
         }}
         onSelectPhotos={(selectedPhotos) => {
           setPhotos(selectedPhotos);
@@ -591,15 +647,25 @@ function SectionTitle({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   header: {
-    height: 76,
+    height: 64,
     paddingHorizontal: spacing.base,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    position: "relative",
   },
-  headerTitle: { ...typography.h3, color: colors.textPrimary },
+  headerTitleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { ...typography.h3, color: colors.textPrimary, textAlign: "center" },
   content: { padding: spacing.base, paddingBottom: 50 },
   progressLabel: {
     ...typography.bodySmall,
