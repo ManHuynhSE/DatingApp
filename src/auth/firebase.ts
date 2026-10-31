@@ -1,6 +1,7 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Platform } from 'react-native';
 import { Firestore, getFirestore } from 'firebase/firestore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import {
   Auth,
   createUserWithEmailAndPassword,
@@ -24,7 +25,9 @@ const firebaseConfig = {
   messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
-
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+});
 const isConfigured = Object.values(firebaseConfig).every(Boolean);
 
 let app: FirebaseApp | null = null;
@@ -73,6 +76,11 @@ export const firebaseAuth = {
   },
   async signOut() {
     if (!auth) return;
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      // Ignore if not signed in via Google
+    }
     return auth.signOut();
   },
   async signInWithGoogleToken(accessToken: string) {
@@ -81,6 +89,16 @@ export const firebaseAuth = {
       auth,
       GoogleAuthProvider.credential(null, accessToken),
     );
+  },
+  async signInWithGoogleNative() {
+    if (!auth) throw new Error('Firebase is not configured');
+    await GoogleSignin.hasPlayServices();
+    const response = await GoogleSignin.signIn();
+    const idToken = response.data?.idToken;
+    if (!idToken) throw new Error('Could not retrieve Google ID Token');
+    
+    const credential = GoogleAuthProvider.credential(idToken);
+    return signInWithCredential(auth, credential);
   },
   async getIdToken() {
     if (!auth?.currentUser) throw new Error('No user signed in');

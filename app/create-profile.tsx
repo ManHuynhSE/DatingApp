@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -20,7 +20,10 @@ import {
   typography,
 } from "../src/theme";
 import { datingApi } from "../src/api/datingClient";
+import { useAuthStore } from "../src/store/authStore";
+import { useLocationStore } from "../src/store/locationStore";
 import { useThemeStore } from "../src/store/themeStore";
+import { requestCurrentCoordinates } from "../src/location/currentLocation";
 import ProfilePickerModal from "../src/components/ProfilePickerModal";
 
 function calculateAge(birthDate: string): number {
@@ -59,6 +62,8 @@ export default function CreateProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === "dark" ? darkColors : colors;
+  const updateUser = useAuthStore((state) => state.updateUser);
+  const setCoordinates = useLocationStore((state) => state.setCoordinates);
 
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("2000-01-01");
@@ -78,12 +83,38 @@ export default function CreateProfileScreen() {
     "Vietnamese",
     "English",
   ]);
-  const [relationshipIntention, setRelationshipIntention] = useState<string | null>(null);
+  const [relationshipIntention, setRelationshipIntention] = useState<
+    string | null
+  >(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activePicker, setActivePicker] = useState<{
     type: string;
     field?: string;
   } | null>(null);
+  // Preserve the last non-null picker so ProfilePickerSheetContent's `key`
+  // never changes between a close and re-open of the SAME picker type.
+  // Without this, `type` falls back to "detail" when activePicker is null,
+  // flipping the key from e.g. "photos-" → "detail-" → "photos-" on every
+  // open, which remounts ProfilePickerSheetContent and wipes all refs/state.
+  const lastPickerRef = useRef<{ type: string; field?: string }>({
+    type: "detail",
+  });
+
+  useEffect(() => {
+    let active = true;
+    datingApi
+      .getMyPhotos()
+      .then(({ data }) => {
+        if (!active || !data || data.length === 0) return;
+        setPhotos(data.map((p) => p.url));
+      })
+      .catch(() => {
+        // Safe to ignore if user has no photos yet or backend offline
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const age = useMemo(() => {
     if (!birthDate) return null;
@@ -91,6 +122,7 @@ export default function CreateProfileScreen() {
   }, [birthDate]);
 
   const openPicker = (type: string, field?: string) => {
+    lastPickerRef.current = { type, field };
     setActivePicker({ type, field });
   };
 
@@ -137,6 +169,9 @@ export default function CreateProfileScreen() {
         }
       }
 
+      // Request device GPS coordinates (optional; denied permission or GPS offline does not block creation)
+      const coordinates = await requestCurrentCoordinates().catch(() => null);
+
       const profile = await datingApi.createProfile({
         user_id: userId,
         display_name: name.trim().slice(0, 50),
@@ -146,17 +181,67 @@ export default function CreateProfileScreen() {
         job_title: occupation.trim() ? occupation.trim().slice(0, 100) : null,
         city: finalCity,
         ward: finalWard,
+        latitude: coordinates ? coordinates.latitude : null,
+        longitude: coordinates ? coordinates.longitude : null,
         languages: languages.slice(0, 20),
+        relationship_intention: relationshipIntention ?? undefined,
       });
 
       if (profile.success) {
-        if (relationshipIntention) {
+        // 1. Sync location state
+        if (coordinates) {
+          setCoordinates(coordinates);
           try {
-            await datingApi.updateMyRelationshipIntention(relationshipIntention);
-          } catch (e) {
-            console.warn("Could not set relationship intention on profile creation:", e);
+            await datingApi.updateProfile(userId, coordinates);
+          } catch (locErr) {
+            console.warn("Could not save coordinates after profile creation:", locErr);
           }
         }
+
+        // 2. Set relationship intention if selected
+        if (relationshipIntention) {
+          try {
+            await datingApi.updateMyRelationshipIntention(
+              relationshipIntention,
+            );
+          } catch (e) {
+            console.warn(
+              "Could not set relationship intention on profile creation:",
+              e,
+            );
+          }
+        }
+
+        // 3. Save matching preference (interested_in)
+        try {
+          await datingApi.upsertUserPreferences(userId, {
+            interested_in: interestedIn,
+          });
+        } catch (prefErr) {
+          console.warn("Could not save user preferences on profile creation:", prefErr);
+        }
+
+        // 4. Update authStore so all screens have the complete user profile immediately
+        const locString = [finalWard, finalCity].filter(Boolean).join(", ") || finalCity || "";
+        updateUser({
+          id: userId,
+          name: name.trim().slice(0, 50),
+          age: ageNum,
+          verified: false,
+          pronouns: gender === "female" ? "She/Her" : gender === "male" ? "He/Him" : gender,
+          occupation: occupation.trim() ? occupation.trim().slice(0, 100) : "",
+          city: finalCity ?? undefined,
+          ward: finalWard ?? undefined,
+          location: locString,
+          distance: locString,
+          aboutMe: about.trim() ? about.trim().slice(0, 500) : "",
+          photos,
+          languages: languages.slice(0, 20),
+          relationship_intention: relationshipIntention,
+          relationshipGoal: relationshipIntention ?? "",
+          profileCompletion: 80,
+        });
+
         router.replace("/(tabs)/swipe");
       }
     } catch (error) {
@@ -580,8 +665,8 @@ export default function CreateProfileScreen() {
 
       <ProfilePickerModal
         visible={activePicker !== null}
-        type={activePicker?.type ?? "detail"}
-        field={activePicker?.field}
+        type={lastPickerRef.current.type}
+        field={lastPickerRef.current.field}
         onClose={closePicker}
         initialData={{
           city,
@@ -665,7 +750,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { ...typography.h3, color: colors.textPrimary, textAlign: "center" },
+  headerTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    textAlign: "center",
+  },
   content: { padding: spacing.base, paddingBottom: 50 },
   progressLabel: {
     ...typography.bodySmall,

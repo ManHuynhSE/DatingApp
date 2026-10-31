@@ -21,6 +21,7 @@ function calculateAge(birthDate: string) {
 
 export default function RootLayout() {
   const setSession = useAuthStore((state) => state.setSession);
+  const setAuthReady = useAuthStore((state) => state.setAuthReady);
   const setCoordinates = useLocationStore((state) => state.setCoordinates);
   const mode = useThemeStore((state) => state.mode);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
@@ -36,6 +37,7 @@ export default function RootLayout() {
       if (!isMounted) return;
 
       if (!firebaseUser) {
+        // Firebase says "no session" — mark auth as resolved so index.tsx can redirect.
         setSession(null, null);
         setCoordinates(null);
         return;
@@ -112,6 +114,8 @@ export default function RootLayout() {
         });
       } catch (error) {
         console.error('Unable to load dating account after Firebase sign-in:', error);
+        // Even on error, mark auth as ready so the app doesn't hang on splash.
+        if (isMounted) setAuthReady();
       }
     });
 
@@ -119,7 +123,7 @@ export default function RootLayout() {
       isMounted = false;
       unsubscribe();
     };
-  }, [setCoordinates, setSession]);
+  }, [setCoordinates, setSession, setAuthReady]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
