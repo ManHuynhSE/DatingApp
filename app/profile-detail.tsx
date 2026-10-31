@@ -21,8 +21,10 @@ import {
   spacing,
   borderRadius,
   shadows,
+  getGenderBadgeColor,
 } from "../src/theme";
 import { datingApi, type DatingProfile } from "../src/api/datingClient";
+import { discoveryProfiles } from "../src/data/mockData";
 import { useAuthStore } from "../src/store/authStore";
 import { useThemeStore } from "../src/store/themeStore";
 
@@ -133,6 +135,48 @@ export default function ProfileDetailScreen() {
   useEffect(() => {
     if (!userId) return;
     let active = true;
+
+    // Check mock fallback first for sample profiles
+    const mock = discoveryProfiles.find((p) => p.id === userId);
+    if (mock) {
+      const birthYear = new Date().getFullYear() - mock.age;
+      setProfile({
+        id: mock.id,
+        user_id: mock.id,
+        display_name: mock.name,
+        birth_date: `${birthYear}-01-01`,
+        gender: mock.pronouns.toLowerCase().includes('she') ? 'female' : 'male',
+        bio: mock.aboutMe,
+        job_title: mock.occupation,
+        pet: mock.details.pets,
+        life_style: [mock.details.exercise, mock.details.smoking, mock.details.drinking].filter(Boolean),
+        hobbies: mock.hobbies || mock.interests.map((name, i) => ({ id: `h-${i}`, name, category: 'General' })),
+        education: mock.education || mock.details.education,
+        height_cm: null,
+        city: mock.city || mock.location,
+        ward: mock.ward || null,
+        latitude: null,
+        longitude: null,
+        distance_km: null,
+        is_verified: mock.verified,
+        languages: mock.languages,
+        relationship_intention: mock.relationshipGoal,
+        users: {
+          id: mock.id,
+          photos: mock.photos.map((url, i) => ({
+            id: `photo-${i}`,
+            url,
+            position: i,
+            is_primary: i === 0,
+          })),
+        },
+      });
+      setActivePhotoIndex(0);
+      setError(null);
+      setLoadedUserId(userId);
+      return;
+    }
+
     datingApi
       .getProfileByUserId(userId, true, true)
       .then((response) => {
@@ -318,7 +362,18 @@ export default function ProfileDetailScreen() {
                 </View>
               )}
             </View>
-            <View style={styles.pronounsChip}>
+            <View
+              style={[
+                styles.pronounsChip,
+                {
+                  backgroundColor: getGenderBadgeColor(
+                    profile.gender,
+                    undefined,
+                    theme.primary,
+                  ),
+                },
+              ]}
+            >
               <Text style={styles.pronounsText}>
                 {profile.gender === "female"
                   ? "She/Her"

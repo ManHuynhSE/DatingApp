@@ -91,7 +91,7 @@ export default function SignInScreen() {
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: "heartsync" });
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: "mewdy" });
   const [googleRequest, googleResponse, promptGoogle] =
     AuthSession.useAuthRequest(
       {
@@ -217,7 +217,7 @@ export default function SignInScreen() {
               </View>
             </View>
 
-            <Text style={styles.appName}>HeartSync</Text>
+            <Text style={styles.appName}>Mewdy</Text>
             <Text style={styles.tagline}>
               Meet with intention.{"\n"}Stay for the feeling.
             </Text>

@@ -1,17 +1,18 @@
 {
   "expo": {
-    "name": "DatingApp",
-    "slug": "DatingApp",
-    "scheme": "heartsync",
+    "name": "Mewdy",
+    "slug": "mewdy",
+    "scheme": "mewdy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gooner.mewdy"
     },
     "android": {
-      "package": "com.gooner.hearsync",
+      "package": "com.gooner.mewdy",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -43,7 +44,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow DatingApp to access selected photos for your profile.",
+          "photosPermission": "Allow Mewdy to access selected photos for your profile.",
           "cameraPermission": false,
           "microphonePermission": false
         }
@@ -51,7 +52,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow DatingApp to use your location to calculate distance and improve nearby matches."
+          "locationWhenInUsePermission": "Allow Mewdy to use your location to calculate distance and improve nearby matches."
         }
       ],
       "@react-native-firebase/app",
@@ -61,7 +62,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "1b7354de-890d-479d-a391-ea6a5684cb80"
+        "projectId": "9af436b7-2f15-430e-a779-6eea0e17a218"
       }
     }
   }

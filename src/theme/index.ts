@@ -142,3 +142,40 @@ export const shadows = {
     elevation: 5,
   },
 };
+
+export const getGenderBadgeColor = (
+  gender?: string | null,
+  pronouns?: string | null,
+  fallback: string = colors.primary,
+): string => {
+  const g = (gender || '').toLowerCase().trim();
+  const p = (pronouns || '').toLowerCase().trim();
+
+  // Nam: Màu xanh dương (Blue)
+  if (
+    g === 'male' ||
+    g === 'man' ||
+    g === 'men' ||
+    p.includes('he') ||
+    p.includes('him') ||
+    p === 'nam'
+  ) {
+    return '#3B82F6';
+  }
+
+  // Non-binary / Other: Màu tím nhạt vừa (Medium/soft light purple)
+  if (
+    g === 'non_binary' ||
+    g === 'nonbinary' ||
+    g === 'other' ||
+    p.includes('they') ||
+    p.includes('them') ||
+    p.includes('non') ||
+    p.includes('binary')
+  ) {
+    return '#8B5CF6';
+  }
+
+  // Nữ hoặc mặc định: Màu primary (hồng/đỏ)
+  return fallback;
+};

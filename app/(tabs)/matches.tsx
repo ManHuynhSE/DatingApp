@@ -18,6 +18,7 @@ import { colors, darkColors, borderRadius, spacing, typography } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { datingApi, type DatingMatchItem } from '@/api/datingClient';
+import { useLikesStore } from '@/store/likesStore';
 
 const FALLBACK_PHOTO = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300';
 const springFadeInDown = (delay = 0) =>
@@ -60,31 +61,38 @@ export default function MatchesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const likedUsers = useLikesStore((state) => state.likedUsers);
+  const fetchLikedUsers = useLikesStore((state) => state.fetchLikedUsers);
+
   const refreshMatches = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
     setRefreshing(true);
     setError(null);
     try {
-      const response = await datingApi.getUserMatches(userId);
-      setMatches(response.data ?? []);
+      const promises: Promise<unknown>[] = [fetchLikedUsers(userId)];
+      if (userId) {
+        promises.push(
+          datingApi.getUserMatches(userId).then((response) => {
+            setMatches(response.data ?? []);
+          }),
+        );
+      }
+      await Promise.all(promises);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load matches.');
     } finally {
       setRefreshing(false);
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, fetchLikedUsers]);
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
+      void fetchLikedUsers(userId);
       if (!userId) {
         setLoading(false);
         return;
       }
-      let active = true;
       datingApi.getUserMatches(userId)
         .then((response) => {
           if (!active) return;
@@ -98,7 +106,7 @@ export default function MatchesScreen() {
           if (active) setLoading(false);
         });
       return () => { active = false; };
-    }, [userId]),
+    }, [userId, fetchLikedUsers]),
   );
 
   const openProfile = (item: DatingMatchItem) => {
@@ -174,6 +182,65 @@ export default function MatchesScreen() {
         </View>
         <Text style={styles.subtitleHeader}>A mutual like is a lovely place to start.</Text>
       </Animated.View>
+
+      {/* Horizontal Story Avatar List for Users Who Liked You */}
+      {likedUsers.length > 0 && (
+        <Animated.View entering={springFadeInDown(50)} style={styles.likesSection}>
+          <View style={styles.likesHeaderRow}>
+            <View style={styles.likesTitleRow}>
+              <Text style={styles.likesTitle}>Likes</Text>
+              <View style={styles.likesCountBadge}>
+                <Text style={styles.likesCountText}>{likedUsers.length}</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: '/likes-review',
+                  params: { userId: likedUsers[0]?.userId },
+                })
+              }
+              hitSlop={8}
+              style={styles.seeAllButton}
+            >
+              <Text style={styles.seeAllText}>See all</Text>
+              <Ionicons name="chevron-forward" size={14} color={theme.primary} />
+            </Pressable>
+          </View>
+
+          <FlatList
+            horizontal
+            data={likedUsers}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.storyListContent}
+            renderItem={({ item, index }) => (
+              <SpringPressable
+                accessibilityRole="button"
+                accessibilityLabel={`View ${item.name} who liked your photo`}
+                onPress={() =>
+                  router.push({
+                    pathname: '/likes-review',
+                    params: { userId: item.userId, initialIndex: String(index) },
+                  })
+                }
+                style={styles.storyItem}
+              >
+                <View style={styles.storyAvatarWrapper}>
+                  <Image source={{ uri: item.photo }} style={styles.storyAvatar} />
+                  {/* Small red heart badge attached to bottom-right of avatar */}
+                  <View style={styles.storyHeartBadge}>
+                    <Ionicons name="heart" size={12} color="#EF4444" />
+                  </View>
+                </View>
+                <Text style={styles.storyName} numberOfLines={1}>
+                  {item.name}
+                </Text>
+              </SpringPressable>
+            )}
+          />
+        </Animated.View>
+      )}
 
       {matches.length > 0 && (
         <Animated.View entering={springFadeInDown(90)} style={styles.noteCard}>
@@ -287,6 +354,101 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
   },
   countText: { ...typography.bodyBold, color: theme.primary },
   subtitleHeader: { ...typography.bodySmall, color: theme.textSecondary, marginTop: spacing.xs },
+  likesSection: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  likesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  likesTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  likesTitle: {
+    ...typography.bodyBold,
+    color: theme.textPrimary,
+  },
+  likesCountBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likesCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 2,
+  },
+  seeAllText: {
+    ...typography.captionBold,
+    color: theme.primary,
+  },
+  storyListContent: {
+    paddingHorizontal: spacing.lg,
+    gap: 14,
+  },
+  storyItem: {
+    alignItems: 'center',
+    width: 72,
+  },
+  storyAvatarWrapper: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2.5,
+    borderColor: '#EF4444',
+    padding: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    backgroundColor: theme.surface,
+  },
+  storyAvatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: theme.border,
+  },
+  storyHeartBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: theme.surface,
+    borderWidth: 2,
+    borderColor: theme.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  storyName: {
+    ...typography.captionBold,
+    color: theme.textPrimary,
+    marginTop: 6,
+    textAlign: 'center',
+    width: 70,
+  },
   noteCard: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.sm,

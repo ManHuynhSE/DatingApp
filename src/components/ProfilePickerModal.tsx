@@ -414,10 +414,57 @@ function ProfilePickerSheetContent({
   // Reset any stuck lock refs and transient UI states each time the modal
   // opens.  Because the component stays mounted between opens, refs from a
   // previous (aborted) pick could otherwise prevent the next pick from starting.
+  const prevVisibleRef = useRef(visible);
   useEffect(() => {
+    const wasVisible = prevVisibleRef.current;
+    prevVisibleRef.current = visible;
     if (!visible) return;
     isPickingRef.current = false;
     isSavingRef.current = false;
+
+    // Resync local states from store/props when opening
+    if (!wasVisible) {
+      const currentIntention =
+        initialData?.relationship_intention ??
+        draft?.relationship_intention ??
+        user?.relationship_intention ??
+        user?.relationshipGoal ??
+        null;
+      setTempRelationshipIntention(
+        normalizeRelationshipIntention(currentIntention) || currentIntention,
+      );
+      setTempOccupation(draft?.occupation ?? user?.occupation ?? "");
+      setTempHeight((details?.height ?? "").replace(/\s*cm$/i, ""));
+      setTempEducation(
+        draft?.education ?? user?.education ?? details?.education ?? "",
+      );
+      setTempPets(
+        (details?.pets ?? "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+      setTempLanguages(
+        initialData?.languages ?? draft?.languages ?? user?.languages ?? [],
+      );
+      setTempInterestedIn(initialData?.interestedIn ?? "everyone");
+      setTempInterests(draft?.interests ?? user?.interests ?? []);
+      const rawLifestyle = details?.exercise ?? "";
+      setTempLifestyles(
+        rawLifestyle
+          ? rawLifestyle
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
+      );
+      const cVal = initialData?.city ?? draft?.city ?? user?.city ?? "";
+      const wVal = initialData?.ward ?? draft?.ward ?? user?.ward ?? "";
+      setTempCity(cVal);
+      setTempWard(wVal);
+      setAddressStep(cVal ? "ward" : "city");
+    }
+
     // Defer state resets to avoid triggering the set-state-in-effect lint rule
     // and to avoid cascading renders on the same render cycle as visibility change.
     const t = setTimeout(() => {
@@ -425,7 +472,13 @@ function ProfilePickerSheetContent({
       setPhotosSaving(false);
     }, 0);
     return () => clearTimeout(t);
-  }, [visible]);
+  }, [
+    visible,
+    initialData,
+    draft,
+    user,
+    details,
+  ]);
 
   useEffect(() => {
     // Only fetch when the modal is actually visible and it's the photos type.
@@ -672,7 +725,7 @@ function ProfilePickerSheetContent({
       if (tempAge < 18) {
         Alert.alert(
           "Age requirement",
-          "You must be at least 18 years old to join HeartSync.",
+          "You must be at least 18 years old to join Mewdy.",
         );
         return;
       }

@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,7 +27,11 @@ import { useLocationStore } from "../src/store/locationStore";
 import { firebaseAuth } from "../src/auth/firebase";
 import { useProfileEditStore } from "../src/store/profileEditStore";
 import { useThemeStore } from "../src/store/themeStore";
-import { datingApi, type Hobby } from "@/api/datingClient";
+import {
+  datingApi,
+  normalizeRelationshipIntention,
+  type Hobby,
+} from "@/api/datingClient";
 import ProfilePickerModal from "../src/components/ProfilePickerModal";
 import { HOBBY_EMOJIS } from "../src/data/hobbies";
 
@@ -66,10 +71,63 @@ export default function EditProfileScreen({
   const reset = useProfileEditStore((state) => state.reset);
   const update = useProfileEditStore((state) => state.update);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchLatestProfile = useCallback(
+    async (isManualRefresh = false) => {
+      if (!user?.id) return;
+      try {
+        const result = await datingApi.getUserProfile(user.id);
+        const profile = result.data;
+        const photos = [...(profile.users?.photos ?? [])].sort(
+          (a, b) =>
+            Number(b.is_primary) - Number(a.is_primary) ||
+            a.position - b.position,
+        );
+        const updatedFields: Partial<typeof user> = {
+          name: profile.display_name,
+          occupation: profile.job_title ?? "",
+          city: profile.city ?? undefined,
+          ward: profile.ward ?? undefined,
+          location:
+            [profile.ward, profile.city].filter(Boolean).join(", ") ||
+            profile.city ||
+            "",
+          aboutMe: profile.bio ?? "",
+          photos: photos.length ? photos.map((p) => p.url) : user.photos,
+          education: profile.education ?? "",
+          hobbies: profile.hobbies ?? [],
+          interests: profile.hobbies?.map((h) => h.name) ?? [],
+          languages: profile.languages ?? [],
+          relationship_intention: profile.relationship_intention ?? null,
+          relationshipGoal: profile.relationship_intention ?? "",
+          details: {
+            ...user.details,
+            height: profile.height_cm ? `${profile.height_cm}cm` : "",
+            pets: profile.pet ?? "",
+            exercise: profile.life_style?.join(", ") ?? "",
+          },
+        };
+        updateUser(updatedFields);
+        if (isManualRefresh || !draft) {
+          start({ ...user, ...updatedFields });
+        }
+      } catch (err) {
+        console.warn("Could not fetch latest profile in edit-profile:", err);
+      }
+    },
+    [user, updateUser, start, draft],
+  );
 
   useEffect(() => {
     if (user && !draft) start(user);
   }, [draft, start, user]);
+
+  useEffect(() => {
+    if (user?.id && !draft) {
+      void fetchLatestProfile();
+    }
+  }, [user?.id, draft, fetchLatestProfile]);
 
   const current = draft ?? user;
   const completion = useMemo(() => {
@@ -182,6 +240,10 @@ export default function EditProfileScreen({
         ? current.hobbies
         : hobbiesCatalog.filter((h) => current.interests.includes(h.name));
 
+      const normalizedIntention = current.relationship_intention !== undefined
+        ? normalizeRelationshipIntention(current.relationship_intention) ?? current.relationship_intention ?? null
+        : undefined;
+
       const response = await datingApi.updateProfile(user.id, {
         display_name: current.name.trim().slice(0, 50),
         bio: current.aboutMe.trim()
@@ -204,6 +266,7 @@ export default function EditProfileScreen({
           .slice(0, 20),
         hobbies: hobbiesPayload.slice(0, 100),
         languages: current.languages.slice(0, 20),
+        relationship_intention: normalizedIntention,
       });
       if (!response.success) {
         throw new Error("Server chưa nhận được update");
@@ -212,10 +275,10 @@ export default function EditProfileScreen({
         [response.data.ward, response.data.city].filter(Boolean).join(", ") ||
         response.data.city ||
         "";
-      if (current.relationship_intention !== undefined) {
+      if (normalizedIntention !== undefined) {
         try {
           await datingApi.updateMyRelationshipIntention(
-            current.relationship_intention,
+            normalizedIntention,
           );
         } catch (intentionErr) {
           console.warn("Could not sync relationship intention:", intentionErr);
@@ -236,10 +299,13 @@ export default function EditProfileScreen({
           response.data.hobbies?.map((h) => h.name) ?? current.interests,
         languages: response.data.languages ?? [],
         relationship_intention:
-          current.relationship_intention ??
           response.data.relationship_intention ??
+          normalizedIntention ??
           null,
-        relationshipGoal: current.relationship_intention ?? "",
+        relationshipGoal:
+          response.data.relationship_intention ??
+          normalizedIntention ??
+          "",
         details: {
           ...user.details,
           height: response.data.height_cm ? `${response.data.height_cm}cm` : "",
@@ -315,6 +381,18 @@ export default function EditProfileScreen({
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await fetchLatestProfile(true);
+                setRefreshing(false);
+              }}
+              tintColor={theme.primary}
+              colors={[theme.primary]}
+            />
+          }
         >
           <View style={styles.profileHeader}>
             <View style={styles.avatarStack}>

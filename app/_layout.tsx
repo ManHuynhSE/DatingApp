@@ -142,6 +142,7 @@ export default function RootLayout() {
           <Stack.Screen name="settings" options={{ presentation: 'card' }} />
           <Stack.Screen name="verify-phone" options={{ presentation: 'card' }} />
           <Stack.Screen name="create-profile" options={{ presentation: 'card' }} />
+          <Stack.Screen name="likes-review" options={{ presentation: 'card' }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

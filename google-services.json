@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:105654570760:android:74b88f0691fa5f4ca766bd",
         "android_client_info": {
-          "package_name": "com.gooner.hearsync"
+          "package_name": "com.gooner.mewdy"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "105654570760-l054pshg0sk6pkdojsti6auu4fuatrd5.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.gooner.hearsync",
+            "package_name": "com.gooner.mewdy",
             "certificate_hash": "4ceb930a79e3270eb4cea74a6529e3339bffb1ab"
           }
         },

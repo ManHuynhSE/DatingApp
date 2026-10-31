@@ -204,6 +204,29 @@ export interface DatingMatchListResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
+export interface SwipedMeItem {
+  id: string;
+  swiper_id: string;
+  swiped_id: string;
+  action: 'like' | 'pass' | 'super_like';
+  created_at: string;
+  users_swipes_swiper_idTousers?: {
+    id: string;
+    status: string;
+    profiles?: (Pick<
+      DatingProfile,
+      'display_name' | 'birth_date' | 'gender' | 'bio' | 'city' | 'ward' | 'job_title' | 'is_verified'
+    > & { hobbies?: Hobby[] }) | null;
+    photos?: Pick<DatingPhoto, 'url' | 'position' | 'is_primary'>[];
+  };
+}
+
+export interface SwipedMeResponse {
+  success: boolean;
+  data: SwipedMeItem[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
 export interface AuthResponse {
   success: boolean;
   message: string;
@@ -690,6 +713,20 @@ export const datingApi = {
     if (params.action) query.append('action', params.action);
     return request<{ success: boolean; data: unknown[]; pagination: unknown }>(
       `/swipes/user/${userId}?${query.toString()}`,
+    );
+  },
+
+  getUsersSwipedMe: (
+    userId: string,
+    params: { page?: number; limit?: number; action?: 'like' | 'pass' | 'super_like' } = {},
+  ) => {
+    const query = new URLSearchParams({
+      page: String(params.page ?? 1),
+      limit: String(params.limit ?? 20),
+    });
+    if (params.action) query.append('action', params.action);
+    return request<SwipedMeResponse>(
+      `/swipes/swiped-me/${userId}?${query.toString()}`,
     );
   },
 
