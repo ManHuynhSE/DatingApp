@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -71,21 +71,43 @@ interface LifestyleCategory {
   items: LifestyleItem[];
 }
 
-const languagesData = require("../../assets/languages_list.json") as LanguageItem[];
+const languagesData =
+  require("../../assets/languages_list.json") as LanguageItem[];
 const hobbiesData = require("../../assets/hobbies_list.json") as HobbyItem[];
 const petListData = require("../../assets/pet_list.json") as string[];
-const lifestylesData = require("../../assets/lifestyles_list.json") as LifestyleCategory[];
+const lifestylesData =
+  require("../../assets/lifestyles_list.json") as LifestyleCategory[];
 
 const MAX_LANGUAGES = 10;
 const MAX_INTERESTS = 10;
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 const INTERESTED_OPTIONS = [
   { value: "male", label: "Men", subtitle: "Show me men", icon: "man-outline" },
-  { value: "female", label: "Women", subtitle: "Show me women", icon: "woman-outline" },
-  { value: "everyone", label: "Everyone", subtitle: "Show me everyone", icon: "people-outline" },
+  {
+    value: "female",
+    label: "Women",
+    subtitle: "Show me women",
+    icon: "woman-outline",
+  },
+  {
+    value: "everyone",
+    label: "Everyone",
+    subtitle: "Show me everyone",
+    icon: "people-outline",
+  },
 ] as const;
 
 export const RELATIONSHIP_INTENTION_OPTIONS = [
@@ -145,14 +167,18 @@ export interface ProfilePickerModalProps {
     city?: string;
     ward?: string;
     languages?: string[];
-    interestedIn?: 'male' | 'female' | 'everyone';
+    interestedIn?: "male" | "female" | "everyone";
     photos?: string[];
     birthDate?: string;
     [key: string]: any;
   };
-  onSelectAddress?: (address: { city: string; ward: string; fullAddress: string }) => void;
+  onSelectAddress?: (address: {
+    city: string;
+    ward: string;
+    fullAddress: string;
+  }) => void;
   onSelectLanguages?: (languages: string[]) => void;
-  onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
+  onSelectInterestedIn?: (interestedIn: "male" | "female" | "everyone") => void;
   onSelectPhotos?: (photos: string[]) => void;
   onSelectBirthDate?: (birthDate: string, age: number) => void;
   onSelectRelationshipIntention?: (intention: string | null) => void;
@@ -171,11 +197,14 @@ export default function ProfilePickerModal({
   onSelectBirthDate,
   onSelectRelationshipIntention,
 }: ProfilePickerModalProps) {
-  if (!visible) return null;
-
+  // Keep ProfilePickerSheetContent ALWAYS mounted so that refs (isPickingRef,
+  // isSavingRef) and state are never lost when Android backgrounds the app
+  // during launchImageLibraryAsync.  We pass `visible` down so the inner
+  // component can reset temp state on open and hide/show the RN Modal.
   return (
     <ProfilePickerSheetContent
       key={`${type}-${field ?? ""}`}
+      visible={visible}
       type={type}
       field={field}
       onClose={onClose}
@@ -191,6 +220,7 @@ export default function ProfilePickerModal({
 }
 
 function ProfilePickerSheetContent({
+  visible,
   type,
   field,
   onClose,
@@ -202,6 +232,7 @@ function ProfilePickerSheetContent({
   onSelectBirthDate,
   onSelectRelationshipIntention,
 }: {
+  visible: boolean;
   type: string;
   field?: string;
   onClose: () => void;
@@ -209,14 +240,18 @@ function ProfilePickerSheetContent({
     city?: string;
     ward?: string;
     languages?: string[];
-    interestedIn?: 'male' | 'female' | 'everyone';
+    interestedIn?: "male" | "female" | "everyone";
     photos?: string[];
     birthDate?: string;
     [key: string]: any;
   };
-  onSelectAddress?: (address: { city: string; ward: string; fullAddress: string }) => void;
+  onSelectAddress?: (address: {
+    city: string;
+    ward: string;
+    fullAddress: string;
+  }) => void;
   onSelectLanguages?: (languages: string[]) => void;
-  onSelectInterestedIn?: (interestedIn: 'male' | 'female' | 'everyone') => void;
+  onSelectInterestedIn?: (interestedIn: "male" | "female" | "everyone") => void;
   onSelectPhotos?: (photos: string[]) => void;
   onSelectBirthDate?: (birthDate: string, age: number) => void;
   onSelectRelationshipIntention?: (intention: string | null) => void;
@@ -249,17 +284,21 @@ function ProfilePickerSheetContent({
     (details?.height ?? "").replace(/\s*cm$/i, ""),
   );
   const [tempEducation, setTempEducation] = useState(
-    () =>
-      draft?.education ??
-      user?.education ??
-      details?.education ??
-      "",
+    () => draft?.education ?? user?.education ?? details?.education ?? "",
   );
   const [tempPets, setTempPets] = useState<string[]>(() =>
-    (details?.pets ?? "").split(",").map((pet) => pet.trim()).filter(Boolean),
+    (details?.pets ?? "")
+      .split(",")
+      .map((pet) => pet.trim())
+      .filter(Boolean),
   );
+  const initialPhotosList =
+    initialData?.photos && initialData.photos.length > 0
+      ? initialData.photos
+      : (draft?.photos ?? user?.photos ?? []);
+
   const [photoItems, setPhotoItems] = useState<PhotoDraftItem[]>(() =>
-    (draft?.photos ?? user?.photos ?? []).map((url, index) => ({
+    initialPhotosList.map((url, index) => ({
       key: `initial-${index}-${url}`,
       url,
     })),
@@ -271,42 +310,44 @@ function ProfilePickerSheetContent({
   const [photosSaving, setPhotosSaving] = useState(false);
   const [photosError, setPhotosError] = useState<string | null>(null);
   const [photoLoadAttempt, setPhotoLoadAttempt] = useState(0);
+  const isPickingRef = useRef(false);
+  const isSavingRef = useRef(false);
   const [tempLanguages, setTempLanguages] = useState<string[]>(
     () => initialData?.languages ?? draft?.languages ?? user?.languages ?? [],
   );
-  const [tempInterestedIn, setTempInterestedIn] = useState<"male" | "female" | "everyone">(
-    () => initialData?.interestedIn ?? "everyone",
-  );
-  const [tempRelationshipIntention, setTempRelationshipIntention] = useState<string | null>(
-    () => {
-      const raw =
-        initialData?.relationship_intention ??
-        draft?.relationship_intention ??
-        user?.relationship_intention ??
-        user?.relationshipGoal ??
-        null;
-      return normalizeRelationshipIntention(raw) || raw;
-    },
-  );
+  const [tempInterestedIn, setTempInterestedIn] = useState<
+    "male" | "female" | "everyone"
+  >(() => initialData?.interestedIn ?? "everyone");
+  const [tempRelationshipIntention, setTempRelationshipIntention] = useState<
+    string | null
+  >(() => {
+    const raw =
+      initialData?.relationship_intention ??
+      draft?.relationship_intention ??
+      user?.relationship_intention ??
+      user?.relationshipGoal ??
+      null;
+    return normalizeRelationshipIntention(raw) || raw;
+  });
   // Birth Date States
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [tempYear, setTempYear] = useState(() => {
     if (initialData?.birthDate) {
-      const parts = initialData.birthDate.split('-').map(Number);
+      const parts = initialData.birthDate.split("-").map(Number);
       if (parts.length === 3 && parts[0]) return parts[0];
     }
     return new Date().getFullYear() - 22;
   });
   const [tempMonth, setTempMonth] = useState(() => {
     if (initialData?.birthDate) {
-      const parts = initialData.birthDate.split('-').map(Number);
+      const parts = initialData.birthDate.split("-").map(Number);
       if (parts.length === 3 && parts[1]) return parts[1];
     }
     return 1;
   });
   const [tempDay, setTempDay] = useState(() => {
     if (initialData?.birthDate) {
-      const parts = initialData.birthDate.split('-').map(Number);
+      const parts = initialData.birthDate.split("-").map(Number);
       if (parts.length === 3 && parts[2]) return parts[2];
     }
     return 1;
@@ -370,29 +411,81 @@ function ProfilePickerSheetContent({
   const [lifestyleSearch, setLifestyleSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
 
+  // Reset any stuck lock refs and transient UI states each time the modal
+  // opens.  Because the component stays mounted between opens, refs from a
+  // previous (aborted) pick could otherwise prevent the next pick from starting.
   useEffect(() => {
-    if (type !== "photos") return;
-    let active = true;
-    datingApi.getMyPhotos().then(({ data }) => {
-      if (!active) return;
-      setServerPhotos(data);
-      setPhotoItems(data.map((photo) => ({
-        key: photo.id,
-        id: photo.id,
-        url: photo.url,
-      })));
-      setPhotosLoaded(true);
-    }).catch((error: unknown) => {
-      if (!active) return;
-      setPhotosError(error instanceof Error ? error.message : "Không tải được ảnh profile.");
-    }).finally(() => {
-      if (active) setPhotosLoading(false);
-    });
-    return () => { active = false; };
-  }, [type, user?.id, photoLoadAttempt]);
+    if (!visible) return;
+    isPickingRef.current = false;
+    isSavingRef.current = false;
+    // Defer state resets to avoid triggering the set-state-in-effect lint rule
+    // and to avoid cascading renders on the same render cycle as visibility change.
+    const t = setTimeout(() => {
+      setPhotoPicking(false);
+      setPhotosSaving(false);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [visible]);
 
-  // Slide Up Animation on mount
   useEffect(() => {
+    // Only fetch when the modal is actually visible and it's the photos type.
+    // Depending on `visible` ensures we re-fetch fresh data every time the
+    // user opens the photo picker, including after a previous save.
+    if (type !== "photos" || !visible) return;
+    let active = true;
+    // Reset loading state asynchronously to avoid the set-state-in-effect rule
+    const fetchPhotos = async () => {
+      setPhotosLoading(true);
+      setPhotosError(null);
+      try {
+        const { data } = await datingApi.getMyPhotos();
+        if (!active) return;
+        if (data && data.length > 0) {
+          setServerPhotos(data);
+          setPhotoItems(
+            data.map((photo) => ({
+              key: photo.id,
+              id: photo.id,
+              url: photo.url,
+            })),
+          );
+        } else {
+          setServerPhotos([]);
+        }
+        setPhotosLoaded(true);
+      } catch (error: unknown) {
+        if (!active) return;
+        setPhotosLoaded(true);
+        setPhotosError(
+          error instanceof Error
+            ? error.message
+            : "Không tải được ảnh từ máy chủ.",
+        );
+      } finally {
+        if (active) setPhotosLoading(false);
+      }
+    };
+    void fetchPhotos();
+    return () => {
+      active = false;
+    };
+  }, [type, visible, user?.id, photoLoadAttempt]);
+
+  // Slide-up animation: runs whenever the modal becomes visible.
+  // Because the component stays mounted (no unmount on close), we must
+  // re-trigger the animation each time `visible` flips to true.
+  // When visible is false we snap the sheet back to off-screen so the next
+  // open always slides up from the bottom (not from its last animated position).
+  useEffect(() => {
+    if (!visible) {
+      // Snap off-screen instantly — animateClose() already ran its outro.
+      // Use cancelAnimation first to avoid fighting any in-progress spring.
+      backdropOpacity.set(0);
+      sheetTranslateY.set(SHEET_HEIGHT);
+      return;
+    }
+    // Ensure we start from the bottom before animating up.
+    sheetTranslateY.set(SHEET_HEIGHT);
     backdropOpacity.set(withTiming(0.5, { duration: 250 }));
     sheetTranslateY.set(
       withSpring(0, {
@@ -401,7 +494,7 @@ function ProfilePickerSheetContent({
         mass: 0.85,
       }),
     );
-  }, [backdropOpacity, sheetTranslateY]);
+  }, [visible, backdropOpacity, sheetTranslateY]);
 
   const animatedBackdropStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
@@ -436,59 +529,99 @@ function ProfilePickerSheetContent({
   };
 
   const savePhotos = async () => {
-    if (!photosLoaded) {
-      Alert.alert("Ảnh chưa sẵn sàng", "Tải lại danh sách ảnh rồi thử lại.");
-      return;
-    }
+    if (isSavingRef.current || photosSaving || isPickingRef.current) return;
 
+    isSavingRef.current = true;
     setPhotosSaving(true);
     try {
       const retainedPhotoIds = new Set(
-        photoItems.flatMap((photo) => photo.id ? [photo.id] : []),
+        photoItems.flatMap((photo) => (photo.id ? [photo.id] : [])),
       );
+
+      const currentServerPhotos = [...serverPhotos];
+      const updatedPhotoItems = photoItems.map((photo) => {
+        if (!photo.id) {
+          const match = currentServerPhotos.find((sp) => sp.url === photo.url);
+          if (match) {
+            retainedPhotoIds.add(match.id);
+            return { ...photo, id: match.id, key: match.id };
+          }
+        }
+        return { ...photo };
+      });
+
       const savedItems: { id: string; url: string }[] = [];
-      for (const photo of photoItems) {
+
+      for (let i = 0; i < updatedPhotoItems.length; i++) {
+        const photo = updatedPhotoItems[i];
         if (photo.id) {
           savedItems.push({ id: photo.id, url: photo.url });
           continue;
         }
-        if (!photo.asset) continue;
+
+        if (!photo.asset) {
+          savedItems.push({ id: photo.key, url: photo.url });
+          continue;
+        }
 
         const asset = photo.asset;
         const mimeType = asset.mimeType || "image/jpeg";
         const extension = mimeType.split("/")[1] || "jpg";
-        const uploaded = await datingApi.uploadPhoto({
-          uri: asset.uri,
-          name: asset.fileName || `profile-${Date.now()}.${extension}`,
-          type: mimeType,
-          webFile: asset.file,
-        });
-        const savedPhoto = uploaded.data;
-        savedItems.push({ id: savedPhoto.id, url: savedPhoto.url });
-        setServerPhotos((previous) => [...previous, savedPhoto]);
-        setPhotoItems((previous) => previous.map((item) =>
-          item.key === photo.key
-            ? { key: savedPhoto.id, id: savedPhoto.id, url: savedPhoto.url }
-            : item,
-        ));
-      }
 
-      for (const photo of serverPhotos) {
-        if (!retainedPhotoIds.has(photo.id)) {
-          await datingApi.deletePhoto(photo.id);
-          setServerPhotos((previous) => previous.filter((item) => item.id !== photo.id));
+        try {
+          const uploaded = await datingApi.uploadPhoto({
+            uri: asset.uri,
+            name: asset.fileName || `profile-${Date.now()}-${i}.${extension}`,
+            type: mimeType,
+            webFile: asset.file,
+          });
+          const savedPhoto = uploaded.data;
+          savedItems.push({ id: savedPhoto.id, url: savedPhoto.url });
+          currentServerPhotos.push(savedPhoto);
+          retainedPhotoIds.add(savedPhoto.id);
+          updatedPhotoItems[i] = {
+            key: savedPhoto.id,
+            id: savedPhoto.id,
+            url: savedPhoto.url,
+          };
+        } catch (uploadError) {
+          console.warn("Upload failed for photo asset:", uploadError);
+          savedItems.push({ id: photo.key, url: photo.url });
         }
       }
 
-      const ordered = await datingApi.reorderPhotos(savedItems.map((photo) => photo.id));
-      const finalPhotos = ordered.data.map((photo) => photo.url);
-      setServerPhotos(ordered.data);
-      setPhotoItems(ordered.data.map((photo) => ({
-        key: photo.id,
-        id: photo.id,
-        url: photo.url,
-      })));
+      for (const photo of currentServerPhotos) {
+        if (!retainedPhotoIds.has(photo.id)) {
+          try {
+            await datingApi.deletePhoto(photo.id);
+          } catch (deleteError) {
+            console.warn("Could not delete photo from server:", deleteError);
+          }
+        }
+      }
+
+      const serverUUIDPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const validServerPhotoIds = savedItems
+        .map((p) => p.id)
+        .filter((id) => serverUUIDPattern.test(id));
+
+      if (
+        validServerPhotoIds.length > 0 &&
+        validServerPhotoIds.length === savedItems.length
+      ) {
+        try {
+          const ordered = await datingApi.reorderPhotos(validServerPhotoIds);
+          setServerPhotos(ordered.data);
+        } catch (orderError) {
+          console.warn("Could not reorder photos on server:", orderError);
+        }
+      }
+
+      const finalPhotos = savedItems.map((photo) => photo.url);
+      setPhotoItems(updatedPhotoItems);
       update({ photos: finalPhotos });
+      onSelectPhotos?.(finalPhotos);
       animateClose(handleFinishModal);
     } catch (error) {
       Alert.alert(
@@ -496,6 +629,7 @@ function ProfilePickerSheetContent({
         error instanceof Error ? error.message : "Thử lại sau nhé.",
       );
     } finally {
+      isSavingRef.current = false;
       setPhotosSaving(false);
     }
   };
@@ -562,10 +696,13 @@ function ProfilePickerSheetContent({
       return;
     }
 
-    if (type === "relationship_intention" || field === "relationship_intention") {
+    if (
+      type === "relationship_intention" ||
+      field === "relationship_intention"
+    ) {
       update({
         relationship_intention: tempRelationshipIntention,
-        relationshipGoal: tempRelationshipIntention ?? '',
+        relationshipGoal: tempRelationshipIntention ?? "",
       });
       if (onSelectRelationshipIntention) {
         onSelectRelationshipIntention(tempRelationshipIntention);
@@ -650,7 +787,8 @@ function ProfilePickerSheetContent({
     if (type === "photos") return "Photos";
     if (type === "birth_date") return "Date of Birth";
     if (type === "interested_in") return "I'm interested in";
-    if (type === "relationship_intention" || field === "relationship_intention") return "Mục đích hẹn hò";
+    if (type === "relationship_intention" || field === "relationship_intention")
+      return "Mục đích hẹn hò";
     if (isAddressField) return "Address";
     if (type === "languages") return "Languages";
     if (type === "interests") return "My Interests";
@@ -777,17 +915,24 @@ function ProfilePickerSheetContent({
 
   const selectPetBadge = (badge: string) => {
     setTempPets((previous) => {
-      if (previous.includes(badge)) return previous.filter((pet) => pet !== badge);
+      if (previous.includes(badge))
+        return previous.filter((pet) => pet !== badge);
       if (badge === "Không nuôi thú cưng") return [badge];
-      return [...previous.filter((pet) => pet !== "Không nuôi thú cưng"), badge];
+      return [
+        ...previous.filter((pet) => pet !== "Không nuôi thú cưng"),
+        badge,
+      ];
     });
   };
 
   const choosePhoto = async () => {
-    if (!photosLoaded || photosLoading || photosSaving || photoPicking) return;
-    const selectionLimit = 6 - photoItems.length;
+    if (isPickingRef.current || isSavingRef.current) return;
+    if (photosLoading || photosSaving || photoPicking) return;
+    const currentCount = photoItems.length;
+    const selectionLimit = 6 - currentCount;
     if (selectionLimit <= 0) return;
 
+    isPickingRef.current = true;
     setPhotoPicking(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -796,35 +941,58 @@ function ProfilePickerSheetContent({
         selectionLimit,
         quality: 0.85,
       });
-      if (result.canceled || !result.assets.length) return;
+      if (result.canceled || !result.assets || !result.assets.length) return;
+
       const tooLargeCount = result.assets.filter(
         (asset) => asset.fileSize && asset.fileSize > 10 * 1024 * 1024,
       ).length;
-      const acceptedAssets = result.assets
-        .filter((asset) => !asset.fileSize || asset.fileSize <= 10 * 1024 * 1024)
-        .slice(0, selectionLimit);
       if (tooLargeCount > 0) {
         Alert.alert(
-          "Some photos are too large",
-          `${tooLargeCount} photo${tooLargeCount === 1 ? " was" : "s were"} skipped. Choose images under 10 MB.`,
+          "Một số ảnh quá lớn",
+          `${tooLargeCount} ảnh đã bị bỏ qua vì vượt quá 10 MB.`,
         );
       }
+
+      const acceptedAssets = result.assets.filter(
+        (asset) => !asset.fileSize || asset.fileSize <= 10 * 1024 * 1024,
+      );
       if (!acceptedAssets.length) return;
-      const batchKey = Date.now();
-      setPhotoItems((previous) => [
-        ...previous,
-        ...acceptedAssets.map((asset, index) => ({
-          key: `local-${batchKey}-${index}`,
-          url: asset.uri,
-          asset,
-        })),
-      ].slice(0, 6));
+
+      setPhotoItems((previous) => {
+        const existingUris = new Set(previous.map((item) => item.url));
+        const availableSlots = 6 - previous.length;
+        if (availableSlots <= 0) return previous;
+
+        const uniqueNewAssets: ImagePicker.ImagePickerAsset[] = [];
+        const seenInBatch = new Set<string>();
+
+        for (const asset of acceptedAssets) {
+          if (!existingUris.has(asset.uri) && !seenInBatch.has(asset.uri)) {
+            seenInBatch.add(asset.uri);
+            uniqueNewAssets.push(asset);
+            if (uniqueNewAssets.length >= availableSlots) break;
+          }
+        }
+
+        if (uniqueNewAssets.length === 0) return previous;
+
+        const batchKey = Date.now();
+        return [
+          ...previous,
+          ...uniqueNewAssets.map((asset, index) => ({
+            key: `local-${batchKey}-${index}-${asset.uri.slice(-10)}`,
+            url: asset.uri,
+            asset,
+          })),
+        ].slice(0, 6);
+      });
     } catch (error) {
       Alert.alert(
         "Không mở được thư viện ảnh",
         error instanceof Error ? error.message : "Thử lại sau nhé.",
       );
     } finally {
+      isPickingRef.current = false;
       setPhotoPicking(false);
     }
   };
@@ -873,21 +1041,36 @@ function ProfilePickerSheetContent({
 
   return (
     <Modal
-      visible
+      visible={visible}
       transparent
       animationType="none"
-      onRequestClose={handleCancel}
+      onRequestClose={() => {
+        // On Android this fires when the system back button is pressed OR
+        // (on some ROMs) when the app returns from the image-picker Activity.
+        // Block the close entirely while we are picking or saving so the
+        // modal doesn't disappear mid-selection.
+        if (isPickingRef.current || isSavingRef.current || photosSaving || photoPicking) return;
+        handleCancel();
+      }}
     >
       <View style={styles.modalRoot}>
-        {/* Backdrop: Tapping outside commits Done & closes */}
+        {/* Backdrop: Tapping outside safely cancels/closes without accidental saves or duplicate uploads */}
         <Animated.View
           style={[styles.backdrop, animatedBackdropStyle]}
           pointerEvents="auto"
         >
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={handleDone}
-            accessibilityLabel="Done and close"
+            onPress={() => {
+              if (photosSaving || photoPicking) return;
+              if (type === "photos") {
+                handleCancel();
+              } else {
+                handleDone();
+              }
+            }}
+            disabled={photosSaving || photoPicking}
+            accessibilityLabel="Close"
           />
         </Animated.View>
 
@@ -912,9 +1095,7 @@ function ProfilePickerSheetContent({
             </View>
 
             {/* Modal Header: Cancel on Left, Title in Center, Done on Right */}
-            <View
-              style={[styles.header, { borderBottomColor: theme.border }]}
-            >
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
               <TouchableOpacity
                 onPress={handleCancel}
                 style={styles.headerBtn}
@@ -939,7 +1120,10 @@ function ProfilePickerSheetContent({
                 onPress={handleDone}
                 style={styles.headerBtn}
                 hitSlop={8}
-                disabled={type === "photos" && (!photosLoaded || photosLoading || photosSaving)}
+                disabled={
+                  type === "photos" &&
+                  (!photosLoaded || photosLoading || photosSaving)
+                }
                 accessibilityLabel="Done and save changes"
               >
                 <Text style={[styles.doneText, { color: theme.primary }]}>
@@ -953,9 +1137,7 @@ function ProfilePickerSheetContent({
               {/* 1. Photos */}
               {type === "photos" ? (
                 <ScrollView contentContainerStyle={styles.scrollPadding}>
-                  <Text
-                    style={[styles.helper, { color: theme.textSecondary }]}
-                  >
+                  <Text style={[styles.helper, { color: theme.textSecondary }]}>
                     {photosLoading
                       ? "Loading your saved photos…"
                       : photosError
@@ -971,84 +1153,171 @@ function ProfilePickerSheetContent({
                         setPhotoLoadAttempt((attempt) => attempt + 1);
                       }}
                     >
-                      <Ionicons name="refresh-outline" size={18} color={theme.primary} />
-                      <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>Try again</Text>
+                      <Ionicons
+                        name="refresh-outline"
+                        size={18}
+                        color={theme.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.photoPickerButtonText,
+                          { color: theme.primary },
+                        ]}
+                      >
+                        Try again
+                      </Text>
                     </TouchableOpacity>
                   )}
-                  {photoItems.length === 0 && !photosLoading && !photosError && (
-                    <View style={[styles.photoEmptyState, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                      <View style={[styles.photoEmptyIcon, { backgroundColor: theme.primaryLight }]}>
-                        <Ionicons name="images-outline" size={25} color={theme.primary} />
-                      </View>
-                      <Text style={[styles.photoEmptyTitle, { color: theme.textPrimary }]}>Show more of you</Text>
-                      <Text style={[styles.photoEmptyText, { color: theme.textSecondary }]}>Add up to 6 photos. You can select multiple photos in one go.</Text>
-                    </View>
-                  )}
-                  {photoItems.length > 0 && <View style={styles.photoGrid}>
-                    {photoItems.map((photo, index) => (
-                      <View key={photo.key} style={styles.photoThumbWrap}>
-                        <Image
-                          source={{ uri: photo.url }}
-                          style={styles.photoThumb}
-                        />
-                        <TouchableOpacity
-                          style={styles.photoPrimaryBtn}
-                          onPress={() => movePhoto(index, -index)}
-                          disabled={index === 0 || photosSaving || !photosLoaded}
-                          accessibilityLabel={index === 0 ? "Main photo" : "Make main photo"}
+                  {photoItems.length === 0 &&
+                    !photosLoading &&
+                    !photosError && (
+                      <View
+                        style={[
+                          styles.photoEmptyState,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.photoEmptyIcon,
+                            { backgroundColor: theme.primaryLight },
+                          ]}
                         >
                           <Ionicons
-                            name={index === 0 ? "star" : "star-outline"}
-                            size={15}
-                            color={index === 0 ? "#FFC94A" : "#fff"}
+                            name="images-outline"
+                            size={25}
+                            color={theme.primary}
                           />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.removePhotoBtn}
-                          onPress={() => removePhoto(photo.key)}
-                          disabled={photosSaving || !photosLoaded}
-                          accessibilityLabel="Remove photo"
+                        </View>
+                        <Text
+                          style={[
+                            styles.photoEmptyTitle,
+                            { color: theme.textPrimary },
+                          ]}
                         >
-                          <Ionicons name="close" size={14} color="#fff" />
-                        </TouchableOpacity>
-                        {(index > 0 || index < photoItems.length - 1) && (
-                          <View style={styles.photoOrderBar}>
-                            <TouchableOpacity
-                              style={styles.photoOrderBtn}
-                              onPress={() => movePhoto(index, -1)}
-                              disabled={index === 0 || photosSaving || !photosLoaded}
-                              accessibilityLabel="Move photo earlier"
-                            >
-                              <Ionicons name="arrow-back" size={14} color="#fff" />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={styles.photoOrderBtn}
-                              onPress={() => movePhoto(index, 1)}
-                              disabled={index === photoItems.length - 1 || photosSaving || !photosLoaded}
-                              accessibilityLabel="Move photo later"
-                            >
-                              <Ionicons name="arrow-forward" size={14} color="#fff" />
-                            </TouchableOpacity>
-                          </View>
-                        )}
+                          Show more of you
+                        </Text>
+                        <Text
+                          style={[
+                            styles.photoEmptyText,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          Add up to 6 photos. You can select multiple photos in
+                          one go.
+                        </Text>
                       </View>
-                    ))}
-                  </View>}
+                    )}
+                  {photoItems.length > 0 && (
+                    <View style={styles.photoGrid}>
+                      {photoItems.map((photo, index) => (
+                        <View key={photo.key} style={styles.photoThumbWrap}>
+                          <Image
+                            source={{ uri: photo.url }}
+                            style={styles.photoThumb}
+                          />
+                          <TouchableOpacity
+                            style={styles.photoPrimaryBtn}
+                            onPress={() => movePhoto(index, -index)}
+                            disabled={
+                              index === 0 || photosSaving || !photosLoaded
+                            }
+                            accessibilityLabel={
+                              index === 0 ? "Main photo" : "Make main photo"
+                            }
+                          >
+                            <Ionicons
+                              name={index === 0 ? "star" : "star-outline"}
+                              size={15}
+                              color={index === 0 ? "#FFC94A" : "#fff"}
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.removePhotoBtn}
+                            onPress={() => removePhoto(photo.key)}
+                            disabled={photosSaving || !photosLoaded}
+                            accessibilityLabel="Remove photo"
+                          >
+                            <Ionicons name="close" size={14} color="#fff" />
+                          </TouchableOpacity>
+                          {(index > 0 || index < photoItems.length - 1) && (
+                            <View style={styles.photoOrderBar}>
+                              <TouchableOpacity
+                                style={styles.photoOrderBtn}
+                                onPress={() => movePhoto(index, -1)}
+                                disabled={
+                                  index === 0 || photosSaving || !photosLoaded
+                                }
+                                accessibilityLabel="Move photo earlier"
+                              >
+                                <Ionicons
+                                  name="arrow-back"
+                                  size={14}
+                                  color="#fff"
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.photoOrderBtn}
+                                onPress={() => movePhoto(index, 1)}
+                                disabled={
+                                  index === photoItems.length - 1 ||
+                                  photosSaving ||
+                                  !photosLoaded
+                                }
+                                accessibilityLabel="Move photo later"
+                              >
+                                <Ionicons
+                                  name="arrow-forward"
+                                  size={14}
+                                  color="#fff"
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  )}
                   <TouchableOpacity
                     style={[
                       styles.photoPickerButton,
-                      { borderColor: theme.border, backgroundColor: theme.surface },
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                      },
                     ]}
                     onPress={choosePhoto}
-                    disabled={!photosLoaded || photosLoading || photosSaving || photoPicking || photoItems.length >= 6}
+                    disabled={
+                      !photosLoaded ||
+                      photosLoading ||
+                      photosSaving ||
+                      photoPicking ||
+                      photoItems.length >= 6
+                    }
                     accessibilityLabel="Choose multiple photos from your library"
                   >
                     {photosSaving || photoPicking ? (
-                      <Ionicons name="sync-outline" size={18} color={theme.primary} />
+                      <Ionicons
+                        name="sync-outline"
+                        size={18}
+                        color={theme.primary}
+                      />
                     ) : (
-                      <Ionicons name="image-outline" size={18} color={theme.primary} />
+                      <Ionicons
+                        name="image-outline"
+                        size={18}
+                        color={theme.primary}
+                      />
                     )}
-                    <Text style={[styles.photoPickerButtonText, { color: theme.primary }]}>
+                    <Text
+                      style={[
+                        styles.photoPickerButtonText,
+                        { color: theme.primary },
+                      ]}
+                    >
                       {photoPicking
                         ? "Opening photo library…"
                         : photoItems.length >= 6
@@ -1125,7 +1394,10 @@ function ProfilePickerSheetContent({
                         ]}
                       >
                         <Text
-                          style={{ fontWeight: "700", color: theme.textPrimary }}
+                          style={{
+                            fontWeight: "700",
+                            color: theme.textPrimary,
+                          }}
                         >
                           Đang chọn:{" "}
                         </Text>
@@ -1199,12 +1471,19 @@ function ProfilePickerSheetContent({
                   >
                     <View style={styles.birthDateSummaryLeft}>
                       <Text
-                        style={[styles.birthDateValueText, { color: theme.textPrimary }]}
+                        style={[
+                          styles.birthDateValueText,
+                          { color: theme.textPrimary },
+                        ]}
                       >
-                        {String(effectiveDay).padStart(2, "0")} / {String(tempMonth).padStart(2, "0")} / {tempYear}
+                        {String(effectiveDay).padStart(2, "0")} /{" "}
+                        {String(tempMonth).padStart(2, "0")} / {tempYear}
                       </Text>
                       <Text
-                        style={[typography.caption, { color: theme.textSecondary }]}
+                        style={[
+                          typography.caption,
+                          { color: theme.textSecondary },
+                        ]}
                       >
                         Day / Month / Year
                       </Text>
@@ -1214,19 +1493,25 @@ function ProfilePickerSheetContent({
                         styles.birthDateAgeBadge,
                         {
                           backgroundColor:
-                            tempAge >= 18 ? theme.primaryLight : "rgba(239, 68, 68, 0.15)",
+                            tempAge >= 18
+                              ? theme.primaryLight
+                              : "rgba(239, 68, 68, 0.15)",
                         },
                       ]}
                     >
                       <Ionicons
-                        name={tempAge >= 18 ? "checkmark-circle" : "alert-circle"}
+                        name={
+                          tempAge >= 18 ? "checkmark-circle" : "alert-circle"
+                        }
                         size={16}
                         color={tempAge >= 18 ? theme.primary : theme.error}
                       />
                       <Text
                         style={[
                           styles.birthDateAgeText,
-                          { color: tempAge >= 18 ? theme.primary : theme.error },
+                          {
+                            color: tempAge >= 18 ? theme.primary : theme.error,
+                          },
                         ]}
                       >
                         {tempAge >= 18 ? `${tempAge} years old` : "Must be 18+"}
@@ -1237,7 +1522,12 @@ function ProfilePickerSheetContent({
                   {/* Direct Numeric Input Row */}
                   <View style={styles.dateInputRow}>
                     <View style={styles.dateInputCol}>
-                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.dateInputLabel,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Day
                       </Text>
                       <TextInput
@@ -1262,7 +1552,12 @@ function ProfilePickerSheetContent({
                     </View>
 
                     <View style={styles.dateInputCol}>
-                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.dateInputLabel,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Month
                       </Text>
                       <TextInput
@@ -1287,14 +1582,23 @@ function ProfilePickerSheetContent({
                     </View>
 
                     <View style={styles.dateInputColYear}>
-                      <Text style={[styles.dateInputLabel, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.dateInputLabel,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Year
                       </Text>
                       <TextInput
                         value={String(tempYear)}
                         onChangeText={(t) => {
                           const n = parseInt(t.replace(/\D/g, ""), 10);
-                          if (!Number.isNaN(n) && n >= 1900 && n <= currentYear) {
+                          if (
+                            !Number.isNaN(n) &&
+                            n >= 1900 &&
+                            n <= currentYear
+                          ) {
                             setTempYear(n);
                           }
                         }}
@@ -1316,7 +1620,12 @@ function ProfilePickerSheetContent({
                   <View style={styles.dateColumnsContainer}>
                     {/* Days Column */}
                     <View style={styles.dateColumn}>
-                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.dateColumnHeader,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Day
                       </Text>
                       <FlatList
@@ -1340,7 +1649,9 @@ function ProfilePickerSheetContent({
                                 style={[
                                   styles.dateItemText,
                                   {
-                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    color: isSelected
+                                      ? "#fff"
+                                      : theme.textPrimary,
                                     fontWeight: isSelected ? "700" : "400",
                                   },
                                 ]}
@@ -1355,7 +1666,12 @@ function ProfilePickerSheetContent({
 
                     {/* Months Column */}
                     <View style={[styles.dateColumn, styles.dateColumnMonth]}>
-                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.dateColumnHeader,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Month
                       </Text>
                       <FlatList
@@ -1379,7 +1695,9 @@ function ProfilePickerSheetContent({
                                 style={[
                                   styles.dateItemText,
                                   {
-                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    color: isSelected
+                                      ? "#fff"
+                                      : theme.textPrimary,
                                     fontWeight: isSelected ? "700" : "400",
                                   },
                                 ]}
@@ -1394,7 +1712,12 @@ function ProfilePickerSheetContent({
 
                     {/* Years Column */}
                     <View style={styles.dateColumn}>
-                      <Text style={[styles.dateColumnHeader, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.dateColumnHeader,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         Year
                       </Text>
                       <FlatList
@@ -1418,7 +1741,9 @@ function ProfilePickerSheetContent({
                                 style={[
                                   styles.dateItemText,
                                   {
-                                    color: isSelected ? "#fff" : theme.textPrimary,
+                                    color: isSelected
+                                      ? "#fff"
+                                      : theme.textPrimary,
                                     fontWeight: isSelected ? "700" : "400",
                                   },
                                 ]}
@@ -1448,7 +1773,9 @@ function ProfilePickerSheetContent({
                   >
                     Select who you would like to see in your discovery feed:
                   </Text>
-                  <View style={{ gap: spacing.sm, paddingHorizontal: spacing.base }}>
+                  <View
+                    style={{ gap: spacing.sm, paddingHorizontal: spacing.base }}
+                  >
                     {INTERESTED_OPTIONS.map((item) => {
                       const isSelected = tempInterestedIn === item.value;
                       return (
@@ -1528,7 +1855,8 @@ function ProfilePickerSheetContent({
                     })}
                   </View>
                 </View>
-              ) : type === "relationship_intention" || field === "relationship_intention" ? (
+              ) : type === "relationship_intention" ||
+                field === "relationship_intention" ? (
                 /* Relationship Intention Picker */
                 <View style={styles.flex}>
                   <Text
@@ -1542,19 +1870,27 @@ function ProfilePickerSheetContent({
                       },
                     ]}
                   >
-                    Chọn mục đích hẹn hò để tìm kiếm những người có chung định hướng:
+                    Chọn mục đích hẹn hò để tìm kiếm những người có chung định
+                    hướng:
                   </Text>
                   <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: 20 }}
+                    contentContainerStyle={{
+                      gap: spacing.sm,
+                      paddingHorizontal: spacing.base,
+                      paddingBottom: 20,
+                    }}
                     showsVerticalScrollIndicator={false}
                   >
                     {RELATIONSHIP_INTENTION_OPTIONS.map((item) => {
-                      const isSelected = tempRelationshipIntention === item.value;
+                      const isSelected =
+                        tempRelationshipIntention === item.value;
                       return (
                         <Pressable
                           key={item.value}
-                          onPress={() => setTempRelationshipIntention(item.value)}
+                          onPress={() =>
+                            setTempRelationshipIntention(item.value)
+                          }
                           style={[
                             styles.selectRow,
                             {
@@ -1763,7 +2099,10 @@ function ProfilePickerSheetContent({
                     <Pressable
                       onPress={() => {
                         if (!tempCity) {
-                          Alert.alert("Lưu ý", "Vui lòng chọn Tỉnh / Thành phố trước");
+                          Alert.alert(
+                            "Lưu ý",
+                            "Vui lòng chọn Tỉnh / Thành phố trước",
+                          );
                           return;
                         }
                         setAddressStep("ward");
@@ -1836,7 +2175,10 @@ function ProfilePickerSheetContent({
                       autoCorrect={false}
                     />
                     {addressSearch.length > 0 && (
-                      <Pressable onPress={() => setAddressSearch("")} hitSlop={8}>
+                      <Pressable
+                        onPress={() => setAddressSearch("")}
+                        hitSlop={8}
+                      >
                         <Ionicons
                           name="close-circle"
                           size={18}
@@ -2105,7 +2447,10 @@ function ProfilePickerSheetContent({
                         ]}
                       >
                         <Text
-                          style={{ fontWeight: "700", color: theme.textPrimary }}
+                          style={{
+                            fontWeight: "700",
+                            color: theme.textPrimary,
+                          }}
                         >
                           Đang chọn:{" "}
                         </Text>
@@ -2193,9 +2538,7 @@ function ProfilePickerSheetContent({
                                     color: isLimitReached
                                       ? theme.primary
                                       : theme.textSecondary,
-                                    fontWeight: isLimitReached
-                                      ? "700"
-                                      : "500",
+                                    fontWeight: isLimitReached ? "700" : "500",
                                   },
                                 ]}
                               >
@@ -2270,9 +2613,7 @@ function ProfilePickerSheetContent({
                   <TextInput
                     value={field === "occupation" ? tempOccupation : tempHeight}
                     onChangeText={
-                      field === "occupation"
-                        ? setTempOccupation
-                        : setTempHeight
+                      field === "occupation" ? setTempOccupation : setTempHeight
                     }
                     placeholder={
                       field === "occupation"

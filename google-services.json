@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "105654570760-l054pshg0sk6pkdojsti6auu4fuatrd5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gooner.hearsync",
+            "certificate_hash": "4ceb930a79e3270eb4cea74a6529e3339bffb1ab"
+          }
+        },
+        {
           "client_id": "105654570760-98s9j21v529qd1efo44hhmvlilfcjt8e.apps.googleusercontent.com",
           "client_type": 3
         }

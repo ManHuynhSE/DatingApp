@@ -22,6 +22,8 @@ import {
   borderRadius,
 } from "../src/theme";
 import { useAuthStore } from "../src/store/authStore";
+import { useLocationStore } from "../src/store/locationStore";
+import { firebaseAuth } from "../src/auth/firebase";
 import { useProfileEditStore } from "../src/store/profileEditStore";
 import { useThemeStore } from "../src/store/themeStore";
 import { datingApi, type Hobby } from "@/api/datingClient";
@@ -31,7 +33,11 @@ import { HOBBY_EMOJIS } from "../src/data/hobbies";
 const hobbiesCatalog = require("../assets/hobbies_list.json") as Hobby[];
 
 const detailFields = [
-  { field: "relationship_intention", label: "Mục đích hẹn hò", icon: "heart-circle-outline" },
+  {
+    field: "relationship_intention",
+    label: "Mục đích hẹn hò",
+    icon: "heart-circle-outline",
+  },
   { field: "location", label: "Address", icon: "location-outline" },
   { field: "height", label: "Height", icon: "resize-outline" },
   { field: "education", label: "Education", icon: "school-outline" },
@@ -50,6 +56,8 @@ export default function EditProfileScreen({
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const updateUser = useAuthStore((state) => state.updateUser);
+  const logout = useAuthStore((state) => state.logout);
+  const setCoordinates = useLocationStore((state) => state.setCoordinates);
   const mode = useThemeStore((state) => state.mode);
   const toggleMode = useThemeStore((state) => state.toggleMode);
   const theme = mode === "dark" ? darkColors : colors;
@@ -86,6 +94,31 @@ export default function EditProfileScreen({
 
   if (!current) return null;
 
+  const handleLogout = () => {
+    Alert.alert(
+      "Log Out",
+      "Are you sure you want to log out of HeartSync?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log Out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await firebaseAuth.signOut();
+            } catch (err) {
+              console.warn("Logout error:", err);
+            } finally {
+              logout();
+              setCoordinates(null);
+              router.replace("/(auth)/sign-in");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const openPicker = (type: string, field?: string) => {
     setActivePicker({ type, field });
   };
@@ -110,7 +143,10 @@ export default function EditProfileScreen({
     const heightCm = normalizedHeight ? Number(normalizedHeight) : null;
     if (
       heightText &&
-      (heightCm === null || !Number.isInteger(heightCm) || heightCm < 100 || heightCm > 250)
+      (heightCm === null ||
+        !Number.isInteger(heightCm) ||
+        heightCm < 100 ||
+        heightCm > 250)
     ) {
       Alert.alert("Invalid height", "Enter a height from 100 to 250 cm.");
       return;
@@ -130,10 +166,13 @@ export default function EditProfileScreen({
       let ward: string | null = current.ward ?? null;
       let city: string | null = current.city ?? null;
       if (!city && !ward && current.location) {
-        const parts = current.location.split(',').map((p) => p.trim()).filter(Boolean);
+        const parts = current.location
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
         if (parts.length > 1) {
           ward = parts[0];
-          city = parts.slice(1).join(', ');
+          city = parts.slice(1).join(", ");
         } else if (parts.length === 1) {
           city = parts[0];
         }
@@ -145,11 +184,17 @@ export default function EditProfileScreen({
 
       const response = await datingApi.updateProfile(user.id, {
         display_name: current.name.trim().slice(0, 50),
-        bio: current.aboutMe.trim() ? current.aboutMe.trim().slice(0, 500) : null,
-        job_title: current.occupation.trim() ? current.occupation.trim().slice(0, 100) : null,
+        bio: current.aboutMe.trim()
+          ? current.aboutMe.trim().slice(0, 500)
+          : null,
+        job_title: current.occupation.trim()
+          ? current.occupation.trim().slice(0, 100)
+          : null,
         city: city ? city.slice(0, 100) : null,
         ward: ward ? ward.slice(0, 100) : null,
-        education: current.education.trim() ? current.education.trim().slice(0, 100) : null,
+        education: current.education.trim()
+          ? current.education.trim().slice(0, 100)
+          : null,
         height_cm: heightCm,
         pet: selectedPets || null,
         life_style: current.details.exercise
@@ -169,7 +214,9 @@ export default function EditProfileScreen({
         "";
       if (current.relationship_intention !== undefined) {
         try {
-          await datingApi.updateMyRelationshipIntention(current.relationship_intention);
+          await datingApi.updateMyRelationshipIntention(
+            current.relationship_intention,
+          );
         } catch (intentionErr) {
           console.warn("Could not sync relationship intention:", intentionErr);
         }
@@ -185,10 +232,14 @@ export default function EditProfileScreen({
         ward: response.data.ward ?? undefined,
         education: response.data.education ?? "",
         hobbies: response.data.hobbies ?? [],
-        interests: response.data.hobbies?.map((h) => h.name) ?? current.interests,
+        interests:
+          response.data.hobbies?.map((h) => h.name) ?? current.interests,
         languages: response.data.languages ?? [],
-        relationship_intention: current.relationship_intention ?? response.data.relationship_intention ?? null,
-        relationshipGoal: current.relationship_intention ?? '',
+        relationship_intention:
+          current.relationship_intention ??
+          response.data.relationship_intention ??
+          null,
+        relationshipGoal: current.relationship_intention ?? "",
         details: {
           ...user.details,
           height: response.data.height_cm ? `${response.data.height_cm}cm` : "",
@@ -221,7 +272,7 @@ export default function EditProfileScreen({
           </Text>
         </View>
         <Pressable
-          onPress={() => (embedded ? router.push('/settings') : router.back())}
+          onPress={() => (embedded ? router.push("/settings") : router.back())}
           style={styles.iconButton}
           accessibilityLabel={embedded ? "Open settings" : "Close edit profile"}
         >
@@ -237,7 +288,9 @@ export default function EditProfileScreen({
               onPress={toggleMode}
               style={styles.themeButton}
               accessibilityRole="button"
-              accessibilityLabel={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              accessibilityLabel={
+                mode === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              }
             >
               <Ionicons
                 name={mode === "dark" ? "sunny-outline" : "moon-outline"}
@@ -267,7 +320,9 @@ export default function EditProfileScreen({
             <View style={styles.avatarStack}>
               <Image
                 source={{
-                  uri: current.photos[0] || "https://picsum.photos/seed/empty-profile/300/400",
+                  uri:
+                    current.photos[0] ||
+                    "https://picsum.photos/seed/empty-profile/300/400",
                 }}
                 style={styles.avatar}
               />
@@ -279,7 +334,10 @@ export default function EditProfileScreen({
               <Pressable
                 onPress={() => {
                   if (!user?.id) {
-                    Alert.alert("Profile unavailable", "Sign in to preview your profile.");
+                    Alert.alert(
+                      "Profile unavailable",
+                      "Sign in to preview your profile.",
+                    );
                     return;
                   }
                   router.push({
@@ -461,7 +519,8 @@ export default function EditProfileScreen({
                   style={[styles.tag, { backgroundColor: theme.primaryLight }]}
                 >
                   <Text style={[styles.tagText, { color: theme.primary }]}>
-                    {HOBBY_EMOJIS[item] ? `${HOBBY_EMOJIS[item]} ` : ""}{item}
+                    {HOBBY_EMOJIS[item] ? `${HOBBY_EMOJIS[item]} ` : ""}
+                    {item}
                   </Text>
                 </View>
               ))}
@@ -517,6 +576,24 @@ export default function EditProfileScreen({
               {saving ? "Saving..." : "Save profile"}
             </Text>
           </Pressable> */}
+
+          {embedded && (
+            <Pressable
+              onPress={handleLogout}
+              style={[
+                styles.logoutButton,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.surface,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Log out"
+            >
+              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+              <Text style={styles.logoutButtonText}>Log out</Text>
+            </Pressable>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -708,4 +785,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   primaryButtonText: { ...typography.bodyBold },
+  logoutButton: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+    marginBottom: spacing.xl,
+  },
+  logoutButtonText: {
+    ...typography.bodyBold,
+    color: "#EF4444",
+  },
 });
