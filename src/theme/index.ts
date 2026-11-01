@@ -146,36 +146,47 @@ export const shadows = {
 export const getGenderBadgeColor = (
   gender?: string | null,
   pronouns?: string | null,
-  fallback: string = colors.primary,
+  fallback: string = '#EC4899',
 ): string => {
   const g = (gender || '').toLowerCase().trim();
   const p = (pronouns || '').toLowerCase().trim();
 
-  // Nam: Màu xanh dương (Blue)
-  if (
+  // Nữ: Màu hồng (Pink #EC4899)
+  const isFemale =
+    g === 'female' ||
+    g === 'woman' ||
+    g === 'women' ||
+    g === 'nữ' ||
+    g === 'nu' ||
+    /\b(she|her|hers|nữ|nu|female|woman|women)\b/i.test(p);
+
+  if (isFemale) {
+    return '#EC4899';
+  }
+
+  // Nam: Màu xanh dương như cũ (Blue #3B82F6)
+  const isMale =
     g === 'male' ||
     g === 'man' ||
     g === 'men' ||
-    p.includes('he') ||
-    p.includes('him') ||
-    p === 'nam'
-  ) {
+    g === 'nam' ||
+    /\b(he|him|his|nam|male|man|men)\b/i.test(p);
+
+  if (isMale) {
     return '#3B82F6';
   }
 
-  // Non-binary / Other: Màu tím nhạt vừa (Medium/soft light purple)
-  if (
+  // Non-binary / Other: Màu tím nhạt vừa (Medium/soft light purple #8B5CF6)
+  const isNonBinary =
     g === 'non_binary' ||
     g === 'nonbinary' ||
     g === 'other' ||
-    p.includes('they') ||
-    p.includes('them') ||
-    p.includes('non') ||
-    p.includes('binary')
-  ) {
+    /\b(they|them|their|theirs|nonbinary|non-binary|other)\b/i.test(p);
+
+  if (isNonBinary) {
     return '#8B5CF6';
   }
 
-  // Nữ hoặc mặc định: Màu primary (hồng/đỏ)
+  // Mặc định
   return fallback;
 };

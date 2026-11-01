@@ -107,7 +107,7 @@ const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
   const locationText =
     [profile.ward, profile.city].filter(Boolean).join(", ") ||
     profile.city ||
-    "Nearby";
+    "Gần bạn";
 
   const rawHobbies = (profile.hobbies ||
     (profile as unknown as { interests?: unknown[] }).interests ||
@@ -151,7 +151,7 @@ const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
           ? "He/Him"
           : profile.gender,
     gender: profile.gender,
-    occupation: profile.job_title ?? "Open to meeting someone new",
+    occupation: profile.job_title ?? "Sẵn sàng làm quen người mới",
     location: locationText,
     distanceKm: profile.distance_km,
     city: profile.city ?? undefined,
@@ -236,7 +236,7 @@ const CardContent = React.memo(function CardContent({
               backgroundColor: getGenderBadgeColor(
                 profile.gender,
                 profile.pronouns,
-                colors.primary,
+                '#EC4899',
               ),
             },
           ]}
@@ -803,6 +803,7 @@ export default function SwipeScreen() {
   const preferencesVersion = useDiscoveryStore(
     (state) => state.preferencesVersion,
   );
+  const filterGender = useDiscoveryStore((state) => state.filters.gender);
 
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === "dark" ? darkColors : colors;
@@ -835,19 +836,29 @@ export default function SwipeScreen() {
 
     if (!userId) {
       // Fallback for non-authenticated exploration mode
-      setRemoteProfiles(discoveryProfiles.map(mapMockProfile));
+      const currentFilters = useDiscoveryStore.getState().filters;
+      let fallback = discoveryProfiles.map(mapMockProfile);
+      if (currentFilters.gender === 'women') {
+        fallback = fallback.filter((p) => p.gender === 'female');
+      } else if (currentFilters.gender === 'men') {
+        fallback = fallback.filter((p) => p.gender === 'male');
+      }
+      setRemoteProfiles(fallback);
       setIsLoadingProfiles(false);
       return;
     }
 
     try {
       const response = await datingApi.getRecommendations(userId, { limit: 20 });
+      const currentFilters = useDiscoveryStore.getState().filters;
       const seen = new Set<string>();
       const candidateList = response.data
         .map(mapDatingProfile)
         .filter((cand) => {
           if (cand.userId === userId) return false;
           if (seen.has(cand.userId)) return false;
+          if (currentFilters.gender === 'women' && cand.gender !== 'female') return false;
+          if (currentFilters.gender === 'men' && cand.gender !== 'male') return false;
           seen.add(cand.userId);
           return true;
         });
@@ -887,11 +898,16 @@ export default function SwipeScreen() {
         const existingUserIds = new Set(
           current?.map((profile) => profile.userId) ?? [],
         );
+        const currentFilters = useDiscoveryStore.getState().filters;
         const nextCandidates = response.data
           .map(mapDatingProfile)
           .filter(
             (profile) =>
-              profile.userId !== userId && !existingUserIds.has(profile.userId),
+              profile.userId !== userId &&
+              !existingUserIds.has(profile.userId) &&
+              (currentFilters.gender === 'everyone' ||
+                (currentFilters.gender === 'women' && profile.gender === 'female') ||
+                (currentFilters.gender === 'men' && profile.gender === 'male')),
           );
         return [...(current ?? []), ...nextCandidates];
       });
@@ -1025,8 +1041,14 @@ export default function SwipeScreen() {
     if (remoteProfiles !== null) {
       return remoteProfiles;
     }
-    return discoveryProfiles.map(mapMockProfile);
-  }, [remoteProfiles]);
+    let fallback = discoveryProfiles.map(mapMockProfile);
+    if (filterGender === 'women') {
+      fallback = fallback.filter((p) => p.gender === 'female');
+    } else if (filterGender === 'men') {
+      fallback = fallback.filter((p) => p.gender === 'male');
+    }
+    return fallback;
+  }, [filterGender, remoteProfiles]);
 
   // Pre-load next batch using cursor pagination when nearing end
   useEffect(() => {
@@ -1174,7 +1196,7 @@ export default function SwipeScreen() {
               .createSwipe(userId, profile.userId, "like")
               .then((res) => {
                 if (res.isMatch) {
-                  showSwipeFeedback("It's a Match! 🎉");
+                  showSwipeFeedback("Đã ghép đôi thành công! 🎉");
                   setTimeout(() => {
                     router.push({
                       pathname: "/match-found",
@@ -1186,18 +1208,18 @@ export default function SwipeScreen() {
                     });
                   }, 350);
                 } else {
-                  showSwipeFeedback("Interest sent");
+                  showSwipeFeedback("Đã gửi thích");
                 }
               })
               .catch((error: unknown) => {
                 showSwipeFeedback(
                   error instanceof Error
                     ? error.message
-                    : "Like could not be saved",
+                    : "Không thể lưu lượt thích",
                 );
               });
           } else {
-            showSwipeFeedback("Interest sent");
+            showSwipeFeedback("Đã gửi thích");
           }
         } else {
           swipeLeft(profile.userId);
@@ -1205,17 +1227,17 @@ export default function SwipeScreen() {
             datingApi
               .createSwipe(userId, profile.userId, "pass")
               .then(() => {
-                showSwipeFeedback("Passed");
+                showSwipeFeedback("Đã bỏ qua");
               })
               .catch((error: unknown) => {
                 showSwipeFeedback(
                   error instanceof Error
                     ? error.message
-                    : "Pass could not be saved",
+                    : "Không thể lưu lượt bỏ qua",
                 );
               });
           } else {
-            showSwipeFeedback("Passed");
+            showSwipeFeedback("Đã bỏ qua");
           }
         }
       }
@@ -1277,9 +1299,9 @@ export default function SwipeScreen() {
       return (
         <View style={styles.emptyCard}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.emptyTitle}>Finding recommendations...</Text>
+          <Text style={styles.emptyTitle}>Đang tìm kiếm gợi ý phù hợp...</Text>
           <Text style={styles.emptySubtitle}>
-            Matching your profile and preferences
+            Dựa trên hồ sơ và sở thích của bạn
           </Text>
         </View>
       );
@@ -1293,7 +1315,7 @@ export default function SwipeScreen() {
             size={52}
             color={theme.error}
           />
-          <Text style={styles.emptyTitle}>Unable to load recommendations</Text>
+          <Text style={styles.emptyTitle}>Không thể tải danh sách gợi ý</Text>
           <Text style={styles.emptySubtitle}>{profileLoadError}</Text>
           <TouchableOpacity
             style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
@@ -1305,7 +1327,7 @@ export default function SwipeScreen() {
               color="#fff"
               style={{ marginRight: 6 }}
             />
-            <Text style={styles.reloadBtnText}>Try again</Text>
+            <Text style={styles.reloadBtnText}>Thử lại</Text>
           </TouchableOpacity>
         </View>
       );
@@ -1319,10 +1341,10 @@ export default function SwipeScreen() {
             size={64}
             color={theme.primary}
           />
-          <Text style={styles.emptyTitle}>You&apos;re all caught up!</Text>
+          <Text style={styles.emptyTitle}>Bạn đã xem hết hồ sơ hiện tại!</Text>
           <Text style={styles.emptySubtitle}>
-            No more profiles right now. Check back soon or expand your filters to
-            meet more people.
+            Tạm thời không còn hồ sơ nào mới. Hãy quay lại sau hoặc mở rộng bộ lọc để
+            làm quen thêm nhiều người.
           </Text>
           <View style={styles.emptyActionsRow}>
             <TouchableOpacity
@@ -1336,7 +1358,7 @@ export default function SwipeScreen() {
                 style={{ marginRight: 6 }}
               />
               <Text style={[styles.filterActionText, { color: theme.primary }]}>
-                Adjust filters
+                Điều chỉnh bộ lọc
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1349,7 +1371,7 @@ export default function SwipeScreen() {
                 color="#fff"
                 style={{ marginRight: 6 }}
               />
-              <Text style={styles.reloadBtnText}>Refresh</Text>
+              <Text style={styles.reloadBtnText}>Làm mới</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1418,9 +1440,20 @@ export default function SwipeScreen() {
     >
       {renderHeader()}
       {swipeFeedback ? (
-        <Animated.View style={[styles.swipeFeedback, feedbackAnimatedStyle]}>
-          <Ionicons name="sparkles" size={16} color={colors.primary} />
-          <Text style={styles.swipeFeedbackText}>{swipeFeedback}</Text>
+        <Animated.View
+          style={[
+            styles.swipeFeedback,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+            feedbackAnimatedStyle,
+          ]}
+        >
+          <Ionicons name="sparkles" size={16} color={theme.primary} />
+          <Text style={[styles.swipeFeedbackText, { color: theme.textPrimary }]}>
+            {swipeFeedback}
+          </Text>
         </Animated.View>
       ) : null}
       <View style={styles.cardContainer}>{renderCard()}</View>
@@ -1534,7 +1567,7 @@ const baseStyles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   pronounsChip: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#EC4899',
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
@@ -1721,7 +1754,9 @@ const baseStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,

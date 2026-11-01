@@ -67,7 +67,7 @@ export default function MatchFoundScreen() {
           <Ionicons name="close" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity style={styles.headerBtn} onPress={() => Alert.alert('Match menu', 'You can report or hide this match from this menu.')}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => Alert.alert('Tùy chọn tương hợp', 'Bạn có thể ẩn hoặc báo cáo người này tại đây.')}>
           <Ionicons
             name="ellipsis-horizontal"
             size={24}
@@ -105,7 +105,7 @@ export default function MatchFoundScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
         {/* Title */}
-        <Text style={styles.matchTitle}>Match found!</Text>
+        <Text style={styles.matchTitle}>Tương hợp mới!</Text>
 
         {/* Photos */}
         <View style={styles.photosContainer}>
@@ -155,18 +155,18 @@ export default function MatchFoundScreen() {
 
         {/* Description */}
         <Text style={styles.description}>
-          You and {matchedName} have both shown interest in each other! Send a message to break the ice.
+          Bạn và {matchedName} đều đã thích nhau! Hãy gửi tin nhắn ngay để bắt đầu trò chuyện nhé.
         </Text>
 
         {/* Conversation starters banner */}
         <TouchableOpacity
           style={styles.startersBanner}
           activeOpacity={0.8}
-          onPress={() => setMessage('What is your favorite way to spend a Sunday?')}
+          onPress={() => setMessage('Bạn thường thích làm gì nhất vào ngày Chủ nhật?')}
         >
           <Ionicons name="chatbubbles" size={20} color={colors.white} />
           <Text style={styles.startersText}>
-            Stuck on what to say? Choose from these conversation starters!
+            Chưa biết nói gì? Nhấn vào đây để thử câu gợi ý làm quen!
           </Text>
           <Ionicons name="chevron-forward" size={18} color={colors.white} />
         </TouchableOpacity>
@@ -175,7 +175,7 @@ export default function MatchFoundScreen() {
         <View style={styles.inputContainer}>
           <TouchableOpacity
             style={styles.lightbulbBtn}
-            onPress={() => setMessage('What is the best trip you have ever taken?')}
+            onPress={() => setMessage('Chuyến đi đáng nhớ nhất của bạn từ trước tới nay là ở đâu thế?')}
           >
             <Ionicons name="bulb-outline" size={22} color={colors.primary} />
           </TouchableOpacity>
@@ -183,7 +183,7 @@ export default function MatchFoundScreen() {
             style={styles.messageInput}
             value={message}
             onChangeText={setMessage}
-            placeholder="Type a message..."
+            placeholder="Nhập tin nhắn..."
             placeholderTextColor={colors.textTertiary}
           />
           <TouchableOpacity

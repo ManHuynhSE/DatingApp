@@ -107,10 +107,10 @@ export default function VideoCallScreen() {
 
         {/* Status */}
         <Text style={styles.callingStatus}>
-          {callState === 'connecting' && `Connecting${callingDots}`}
+          {callState === 'connecting' && `Đang kết nối${callingDots}`}
           {callState === 'connected' && formattedDuration}
-          {callState === 'reconnecting' && `Reconnecting${callingDots}`}
-          {callState === 'ended' && 'Call ended'}
+          {callState === 'reconnecting' && `Đang kết nối lại${callingDots}`}
+          {callState === 'ended' && 'Cuộc gọi đã kết thúc'}
         </Text>
 
         {/* Animated dots */}

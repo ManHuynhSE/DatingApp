@@ -99,7 +99,7 @@ export default function ChatDetailScreen() {
         avatar: data.partner.avatar ?? 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200',
       });
     }).catch((error) => {
-      if (active) Alert.alert('Unable to open chat', error instanceof Error ? error.message : 'Please try again.');
+      if (active) Alert.alert('Không thể mở cuộc trò chuyện', error instanceof Error ? error.message : 'Vui lòng thử lại sau.');
     });
 
     const unsubscribe = listenToLatestMessages(
@@ -111,12 +111,12 @@ export default function ChatDetailScreen() {
           text: item.text,
           sent: item.senderUid === currentFirebaseUid,
           time: item.createdAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-          status: item.senderUid === currentFirebaseUid ? 'Sent' : undefined,
+          status: item.senderUid === currentFirebaseUid ? 'Đã gửi' : undefined,
         })));
         scrollMessagesToBottom(false);
       },
       (error) => {
-        if (active) Alert.alert('Chat connection error', error.message);
+        if (active) Alert.alert('Lỗi kết nối trò chuyện', error.message);
       },
     );
 
@@ -138,21 +138,21 @@ export default function ChatDetailScreen() {
       setMessage('');
       scrollMessagesToBottom(true);
     } catch (error) {
-      Alert.alert('Message not sent', error instanceof Error ? error.message : 'Please try again.');
+      Alert.alert('Không thể gửi tin nhắn', error instanceof Error ? error.message : 'Vui lòng thử lại sau.');
     } finally {
       setSending(false);
     }
   };
 
   const handleMediaAction = (label: string) => {
-    Alert.alert(label, `${label} is available in the MVP interface and will be connected to device permissions/backend next.`);
+    Alert.alert(label, `Tính năng ${label} đang được phát triển và sẽ sớm được hỗ trợ.`);
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       {/* Header */}
       <Animated.View entering={FadeInDown.duration(320)} style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} accessibilityLabel="Quay lại">
           <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -168,7 +168,7 @@ export default function ChatDetailScreen() {
             });
           }}
           activeOpacity={0.75}
-          accessibilityLabel={`Open ${profile.name}'s profile`}
+          accessibilityLabel={`Xem hồ sơ của ${profile.name}`}
         >
           <View style={styles.avatarFrame}>
             <Image source={{ uri: profile.avatar }} style={styles.headerAvatar} />
@@ -185,14 +185,14 @@ export default function ChatDetailScreen() {
               )}
             </View>
             <Text style={styles.headerOccupation} numberOfLines={1}>
-              {profile.occupation || 'Your match'}
+              {profile.occupation || 'Người tương hợp'}
             </Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={() => router.push('/video-call')}
-          accessibilityLabel="Start video call"
+          accessibilityLabel="Bắt đầu cuộc gọi video"
         >
             <Ionicons name="videocam-outline" size={22} color={theme.textPrimary} />
         </TouchableOpacity>
@@ -219,7 +219,7 @@ export default function ChatDetailScreen() {
           {messages.length > 0 ? (
             <View style={styles.dateSeparator}>
               <View style={styles.dateLine} />
-              <Text style={styles.dateText}>Today</Text>
+              <Text style={styles.dateText}>Hôm nay</Text>
               <View style={styles.dateLine} />
             </View>
           ) : null}
@@ -234,8 +234,8 @@ export default function ChatDetailScreen() {
                   </View>
                 )}
               </View>
-              <Text style={styles.emptyTitle}>You matched with {profile.name}</Text>
-              <Text style={styles.emptyDescription}>Start with a friendly hello and see where the conversation goes.</Text>
+              <Text style={styles.emptyTitle}>Bạn đã tương hợp với {profile.name}</Text>
+              <Text style={styles.emptyDescription}>Hãy bắt đầu bằng một lời chào thân thiện để câu chuyện tự nhiên hơn.</Text>
             </Animated.View>
           ) : null}
 
@@ -281,13 +281,13 @@ export default function ChatDetailScreen() {
 
           {messages.length === 0 ? (
             <Animated.View entering={FadeInUp.delay(100).duration(350)}>
-             <TouchableOpacity style={styles.icebreakerCard} onPress={() => setMessage('What do you enjoy doing on a free day?')}>
+             <TouchableOpacity style={styles.icebreakerCard} onPress={() => setMessage('Vào những ngày rảnh rỗi, bạn thường thích làm gì nhất?')}>
               <View style={styles.miniGameIcon}>
                 <Ionicons name="sparkles" size={20} color={theme.primary} />
               </View>
               <View style={styles.icebreakerCopy}>
-                <Text style={styles.icebreakerTitle}>Need an opener?</Text>
-                <Text style={styles.miniGameText}>Tap for a conversation starter</Text>
+                <Text style={styles.icebreakerTitle}>Cần gợi ý mở đầu?</Text>
+                <Text style={styles.miniGameText}>Nhấn để lấy câu hỏi làm quen nhanh</Text>
               </View>
               <Ionicons name="arrow-forward" size={18} color={theme.primary} />
              </TouchableOpacity>
@@ -302,7 +302,7 @@ export default function ChatDetailScreen() {
               style={styles.textInput}
               value={message}
               onChangeText={setMessage}
-              placeholder="Type a message..."
+              placeholder="Nhập tin nhắn..."
               placeholderTextColor={theme.textTertiary}
               multiline
               onFocus={() => scrollMessagesToBottom(true)}
@@ -312,7 +312,7 @@ export default function ChatDetailScreen() {
             </TouchableOpacity>
           </View>
           <View style={styles.mediaBar}>
-            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Conversation starters')}>
+            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Chủ đề trò chuyện')}>
               <Ionicons
                 name="globe-outline"
                 size={22}
@@ -321,25 +321,25 @@ export default function ChatDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.mediaBtn, styles.mediaBtnHighlight]}
-              onPress={() => setMessage((value) => value || 'What is your favorite way to spend a Sunday?')}
+              onPress={() => setMessage((value) => value || 'Bạn thường thích làm gì nhất vào ngày Chủ nhật?')}
             >
               <Ionicons name="bulb" size={19} color={theme.white} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Photo library')}>
+            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Thư viện ảnh')}>
               <Ionicons
                 name="image-outline"
                 size={22}
                 color={theme.textSecondary}
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Camera')}>
+            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Máy ảnh')}>
               <Ionicons
                 name="camera-outline"
                 size={22}
                 color={theme.textSecondary}
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Voice message')}>
+            <TouchableOpacity style={styles.mediaBtn} onPress={() => handleMediaAction('Tin nhắn thoại')}>
               <Ionicons
                 name="mic-outline"
                 size={22}
@@ -354,7 +354,7 @@ export default function ChatDetailScreen() {
               ]}
               onPress={handleSend}
               disabled={!message.trim() || sending}
-              accessibilityLabel="Send message"
+              accessibilityLabel="Gửi tin nhắn"
             >
               {sending ? <ActivityIndicator size="small" color={theme.white} /> : (
                 <Ionicons name="send" size={17} color={message.trim() ? theme.white : theme.textTertiary} />

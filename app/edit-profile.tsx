@@ -43,12 +43,12 @@ const detailFields = [
     label: "Mục đích hẹn hò",
     icon: "heart-circle-outline",
   },
-  { field: "location", label: "Address", icon: "location-outline" },
-  { field: "height", label: "Height", icon: "resize-outline" },
-  { field: "education", label: "Education", icon: "school-outline" },
-  { field: "occupation", label: "Occupation", icon: "briefcase-outline" },
-  { field: "exercise", label: "Lifestyle", icon: "sparkles-outline" },
-  { field: "pets", label: "Pets", icon: "paw-outline" },
+  { field: "location", label: "Địa chỉ", icon: "location-outline" },
+  { field: "height", label: "Chiều cao", icon: "resize-outline" },
+  { field: "education", label: "Học vấn", icon: "school-outline" },
+  { field: "occupation", label: "Nghề nghiệp", icon: "briefcase-outline" },
+  { field: "exercise", label: "Lối sống", icon: "sparkles-outline" },
+  { field: "pets", label: "Thú cưng", icon: "paw-outline" },
 ] as const;
 
 export interface EditProfileScreenProps {
@@ -157,12 +157,12 @@ export default function EditProfileScreen({
 
   const handleLogout = () => {
     Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out of HeartSync?",
+      "Đăng xuất",
+      "Bạn có chắc chắn muốn đăng xuất khỏi Mewdy không?",
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Hủy", style: "cancel" },
         {
-          text: "Log Out",
+          text: "Đăng xuất",
           style: "destructive",
           onPress: async () => {
             try {
@@ -194,8 +194,8 @@ export default function EditProfileScreen({
 
     if (!current.name.trim() || current.age < 18) {
       Alert.alert(
-        "Complete your profile",
-        "Enter your name and an age of at least 18.",
+        "Hoàn thiện hồ sơ",
+        "Vui lòng nhập họ tên và độ tuổi từ 18 trở lên.",
       );
       return;
     }
@@ -210,15 +210,15 @@ export default function EditProfileScreen({
         heightCm < 100 ||
         heightCm > 250)
     ) {
-      Alert.alert("Invalid height", "Enter a height from 100 to 250 cm.");
+      Alert.alert("Chiều cao không hợp lệ", "Vui lòng nhập chiều cao từ 100 đến 250 cm.");
       return;
     }
 
     const selectedPets = current.details.pets.trim();
     if (selectedPets.length > 50) {
       Alert.alert(
-        "Pet selection is too long",
-        "Your pet choices must fit within 50 characters. Remove one or more choices and try again.",
+        "Lựa chọn thú cưng quá dài",
+        "Lựa chọn thú cưng không được vượt quá 50 ký tự. Vui lòng bớt lựa chọn và thử lại.",
       );
       return;
     }
@@ -320,7 +320,7 @@ export default function EditProfileScreen({
       reset();
       if (!embedded) {
         router.back();
-      } else Alert.alert("Saved", "Profile của bạn đã được lưu");
+      } else Alert.alert("Đã lưu", "Hồ sơ của bạn đã được cập nhật thành công");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Lỗi kết nối hãy thử lại";
@@ -338,13 +338,13 @@ export default function EditProfileScreen({
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <View style={styles.headerTitleContainer} pointerEvents="none">
           <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-            Profile
+            Hồ sơ cá nhân
           </Text>
         </View>
         <Pressable
           onPress={() => (embedded ? router.push("/settings") : router.back())}
           style={styles.iconButton}
-          accessibilityLabel={embedded ? "Open settings" : "Close edit profile"}
+          accessibilityLabel={embedded ? "Mở cài đặt" : "Đóng chỉnh sửa hồ sơ"}
         >
           <Ionicons
             name={embedded ? "settings-outline" : "close"}
@@ -359,7 +359,7 @@ export default function EditProfileScreen({
               style={styles.themeButton}
               accessibilityRole="button"
               accessibilityLabel={
-                mode === "dark" ? "Switch to light mode" : "Switch to dark mode"
+                mode === "dark" ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"
               }
             >
               <Ionicons
@@ -371,7 +371,7 @@ export default function EditProfileScreen({
           )}
           <Pressable onPress={save} style={styles.saveButton} disabled={saving}>
             <Text style={[styles.saveText, { color: theme.primary }]}>
-              {saving ? "Saving" : "Save"}
+              {saving ? "Đang lưu..." : "Lưu"}
             </Text>
           </Pressable>
         </View>
@@ -411,14 +411,14 @@ export default function EditProfileScreen({
             </View>
             <View style={styles.profileHeaderText}>
               <Text style={[styles.profileName, { color: theme.textPrimary }]}>
-                {current.name || "Your name"}, {current.age || "--"}
+                {current.name || "Tên của bạn"}, {current.age || "--"}
               </Text>
               <Pressable
                 onPress={() => {
                   if (!user?.id) {
                     Alert.alert(
-                      "Profile unavailable",
-                      "Sign in to preview your profile.",
+                      "Hồ sơ không khả dụng",
+                      "Đăng nhập để xem trước hồ sơ của bạn.",
                     );
                     return;
                   }
@@ -429,7 +429,7 @@ export default function EditProfileScreen({
                 }}
               >
                 <Text style={[styles.preview, { color: theme.textSecondary }]}>
-                  Preview profile <Ionicons name="chevron-forward" size={15} />
+                  Xem trước hồ sơ <Ionicons name="chevron-forward" size={15} />
                 </Text>
               </Pressable>
             </View>
@@ -447,7 +447,7 @@ export default function EditProfileScreen({
               <Text
                 style={[styles.completionTitle, { color: theme.textPrimary }]}
               >
-                Complete your profile
+                Hoàn thiện hồ sơ của bạn
               </Text>
               <Text
                 style={[
@@ -455,7 +455,7 @@ export default function EditProfileScreen({
                   { color: theme.textSecondary },
                 ]}
               >
-                {completion}% complete · Add more to get better matches
+                Đã hoàn thành {completion}% · Điền thêm thông tin để ghép đôi hiệu quả hơn
               </Text>
             </View>
           </View>
@@ -512,8 +512,8 @@ export default function EditProfileScreen({
           </View>
 
           <SectionTitle
-            title="My photos"
-            action={`Add ${Math.max(0, 6 - current.photos.length)} more`}
+            title="Ảnh của tôi"
+            action={`Thêm ${Math.max(0, 6 - current.photos.length)} ảnh`}
             theme={theme}
           />
           <Pressable
@@ -541,19 +541,19 @@ export default function EditProfileScreen({
                 ))}
             </View>
             <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-              Add up to 6 photos so people can get to know you.
+              Thêm tối đa 6 bức ảnh để mọi người hiểu rõ hơn về bạn.
             </Text>
             <Text style={[styles.editAction, { color: theme.primary }]}>
-              Choose photos
+              Chọn ảnh
             </Text>
           </Pressable>
 
-          <SectionTitle title="About me" action="Edit" theme={theme} />
+          <SectionTitle title="Giới thiệu bản thân" action="Chỉnh sửa" theme={theme} />
           <TextInput
             value={current.aboutMe}
             onChangeText={(aboutMe) => update({ aboutMe })}
             multiline
-            placeholder="Tell people something memorable about you..."
+            placeholder="Hãy chia sẻ điều gì đó thật ấn tượng về bạn..."
             placeholderTextColor={theme.textTertiary}
             style={[
               styles.aboutInput,
@@ -566,7 +566,7 @@ export default function EditProfileScreen({
           />
 
           <SectionTitle
-            title="My interests"
+            title="Sở thích của tôi"
             action={`${current.interests.length}/10`}
             theme={theme}
           />
@@ -586,7 +586,7 @@ export default function EditProfileScreen({
               <Text
                 style={[styles.selectionTitle, { color: theme.textPrimary }]}
               >
-                What do you enjoy?
+                Bạn yêu thích điều gì?
               </Text>
               <Ionicons
                 name="chevron-forward"
@@ -610,15 +610,15 @@ export default function EditProfileScreen({
                 <Text
                   style={[styles.languageText, { color: theme.textSecondary }]}
                 >
-                  Add interests
+                  Thêm sở thích
                 </Text>
               )}
             </View>
           </Pressable>
 
           <SectionTitle
-            title="Languages"
-            action={`${current.languages.length} selected`}
+            title="Ngôn ngữ"
+            action={`Đã chọn ${current.languages.length}`}
             theme={theme}
           />
           <Pressable
@@ -637,7 +637,7 @@ export default function EditProfileScreen({
               <Text
                 style={[styles.selectionTitle, { color: theme.textPrimary }]}
               >
-                I communicate in
+                Tôi giao tiếp bằng
               </Text>
               <Ionicons
                 name="chevron-forward"
@@ -646,7 +646,7 @@ export default function EditProfileScreen({
               />
             </View>
             <Text style={[styles.languageText, { color: theme.textSecondary }]}>
-              {current.languages.join(" · ") || "Add languages"}
+              {current.languages.join(" · ") || "Thêm ngôn ngữ"}
             </Text>
           </Pressable>
 
@@ -670,10 +670,10 @@ export default function EditProfileScreen({
                 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Log out"
+              accessibilityLabel="Đăng xuất"
             >
               <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              <Text style={styles.logoutButtonText}>Log out</Text>
+              <Text style={styles.logoutButtonText}>Đăng xuất</Text>
             </Pressable>
           )}
         </ScrollView>

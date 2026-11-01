@@ -154,7 +154,7 @@ export default function MatchesScreen() {
             )}
           </View>
           <Text style={styles.subtitle} numberOfLines={1}>
-            {context || (profile?.bio ? profile.bio : 'Your mutual like starts here')}
+            {context || (profile?.bio ? profile.bio : 'Tương hợp bắt đầu từ đây')}
           </Text>
           <View style={styles.dateLine}>
             <Ionicons name="heart-outline" size={13} color={theme.primary} />
@@ -180,7 +180,7 @@ export default function MatchesScreen() {
             <Text style={styles.countText}>{matches.length}</Text>
           </View>
         </View>
-        <Text style={styles.subtitleHeader}>A mutual like is a lovely place to start.</Text>
+        <Text style={styles.subtitleHeader}>Một lượt thích từ cả hai phía là khởi đầu hoàn hảo.</Text>
       </Animated.View>
 
       {/* Horizontal Story Avatar List for Users Who Liked You */}
@@ -188,7 +188,7 @@ export default function MatchesScreen() {
         <Animated.View entering={springFadeInDown(50)} style={styles.likesSection}>
           <View style={styles.likesHeaderRow}>
             <View style={styles.likesTitleRow}>
-              <Text style={styles.likesTitle}>Likes</Text>
+              <Text style={styles.likesTitle}>Lượt thích</Text>
               <View style={styles.likesCountBadge}>
                 <Text style={styles.likesCountText}>{likedUsers.length}</Text>
               </View>
@@ -203,7 +203,7 @@ export default function MatchesScreen() {
               hitSlop={8}
               style={styles.seeAllButton}
             >
-              <Text style={styles.seeAllText}>See all</Text>
+              <Text style={styles.seeAllText}>Xem tất cả</Text>
               <Ionicons name="chevron-forward" size={14} color={theme.primary} />
             </Pressable>
           </View>
@@ -217,7 +217,7 @@ export default function MatchesScreen() {
             renderItem={({ item, index }) => (
               <SpringPressable
                 accessibilityRole="button"
-                accessibilityLabel={`View ${item.name} who liked your photo`}
+                accessibilityLabel={`Xem ${item.name} đã thích bạn`}
                 onPress={() =>
                   router.push({
                     pathname: '/likes-review',
@@ -247,12 +247,12 @@ export default function MatchesScreen() {
           <View style={styles.noteIcon}>
             <Ionicons name="sparkles-outline" size={20} color={theme.primary} />
           </View>
-          <Text style={styles.noteText}>Say hello and see where the conversation goes.</Text>
+          <Text style={styles.noteText}>Hãy gửi lời chào và xem cuộc trò chuyện sẽ đưa bạn tới đâu.</Text>
         </Animated.View>
       )}
 
       <Animated.View entering={springFadeInDown(140)} style={styles.listHeading}>
-        <Text style={styles.listTitle}>People you matched with</Text>
+        <Text style={styles.listTitle}>Những người đã tương hợp với bạn</Text>
         <Text style={styles.listCount}>{matches.length}</Text>
       </Animated.View>
     </View>
@@ -265,25 +265,25 @@ export default function MatchesScreen() {
           <View style={styles.stateIcon}>
             <Ionicons name="person-outline" size={28} color={theme.primary} />
           </View>
-          <Text style={styles.stateTitle}>Sign in to see your matches</Text>
-          <Text style={styles.stateDescription}>Your mutual likes will appear here.</Text>
+          <Text style={styles.stateTitle}>Đăng nhập để xem danh sách tương hợp</Text>
+          <Text style={styles.stateDescription}>Các lượt tương hợp từ hai phía sẽ xuất hiện tại đây.</Text>
         </View>
       ) : loading ? (
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.loadingText}>Finding your connections…</Text>
+          <Text style={styles.loadingText}>Đang tìm kiếm kết nối của bạn…</Text>
         </View>
       ) : error ? (
         <View style={styles.stateContainer}>
           <View style={styles.stateIcon}>
             <Ionicons name="cloud-offline-outline" size={28} color={theme.textTertiary} />
           </View>
-          <Text style={styles.stateTitle}>Couldn’t load matches</Text>
+          <Text style={styles.stateTitle}>Không thể tải danh sách tương hợp</Text>
           <Text style={styles.stateDescription}>{error}</Text>
           <Pressable onPress={refreshMatches} disabled={refreshing} style={styles.retryButton}>
             {refreshing
               ? <ActivityIndicator color={theme.white} />
-              : <Text style={styles.retryText}>Try again</Text>}
+              : <Text style={styles.retryText}>Thử lại</Text>}
           </Pressable>
         </View>
       ) : matches.length === 0 ? (
@@ -300,12 +300,12 @@ export default function MatchesScreen() {
                   <Ionicons name="sparkles" size={16} color={theme.secondary} />
                 </View>
               </View>
-              <Text style={styles.emptyTitle}>Your story starts with a match</Text>
+              <Text style={styles.emptyTitle}>Câu chuyện của bạn bắt đầu từ sự tương hợp</Text>
               <Text style={styles.emptyDescription}>
-                Like someone you’re interested in. If they like you back, you’ll find them here.
+                Hãy thích người bạn có ấn tượng. Nếu họ cũng thích bạn, họ sẽ xuất hiện tại đây.
               </Text>
               <Pressable onPress={() => router.push('/(tabs)/swipe')} style={styles.discoverButton}>
-                <Text style={styles.discoverButtonText}>Explore profiles</Text>
+                <Text style={styles.discoverButtonText}>Khám phá hồ sơ</Text>
                 <Ionicons name="arrow-forward" size={17} color={theme.white} />
               </Pressable>
             </Animated.View>

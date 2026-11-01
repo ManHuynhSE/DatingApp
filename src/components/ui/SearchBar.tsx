@@ -22,7 +22,7 @@ interface SearchBarProps {
 const SearchBar: React.FC<SearchBarProps> = ({
   value,
   onChangeText,
-  placeholder = 'Search...',
+  placeholder = 'Tìm kiếm...',
   onFocus,
   onBlur,
   style,

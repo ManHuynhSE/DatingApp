@@ -81,33 +81,48 @@ const lifestylesData =
 const MAX_LANGUAGES = 10;
 const MAX_INTERESTS = 10;
 const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "Tháng 1",
+  "Tháng 2",
+  "Tháng 3",
+  "Tháng 4",
+  "Tháng 5",
+  "Tháng 6",
+  "Tháng 7",
+  "Tháng 8",
+  "Tháng 9",
+  "Tháng 10",
+  "Tháng 11",
+  "Tháng 12",
 ];
 const INTERESTED_OPTIONS = [
-  { value: "male", label: "Men", subtitle: "Show me men", icon: "man-outline" },
   {
     value: "female",
-    label: "Women",
-    subtitle: "Show me women",
+    label: "Nữ",
+    subtitle: "Hồ sơ người dùng nữ",
     icon: "woman-outline",
   },
   {
+    value: "male",
+    label: "Nam",
+    subtitle: "Hồ sơ người dùng nam",
+    icon: "man-outline",
+  },
+  {
     value: "everyone",
-    label: "Everyone",
-    subtitle: "Show me everyone",
+    label: "Tất cả mọi người",
+    subtitle: "Cả hồ sơ nam và nữ",
     icon: "people-outline",
   },
+] as const;
+
+export const EDUCATION_OPTIONS = [
+  "Trung học phổ thông",
+  "Đang học đại học",
+  "Cử nhân",
+  "Cao Đẳng",
+  "Thạc Sĩ",
+  "Tiến Sĩ",
+  "Đang học sau đại học",
 ] as const;
 
 export const RELATIONSHIP_INTENTION_OPTIONS = [
@@ -170,6 +185,7 @@ export interface ProfilePickerModalProps {
     interestedIn?: "male" | "female" | "everyone";
     photos?: string[];
     birthDate?: string;
+    education?: string;
     [key: string]: any;
   };
   onSelectAddress?: (address: {
@@ -182,6 +198,7 @@ export interface ProfilePickerModalProps {
   onSelectPhotos?: (photos: string[]) => void;
   onSelectBirthDate?: (birthDate: string, age: number) => void;
   onSelectRelationshipIntention?: (intention: string | null) => void;
+  onSelectEducation?: (education: string) => void;
 }
 
 export default function ProfilePickerModal({
@@ -196,6 +213,7 @@ export default function ProfilePickerModal({
   onSelectPhotos,
   onSelectBirthDate,
   onSelectRelationshipIntention,
+  onSelectEducation,
 }: ProfilePickerModalProps) {
   // Keep ProfilePickerSheetContent ALWAYS mounted so that refs (isPickingRef,
   // isSavingRef) and state are never lost when Android backgrounds the app
@@ -215,6 +233,7 @@ export default function ProfilePickerModal({
       onSelectPhotos={onSelectPhotos}
       onSelectBirthDate={onSelectBirthDate}
       onSelectRelationshipIntention={onSelectRelationshipIntention}
+      onSelectEducation={onSelectEducation}
     />
   );
 }
@@ -231,6 +250,7 @@ function ProfilePickerSheetContent({
   onSelectPhotos,
   onSelectBirthDate,
   onSelectRelationshipIntention,
+  onSelectEducation,
 }: {
   visible: boolean;
   type: string;
@@ -243,6 +263,7 @@ function ProfilePickerSheetContent({
     interestedIn?: "male" | "female" | "everyone";
     photos?: string[];
     birthDate?: string;
+    education?: string;
     [key: string]: any;
   };
   onSelectAddress?: (address: {
@@ -255,6 +276,7 @@ function ProfilePickerSheetContent({
   onSelectPhotos?: (photos: string[]) => void;
   onSelectBirthDate?: (birthDate: string, age: number) => void;
   onSelectRelationshipIntention?: (intention: string | null) => void;
+  onSelectEducation?: (education: string) => void;
 }) {
   const themeMode = useThemeStore((state) => state.mode);
   const theme = themeMode === "dark" ? darkColors : colors;
@@ -284,7 +306,7 @@ function ProfilePickerSheetContent({
     (details?.height ?? "").replace(/\s*cm$/i, ""),
   );
   const [tempEducation, setTempEducation] = useState(
-    () => draft?.education ?? user?.education ?? details?.education ?? "",
+    () => initialData?.education ?? draft?.education ?? user?.education ?? details?.education ?? "",
   );
   const [tempPets, setTempPets] = useState<string[]>(() =>
     (details?.pets ?? "")
@@ -293,7 +315,7 @@ function ProfilePickerSheetContent({
       .filter(Boolean),
   );
   const initialPhotosList =
-    initialData?.photos && initialData.photos.length > 0
+    Array.isArray(initialData?.photos)
       ? initialData.photos
       : (draft?.photos ?? user?.photos ?? []);
 
@@ -310,6 +332,8 @@ function ProfilePickerSheetContent({
   const [photosSaving, setPhotosSaving] = useState(false);
   const [photosError, setPhotosError] = useState<string | null>(null);
   const [photoLoadAttempt, setPhotoLoadAttempt] = useState(0);
+  const initialPhotosPropRef = useRef(initialData?.photos);
+  initialPhotosPropRef.current = initialData?.photos;
   const isPickingRef = useRef(false);
   const isSavingRef = useRef(false);
   const suppressModalCloseRef = useRef(false);
@@ -456,7 +480,7 @@ function ProfilePickerSheetContent({
       setTempOccupation(draft?.occupation ?? user?.occupation ?? "");
       setTempHeight((details?.height ?? "").replace(/\s*cm$/i, ""));
       setTempEducation(
-        draft?.education ?? user?.education ?? details?.education ?? "",
+        initialData?.education ?? draft?.education ?? user?.education ?? details?.education ?? "",
       );
       setTempPets(
         (details?.pets ?? "")
@@ -524,6 +548,17 @@ function ProfilePickerSheetContent({
           );
         } else {
           setServerPhotos([]);
+          const currentInitialPhotos = initialPhotosPropRef.current;
+          if (Array.isArray(currentInitialPhotos)) {
+            setPhotoItems(
+              currentInitialPhotos.map((url, index) => ({
+                key: `initial-${index}-${url}`,
+                url,
+              })),
+            );
+          } else {
+            setPhotoItems([]);
+          }
         }
         setPhotosLoaded(true);
       } catch (error: unknown) {
@@ -855,6 +890,9 @@ function ProfilePickerSheetContent({
           ? { ...baseDetails, education: tempEducation }
           : undefined,
       });
+      if (onSelectEducation) {
+        onSelectEducation(tempEducation);
+      }
       animateClose(handleFinishModal);
       return;
     }
@@ -864,20 +902,20 @@ function ProfilePickerSheetContent({
 
   // ─── Modal Title ───────────────────────────────────────────────────────────
   const title = useMemo(() => {
-    if (type === "photos") return "Photos";
-    if (type === "birth_date") return "Date of Birth";
-    if (type === "interested_in") return "I'm interested in";
+    if (type === "photos") return "Ảnh";
+    if (type === "birth_date") return "Ngày sinh";
+    if (type === "interested_in") return "Tôi muốn tìm kiếm";
     if (type === "relationship_intention" || field === "relationship_intention")
       return "Mục đích hẹn hò";
-    if (isAddressField) return "Address";
-    if (type === "languages") return "Languages";
-    if (type === "interests") return "My Interests";
-    if (isLifestyleField) return "Lifestyle";
-    if (isPetField) return "Pets";
-    if (field === "occupation") return "Occupation";
-    if (field === "height") return "Height";
-    if (field === "education") return "Education";
-    return field ? field.charAt(0).toUpperCase() + field.slice(1) : "Options";
+    if (isAddressField) return "Khu vực (Tỉnh / Thành phố)";
+    if (type === "languages") return "Ngôn ngữ";
+    if (type === "interests") return "Sở thích của tôi";
+    if (isLifestyleField) return "Lối sống";
+    if (isPetField) return "Thú cưng";
+    if (field === "occupation") return "Nghề nghiệp";
+    if (field === "height") return "Chiều cao";
+    if (field === "education") return "Học vấn";
+    return field ? field.charAt(0).toUpperCase() + field.slice(1) : "Tùy chọn";
   }, [type, isAddressField, isLifestyleField, isPetField, field]);
 
   // ─── Filtered Lists for Pickers ───────────────────────────────────────────
@@ -1116,7 +1154,7 @@ function ProfilePickerSheetContent({
 
   const detailOptions =
     field === "education"
-      ? ["Đại học", "Cao Đẳng", "Thạc sĩ"]
+      ? (EDUCATION_OPTIONS as readonly string[])
       : [
           "Prefer not to say",
           "Never",
@@ -1196,12 +1234,12 @@ function ProfilePickerSheetContent({
                 onPress={handleCancel}
                 style={styles.headerBtn}
                 hitSlop={8}
-                accessibilityLabel="Cancel changes"
+                accessibilityLabel="Hủy thay đổi"
               >
                 <Text
                   style={[styles.cancelText, { color: theme.textSecondary }]}
                 >
-                  Cancel
+                  Hủy
                 </Text>
               </TouchableOpacity>
 
@@ -1220,10 +1258,10 @@ function ProfilePickerSheetContent({
                   type === "photos" &&
                   (!photosLoaded || photosLoading || photosSaving)
                 }
-                accessibilityLabel="Done and save changes"
+                accessibilityLabel="Xong và lưu thay đổi"
               >
                 <Text style={[styles.doneText, { color: theme.primary }]}>
-                  {type === "photos" && photosSaving ? "Saving…" : "Done"}
+                  {type === "photos" && photosSaving ? "Đang lưu…" : "Xong"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2749,7 +2787,7 @@ function ProfilePickerSheetContent({
                             borderWidth: isSelected ? 1.5 : 1,
                           },
                         ]}
-                        onPress={() => setTempEducation(option)}
+                        onPress={() => setTempEducation((prev) => (prev === option ? "" : option))}
                       >
                         <Text
                           style={[

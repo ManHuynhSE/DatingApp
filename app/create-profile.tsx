@@ -23,6 +23,7 @@ import { datingApi } from "../src/api/datingClient";
 import { useAuthStore } from "../src/store/authStore";
 import { useLocationStore } from "../src/store/locationStore";
 import { useThemeStore } from "../src/store/themeStore";
+import { useProfileEditStore } from "../src/store/profileEditStore";
 import { requestCurrentCoordinates } from "../src/location/currentLocation";
 import ProfilePickerModal from "../src/components/ProfilePickerModal";
 
@@ -67,10 +68,11 @@ export default function CreateProfileScreen() {
 
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("2000-01-01");
-  const [gender, setGender] = useState<"male" | "female" | "non_binary">(
+  const [gender, setGender] = useState<"male" | "female">(
     "male",
   );
   const [occupation, setOccupation] = useState("");
+  const [education, setEducation] = useState("");
   const [city, setCity] = useState("");
   const [ward, setWard] = useState("");
   const [location, setLocation] = useState("");
@@ -101,6 +103,11 @@ export default function CreateProfileScreen() {
   });
 
   useEffect(() => {
+    try {
+      useProfileEditStore.getState().reset();
+    } catch {
+      // Safe fallback
+    }
     let active = true;
     datingApi
       .getMyPhotos()
@@ -114,7 +121,7 @@ export default function CreateProfileScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [userId]);
 
   const age = useMemo(() => {
     if (!birthDate) return null;
@@ -133,8 +140,8 @@ export default function CreateProfileScreen() {
   const finish = async () => {
     if (!name.trim() || !birthDate || !userId) {
       Alert.alert(
-        "Complete your profile",
-        "Please enter your name and select your birth date.",
+        "Hoàn thiện hồ sơ",
+        "Vui lòng nhập họ tên và chọn ngày sinh.",
       );
       return;
     }
@@ -142,13 +149,13 @@ export default function CreateProfileScreen() {
     const ageNum = calculateAge(birthDate);
     if (ageNum < 18) {
       Alert.alert(
-        "Age requirement",
-        "You must be at least 18 years old to join HeartSync.",
+        "Yêu cầu độ tuổi",
+        "Bạn phải đủ 18 tuổi để tham gia Mewdy.",
       );
       return;
     }
     if (ageNum > 120) {
-      Alert.alert("Invalid birth date", "Please select a valid birth date.");
+      Alert.alert("Ngày sinh không hợp lệ", "Vui lòng chọn ngày sinh hợp lệ.");
       return;
     }
 
@@ -179,6 +186,7 @@ export default function CreateProfileScreen() {
         gender,
         bio: about.trim() ? about.trim().slice(0, 500) : null,
         job_title: occupation.trim() ? occupation.trim().slice(0, 100) : null,
+        education: education.trim() ? education.trim().slice(0, 100) : null,
         city: finalCity,
         ward: finalWard,
         latitude: coordinates ? coordinates.latitude : null,
@@ -230,6 +238,7 @@ export default function CreateProfileScreen() {
           verified: false,
           pronouns: gender === "female" ? "She/Her" : gender === "male" ? "He/Him" : gender,
           occupation: occupation.trim() ? occupation.trim().slice(0, 100) : "",
+          education: education.trim(),
           city: finalCity ?? undefined,
           ward: finalWard ?? undefined,
           location: locString,
@@ -255,12 +264,6 @@ export default function CreateProfileScreen() {
     }
   };
 
-  const interestedInLabel =
-    interestedIn === "male"
-      ? "Men (Male)"
-      : interestedIn === "female"
-        ? "Women (Female)"
-        : "Everyone";
 
   return (
     <SafeAreaView
@@ -294,13 +297,13 @@ export default function CreateProfileScreen() {
 
         {/* Photos */}
         <SectionTitle
-          title="Add your photos"
+          title="Thêm ảnh của bạn"
           theme={theme}
-          action="Choose"
+          action="Chọn"
           onActionPress={() => openPicker("photos")}
         />
         <Text style={[styles.helper, { color: theme.textSecondary }]}>
-          Your main photo is how you appear in the swipe view.
+          Ảnh đầu tiên sẽ là ảnh đại diện xuất hiện khi người khác quẹt thẻ.
         </Text>
         <Pressable
           onPress={() => openPicker("photos")}
@@ -334,17 +337,17 @@ export default function CreateProfileScreen() {
           </View>
           <Text style={[styles.choosePhotoAction, { color: theme.primary }]}>
             {photos.length > 0
-              ? `${photos.length}/6 photos selected · Edit`
-              : "Choose photos"}
+              ? `${photos.length}/6 ảnh đã chọn · Chỉnh sửa`
+              : "Chọn ảnh"}
           </Text>
         </Pressable>
 
         {/* About You */}
-        <SectionTitle title="About you" theme={theme} />
+        <SectionTitle title="Giới thiệu bản thân" theme={theme} />
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="Full name"
+          placeholder="Họ và tên"
           placeholderTextColor={theme.textTertiary}
           style={[
             styles.input,
@@ -384,8 +387,8 @@ export default function CreateProfileScreen() {
               numberOfLines={1}
             >
               {birthDate
-                ? `${formatDisplayDate(birthDate)}${age !== null ? ` (${age} years old)` : ""}`
-                : "Date of birth (DD/MM/YYYY)"}
+                ? `${formatDisplayDate(birthDate)}${age !== null ? ` (${age} tuổi)` : ""}`
+                : "Ngày sinh (DD/MM/YYYY)"}
             </Text>
           </View>
           <Ionicons
@@ -398,7 +401,7 @@ export default function CreateProfileScreen() {
         <TextInput
           value={occupation}
           onChangeText={setOccupation}
-          placeholder="Occupation"
+          placeholder="Nghề nghiệp"
           placeholderTextColor={theme.textTertiary}
           style={[
             styles.input,
@@ -409,6 +412,43 @@ export default function CreateProfileScreen() {
             },
           ]}
         />
+
+        {/* Education Picker Trigger */}
+        <Pressable
+          onPress={() => openPicker("detail", "education")}
+          style={[
+            styles.inputPickerRow,
+            {
+              backgroundColor: theme.surface,
+              borderColor: education ? theme.primary : theme.border,
+            },
+          ]}
+        >
+          <View style={styles.inputPickerContent}>
+            <Ionicons
+              name="school-outline"
+              size={20}
+              color={education ? theme.primary : theme.textTertiary}
+            />
+            <Text
+              style={[
+                styles.inputPickerText,
+                {
+                  color: education ? theme.textPrimary : theme.textTertiary,
+                  fontWeight: education ? "600" : "400",
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {education || "Học vấn"}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={theme.textTertiary}
+          />
+        </Pressable>
 
         {/* Location Picker Trigger */}
         <Pressable
@@ -437,7 +477,7 @@ export default function CreateProfileScreen() {
               ]}
               numberOfLines={1}
             >
-              {location || "Location (City, Ward)"}
+              {location || "Khu vực (Tỉnh/Thành phố, Phường/Xã)"}
             </Text>
           </View>
           <Ionicons
@@ -450,7 +490,7 @@ export default function CreateProfileScreen() {
         <TextInput
           value={about}
           onChangeText={setAbout}
-          placeholder="Tell people a little about yourself..."
+          placeholder="Chia sẻ đôi điều về bản thân bạn..."
           placeholderTextColor={theme.textTertiary}
           style={[
             styles.input,
@@ -465,9 +505,9 @@ export default function CreateProfileScreen() {
         />
 
         {/* Gender */}
-        <SectionTitle title="Gender" theme={theme} />
+        <SectionTitle title="Giới tính" theme={theme} />
         <View style={styles.genderRow}>
-          {(["male", "female", "non_binary"] as const).map((g) => {
+          {(["male", "female"] as const).map((g) => {
             const isSelected = gender === g;
             return (
               <Pressable
@@ -492,11 +532,7 @@ export default function CreateProfileScreen() {
                     },
                   ]}
                 >
-                  {g === "male"
-                    ? "Male"
-                    : g === "female"
-                      ? "Female"
-                      : "Non-binary"}
+                  {g === "male" ? "Nam" : "Nữ"}
                 </Text>
               </Pressable>
             );
@@ -504,45 +540,55 @@ export default function CreateProfileScreen() {
         </View>
 
         {/* Your Preferences */}
-        <SectionTitle title="Your preferences" theme={theme} />
+        <SectionTitle title="Tùy chọn ghép đôi" theme={theme} />
 
         {/* Interested in */}
-        <Pressable
-          onPress={() => openPicker("interested_in")}
+        <Text
           style={[
-            styles.preferenceCard,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-            },
+            styles.helper,
+            { color: theme.textSecondary, marginBottom: spacing.xs, fontWeight: "600" },
           ]}
         >
-          <View style={styles.preferenceHeader}>
-            <View style={styles.preferenceIconTitle}>
-              <Ionicons name="heart-outline" size={20} color={theme.primary} />
-              <Text
-                style={[styles.preferenceTitle, { color: theme.textPrimary }]}
-              >
-                I&apos;m interested in
-              </Text>
-            </View>
-            <View style={styles.preferenceValueRow}>
-              <Text
+          Tôi muốn tìm kiếm
+        </Text>
+        <View style={[styles.genderRow, { marginBottom: spacing.md }]}>
+          {(
+            [
+              { value: "female", label: "Nữ" },
+              { value: "male", label: "Nam" },
+              { value: "everyone", label: "Tất cả mọi người" },
+            ] as const
+          ).map((item) => {
+            const isSelected = interestedIn === item.value;
+            return (
+              <Pressable
+                key={item.value}
                 style={[
-                  styles.preferenceValueHighlight,
-                  { color: theme.primary },
+                  styles.genderOption,
+                  {
+                    backgroundColor: isSelected
+                      ? theme.primaryLight
+                      : theme.surface,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                  },
                 ]}
+                onPress={() => setInterestedIn(item.value)}
               >
-                {interestedInLabel}
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={theme.textTertiary}
-              />
-            </View>
-          </View>
-        </Pressable>
+                <Text
+                  style={[
+                    styles.genderOptionText,
+                    {
+                      color: isSelected ? theme.primary : theme.textSecondary,
+                      fontWeight: isSelected ? "700" : "500",
+                    },
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         {/* Relationship intention */}
         <Pressable
@@ -607,7 +653,7 @@ export default function CreateProfileScreen() {
               <Text
                 style={[styles.preferenceTitle, { color: theme.textPrimary }]}
               >
-                Languages
+                Ngôn ngữ
               </Text>
             </View>
             <View style={styles.preferenceValueRow}>
@@ -618,8 +664,8 @@ export default function CreateProfileScreen() {
                 ]}
               >
                 {languages.length > 0
-                  ? `${languages.length}/10 selected`
-                  : "Add languages"}
+                  ? `Đã chọn ${languages.length}/10`
+                  : "Thêm ngôn ngữ"}
               </Text>
               <Ionicons
                 name="chevron-forward"
@@ -658,12 +704,13 @@ export default function CreateProfileScreen() {
           disabled={isSaving}
         >
           <Text style={styles.primaryText}>
-            {isSaving ? "Saving..." : "Continue to HeartSync"}
+            {isSaving ? "Đang lưu..." : "Tiếp tục với Mewdy"}
           </Text>
         </Pressable>
       </ScrollView>
 
       <ProfilePickerModal
+        key={`create-profile-picker-${userId}-${lastPickerRef.current.type}-${lastPickerRef.current.field ?? ""}`}
         visible={activePicker !== null}
         type={lastPickerRef.current.type}
         field={lastPickerRef.current.field}
@@ -673,6 +720,7 @@ export default function CreateProfileScreen() {
           ward,
           languages,
           interestedIn,
+          education,
           relationship_intention: relationshipIntention,
           photos,
           birthDate: birthDate || "2000-01-01",
@@ -696,6 +744,9 @@ export default function CreateProfileScreen() {
         }}
         onSelectBirthDate={(selectedBirthDate) => {
           setBirthDate(selectedBirthDate);
+        }}
+        onSelectEducation={(selectedEducation) => {
+          setEducation(selectedEducation);
         }}
       />
     </SafeAreaView>

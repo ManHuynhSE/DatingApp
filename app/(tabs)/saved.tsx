@@ -12,17 +12,17 @@ export default function SavedScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Saved Profiles</Text>
+        <Text style={styles.headerTitle}>Hồ sơ đã lưu</Text>
       </View>
 
       <View style={styles.emptyState}>
         <View style={styles.iconContainer}>
           <Ionicons name="bookmark-outline" size={56} color={colors.textTertiary} />
         </View>
-        <Text style={styles.emptyTitle}>No saved profiles yet</Text>
+        <Text style={styles.emptyTitle}>Chưa có hồ sơ nào được lưu</Text>
         <Text style={styles.emptyDescription}>
-          Tap the bookmark icon on a profile to save it here for later. Your saved profiles will
-          appear in this list so you can revisit them anytime.
+          Nhấn vào biểu tượng dấu trang trên hồ sơ để lưu lại xem sau. Các hồ sơ đã lưu sẽ
+          xuất hiện tại đây để bạn xem lại bất cứ lúc nào.
         </Text>
       </View>
     </SafeAreaView>

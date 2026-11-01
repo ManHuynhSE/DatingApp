@@ -76,7 +76,7 @@ export default function ProfileDetailScreen() {
   const handleLike = async () => {
     if (!profile || isSubmittingAction) return;
     if (!currentUserId) {
-      Alert.alert("Sign in required", "Sign in before liking a profile.");
+      Alert.alert("Yêu cầu đăng nhập", "Vui lòng đăng nhập trước khi thích hồ sơ.");
       return;
     }
     setIsSubmittingAction(true);
@@ -100,8 +100,8 @@ export default function ProfileDetailScreen() {
       router.back();
     } catch (err) {
       Alert.alert(
-        "Couldn't like profile",
-        err instanceof Error ? err.message : "Please try again.",
+        "Không thể thích hồ sơ này",
+        err instanceof Error ? err.message : "Vui lòng thử lại sau.",
       );
     } finally {
       setIsSubmittingAction(false);
@@ -111,7 +111,7 @@ export default function ProfileDetailScreen() {
   const handlePass = async () => {
     if (!profile || isSubmittingAction) return;
     if (!currentUserId) {
-      Alert.alert("Sign in required", "Sign in before passing on a profile.");
+      Alert.alert("Yêu cầu đăng nhập", "Vui lòng đăng nhập trước khi bỏ qua hồ sơ.");
       return;
     }
     setIsSubmittingAction(true);
@@ -120,8 +120,8 @@ export default function ProfileDetailScreen() {
       router.back();
     } catch (err) {
       Alert.alert(
-        "Couldn't pass on profile",
-        err instanceof Error ? err.message : "Please try again.",
+        "Không thể bỏ qua hồ sơ này",
+        err instanceof Error ? err.message : "Vui lòng thử lại sau.",
       );
     } finally {
       setIsSubmittingAction(false);
@@ -140,40 +140,43 @@ export default function ProfileDetailScreen() {
     const mock = discoveryProfiles.find((p) => p.id === userId);
     if (mock) {
       const birthYear = new Date().getFullYear() - mock.age;
-      setProfile({
-        id: mock.id,
-        user_id: mock.id,
-        display_name: mock.name,
-        birth_date: `${birthYear}-01-01`,
-        gender: mock.pronouns.toLowerCase().includes('she') ? 'female' : 'male',
-        bio: mock.aboutMe,
-        job_title: mock.occupation,
-        pet: mock.details.pets,
-        life_style: [mock.details.exercise, mock.details.smoking, mock.details.drinking].filter(Boolean),
-        hobbies: mock.hobbies || mock.interests.map((name, i) => ({ id: `h-${i}`, name, category: 'General' })),
-        education: mock.education || mock.details.education,
-        height_cm: null,
-        city: mock.city || mock.location,
-        ward: mock.ward || null,
-        latitude: null,
-        longitude: null,
-        distance_km: null,
-        is_verified: mock.verified,
-        languages: mock.languages,
-        relationship_intention: mock.relationshipGoal,
-        users: {
+      setTimeout(() => {
+        if (!active) return;
+        setProfile({
           id: mock.id,
-          photos: mock.photos.map((url, i) => ({
-            id: `photo-${i}`,
-            url,
-            position: i,
-            is_primary: i === 0,
-          })),
-        },
-      });
-      setActivePhotoIndex(0);
-      setError(null);
-      setLoadedUserId(userId);
+          user_id: mock.id,
+          display_name: mock.name,
+          birth_date: `${birthYear}-01-01`,
+          gender: mock.pronouns.toLowerCase().includes('she') ? 'female' : 'male',
+          bio: mock.aboutMe,
+          job_title: mock.occupation,
+          pet: mock.details.pets,
+          life_style: [mock.details.exercise, mock.details.smoking, mock.details.drinking].filter(Boolean),
+          hobbies: mock.hobbies || mock.interests.map((name, i) => ({ id: `h-${i}`, name, category: 'General' })),
+          education: mock.education || mock.details.education,
+          height_cm: null,
+          city: mock.city || mock.location,
+          ward: mock.ward || null,
+          latitude: null,
+          longitude: null,
+          distance_km: null,
+          is_verified: mock.verified,
+          languages: mock.languages,
+          relationship_intention: mock.relationshipGoal,
+          users: {
+            id: mock.id,
+            photos: mock.photos.map((url, i) => ({
+              id: `photo-${i}`,
+              url,
+              position: i,
+              is_primary: i === 0,
+            })),
+          },
+        });
+        setActivePhotoIndex(0);
+        setError(null);
+        setLoadedUserId(userId);
+      }, 0);
       return;
     }
 
@@ -300,8 +303,8 @@ export default function ProfileDetailScreen() {
           style={styles.headerBtn}
           onPress={() =>
             Alert.alert(
-              "Profile menu",
-              "You can hide, report or block this profile here.",
+              "Tùy chọn hồ sơ",
+              "Bạn có thể ẩn, báo cáo hoặc chặn hồ sơ này tại đây.",
             )
           }
         >
@@ -333,7 +336,7 @@ export default function ProfileDetailScreen() {
                 style={[styles.heroArrow, styles.heroArrowLeft]}
                 onPress={() => setActivePhotoIndex((index) => (index - 1 + photoUrls.length) % photoUrls.length)}
                 accessibilityRole="button"
-                accessibilityLabel="Previous profile photo"
+                accessibilityLabel="Ảnh trước"
               >
                 <Ionicons name="chevron-back" size={24} color={theme.white} />
               </TouchableOpacity>
@@ -341,7 +344,7 @@ export default function ProfileDetailScreen() {
                 style={[styles.heroArrow, styles.heroArrowRight]}
                 onPress={() => setActivePhotoIndex((index) => (index + 1) % photoUrls.length)}
                 accessibilityRole="button"
-                accessibilityLabel="Next profile photo"
+                accessibilityLabel="Ảnh tiếp theo"
               >
                 <Ionicons name="chevron-forward" size={24} color={theme.white} />
               </TouchableOpacity>
@@ -369,7 +372,7 @@ export default function ProfileDetailScreen() {
                   backgroundColor: getGenderBadgeColor(
                     profile.gender,
                     undefined,
-                    theme.primary,
+                    '#EC4899',
                   ),
                 },
               ]}
@@ -383,7 +386,7 @@ export default function ProfileDetailScreen() {
               </Text>
             </View>
             <Text style={styles.occupation}>
-              {profile.job_title || "Open to meeting someone new"}
+              {profile.job_title || "Sẵn sàng làm quen người mới"}
             </Text>
           </View>
         </View>
@@ -404,15 +407,15 @@ export default function ProfileDetailScreen() {
                 const distanceLabel =
                   distanceKmVal !== null && distanceKmVal !== undefined
                     ? distanceKmVal < 1
-                      ? "< 1 km away"
-                      : `${distanceKmVal} km away`
+                      ? "Cách bạn chưa tới 1 km"
+                      : `Cách bạn ${distanceKmVal} km`
                     : null;
                 const locationString = [profile.ward, profile.city]
                   .filter(Boolean)
                   .join(", ");
                 return (
                   [distanceLabel, locationString].filter(Boolean).join(" · ") ||
-                  "Location not shared"
+                  "Chưa chia sẻ vị trí"
                 );
               })()}
             </Text>
@@ -423,9 +426,9 @@ export default function ProfileDetailScreen() {
 
         {/* About me */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About me</Text>
+          <Text style={styles.sectionTitle}>Giới thiệu bản thân</Text>
           <Text style={styles.bioText}>
-            {profile.bio || "No bio provided yet"}
+            {profile.bio || "Chưa có thông tin giới thiệu"}
           </Text>
         </View>
 
@@ -435,11 +438,11 @@ export default function ProfileDetailScreen() {
         {(hasProfileDetails || isOwnProfile) && (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Profile details</Text>
+              <Text style={styles.sectionTitle}>Thông tin chi tiết</Text>
               <View style={styles.detailPanel}>
                 {(profile.job_title || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>Occupation</Text>
+                    <Text style={styles.fieldLabel}>Nghề nghiệp</Text>
                     <View style={styles.choiceList}>
                       {renderScalarChoice(profile.job_title)}
                     </View>
@@ -448,7 +451,7 @@ export default function ProfileDetailScreen() {
 
                 {(profile.education || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>Education</Text>
+                    <Text style={styles.fieldLabel}>Học vấn</Text>
                     <View style={styles.choiceList}>
                       {renderScalarChoice(profile.education)}
                     </View>
@@ -457,7 +460,7 @@ export default function ProfileDetailScreen() {
 
                 {(profile.height_cm || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>Height</Text>
+                    <Text style={styles.fieldLabel}>Chiều cao</Text>
                     <View style={styles.choiceList}>
                       {renderScalarChoice(
                         profile.height_cm ? `${profile.height_cm} cm` : null,
@@ -468,12 +471,12 @@ export default function ProfileDetailScreen() {
 
                 {(selectedPets.length > 0 || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>Pets</Text>
+                    <Text style={styles.fieldLabel}>Thú cưng</Text>
                     <View style={styles.choiceList}>
                       {selectedPets.length ? (
                         selectedPets.map(renderChoice)
                       ) : (
-                        <Text style={styles.emptyDetail}>Not added yet</Text>
+                        <Text style={styles.emptyDetail}>Chưa cập nhật</Text>
                       )}
                     </View>
                   </View>
@@ -481,12 +484,12 @@ export default function ProfileDetailScreen() {
 
                 {(selectedLifestyle.length > 0 || isOwnProfile) && (
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>Lifestyle</Text>
+                    <Text style={styles.fieldLabel}>Lối sống</Text>
                     <View style={styles.choiceList}>
                       {selectedLifestyle.length ? (
                         selectedLifestyle.map(renderChoice)
                       ) : (
-                        <Text style={styles.emptyDetail}>Not added yet</Text>
+                        <Text style={styles.emptyDetail}>Chưa cập nhật</Text>
                       )}
                     </View>
                   </View>
@@ -494,12 +497,12 @@ export default function ProfileDetailScreen() {
 
                 {(selectedLanguages.length > 0 || isOwnProfile) && (
                   <View style={[styles.fieldGroup, styles.fieldGroupLast]}>
-                    <Text style={styles.fieldLabel}>Languages</Text>
+                    <Text style={styles.fieldLabel}>Ngôn ngữ</Text>
                     <View style={styles.choiceList}>
                       {selectedLanguages.length ? (
                         selectedLanguages.map(renderChoice)
                       ) : (
-                        <Text style={styles.emptyDetail}>Not added yet</Text>
+                        <Text style={styles.emptyDetail}>Chưa cập nhật</Text>
                       )}
                     </View>
                   </View>
@@ -536,12 +539,12 @@ export default function ProfileDetailScreen() {
             style={styles.reportLink}
             onPress={() =>
               Alert.alert(
-                "Hide and report",
-                "This profile has been hidden from your discovery list.",
+                "Ẩn và Báo cáo",
+                "Hồ sơ này đã được ẩn khỏi danh sách gợi ý của bạn.",
               )
             }
           >
-            <Text style={styles.reportText}>Hide and Report Profile</Text>
+            <Text style={styles.reportText}>Ẩn và Báo cáo hồ sơ</Text>
           </TouchableOpacity>
         )}
 

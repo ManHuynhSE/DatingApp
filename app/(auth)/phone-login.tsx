@@ -53,9 +53,9 @@ export default function PhoneLoginScreen() {
 
         {/* Content */}
         <View style={styles.content}>
-          <Text style={styles.title}>Enter your phone number</Text>
+          <Text style={styles.title}>Nhập số điện thoại của bạn</Text>
           <Text style={styles.subtitle}>
-            We&apos;ll send you a verification code to confirm your number.
+            Chúng tôi sẽ gửi mã xác thực SMS để xác nhận số điện thoại của bạn.
           </Text>
 
           {/* Phone Input Row */}
@@ -77,7 +77,7 @@ export default function PhoneLoginScreen() {
             {/* Phone Number Input */}
             <TextInput
               style={styles.phoneInput}
-              placeholder="Phone number"
+              placeholder="Số điện thoại"
               placeholderTextColor={colors.textTertiary}
               keyboardType="phone-pad"
               value={phoneNumber}
@@ -105,7 +105,7 @@ export default function PhoneLoginScreen() {
                 !isPhoneValid && styles.sendButtonTextDisabled,
               ]}
             >
-              Send OTP
+              Gửi mã OTP
             </Text>
           </TouchableOpacity>
         </View>

@@ -19,12 +19,12 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of HeartSync?',
+      'Đăng xuất',
+      'Bạn có chắc chắn muốn đăng xuất khỏi Mewdy không?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Hủy', style: 'cancel' },
         {
-          text: 'Log Out',
+          text: 'Đăng xuất',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -47,16 +47,16 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <View style={styles.titleContainer} pointerEvents="none">
-          <Text style={[styles.title, { color: theme.textPrimary }]}>Settings</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Cài đặt</Text>
         </View>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.back}>
           <Ionicons name="arrow-back" size={23} color={theme.textPrimary} />
         </Pressable>
         <View style={styles.back} />
       </View>
 
       {/* Account Section */}
-      <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>ACCOUNT</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>TÀI KHOẢN</Text>
       <Pressable
         onPress={() => router.push('/verify-phone')}
         accessibilityRole="button"
@@ -66,16 +66,16 @@ export default function SettingsScreen() {
           <Ionicons name={verified ? 'shield-checkmark-outline' : 'phone-portrait-outline'} size={22} color={verified ? theme.success : theme.primary} />
         </View>
         <View style={styles.rowText}>
-          <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>Phone verification</Text>
+          <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>Xác minh số điện thoại</Text>
           <Text style={[styles.rowSubtitle, { color: theme.textSecondary }]}>
-            {verified ? 'Your account is verified' : 'Verify your account with an SMS code'}
+            {verified ? 'Tài khoản của bạn đã được xác minh' : 'Xác minh tài khoản qua mã tin nhắn SMS'}
           </Text>
         </View>
         {verified ? <Ionicons name="checkmark-circle" size={22} color={theme.success} /> : <Ionicons name="chevron-forward" size={21} color={theme.textTertiary} />}
       </Pressable>
 
       {/* Session / Log Out Section */}
-      <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: spacing.xl }]}>SESSION</Text>
+      <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: spacing.xl }]}>PHIÊN ĐĂNG NHẬP</Text>
       <Pressable
         onPress={handleLogout}
         accessibilityRole="button"
@@ -85,9 +85,9 @@ export default function SettingsScreen() {
           <Ionicons name="log-out-outline" size={22} color="#EF4444" />
         </View>
         <View style={styles.rowText}>
-          <Text style={[styles.rowTitle, { color: '#EF4444' }]}>Log out</Text>
+          <Text style={[styles.rowTitle, { color: '#EF4444' }]}>Đăng xuất</Text>
           <Text style={[styles.rowSubtitle, { color: theme.textSecondary }]}>
-            {user?.name ? `Signed in as ${user.name}` : 'Sign out of this device'}
+            {user?.name ? `Đang đăng nhập với tên ${user.name}` : 'Đăng xuất khỏi thiết bị này'}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={21} color={theme.textTertiary} />

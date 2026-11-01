@@ -116,22 +116,22 @@ export default function SignInScreen() {
       router,
       firebaseAuth.signInWithGoogleToken(accessToken),
     ).catch((error) =>
-      Alert.alert("Google sign-in failed", getErrorMessage(error)),
+      Alert.alert("Đăng nhập Google thất bại", getErrorMessage(error)),
     );
   }, [googleResponse, router]);
 
   const handleEmailAuth = async () => {
     if (!firebaseAuth.isConfigured) {
       Alert.alert(
-        "Firebase is not configured",
-        "Add Firebase values to .env.local.",
+        "Chưa cấu hình Firebase",
+        "Vui lòng thêm giá trị Firebase vào .env.local.",
       );
       return;
     }
     if (!email.trim() || password.length < 6) {
       Alert.alert(
-        "Check your details",
-        "Use a valid email and a password with at least 6 characters.",
+        "Kiểm tra thông tin",
+        "Vui lòng nhập email hợp lệ và mật khẩu từ 6 ký tự trở lên.",
       );
       return;
     }
@@ -142,11 +142,11 @@ export default function SignInScreen() {
         : firebaseAuth.signInWithEmail(email.trim(), password);
       await withTimeout(
         authentication,
-        "Firebase did not respond. Check your connection and try again.",
+        "Máy chủ không phản hồi. Vui lòng kiểm tra kết nối mạng và thử lại.",
       );
       await completeAuthentication(router);
     } catch (error) {
-      Alert.alert("Authentication failed", getErrorMessage(error));
+      Alert.alert("Xác thực thất bại", getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -169,21 +169,21 @@ export default function SignInScreen() {
   const handleResetPassword = async () => {
     if (!email.trim()) {
       Alert.alert(
-        "Enter your email",
-        "Add your email first to reset your password.",
+        "Nhập email của bạn",
+        "Vui lòng nhập email trước để đặt lại mật khẩu.",
       );
       return;
     }
     try {
       await firebaseAuth.resetPassword(email.trim());
       Alert.alert(
-        "Email sent",
-        "Check your inbox for the password reset link.",
+        "Đã gửi email",
+        "Vui lòng kiểm tra hộp thư để lấy liên kết đặt lại mật khẩu.",
       );
     } catch (error) {
       Alert.alert(
-        "Unable to reset password",
-        error instanceof Error ? error.message : "Please try again.",
+        "Không thể đặt lại mật khẩu",
+        error instanceof Error ? error.message : "Vui lòng thử lại sau.",
       );
     }
   };
@@ -207,7 +207,7 @@ export default function SignInScreen() {
           <View style={styles.logoSection}>
             <View style={styles.eyebrow}>
               <View style={styles.eyebrowDot} />
-              <Text style={styles.eyebrowText}>A softer way to meet</Text>
+              <Text style={styles.eyebrowText}>Kết nối nhẹ nhàng & tinh tế</Text>
             </View>
             <View style={styles.logoOuterRing}>
               <View style={styles.logoMiddleRing}>
@@ -219,7 +219,7 @@ export default function SignInScreen() {
 
             <Text style={styles.appName}>Mewdy</Text>
             <Text style={styles.tagline}>
-              Meet with intention.{"\n"}Stay for the feeling.
+              Gặp gỡ có chủ đích.{"\n"}Gắn kết bằng cảm xúc.
             </Text>
           </View>
 
@@ -229,7 +229,7 @@ export default function SignInScreen() {
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="Email address"
+              placeholder="Địa chỉ email"
               placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -238,7 +238,7 @@ export default function SignInScreen() {
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="Password"
+              placeholder="Mật khẩu"
               placeholderTextColor={colors.textTertiary}
               secureTextEntry
             />
@@ -250,10 +250,10 @@ export default function SignInScreen() {
             >
               <Text style={[styles.buttonText, styles.emailButtonText]}>
                 {isLoading
-                  ? "Working..."
+                  ? "Đang xử lý..."
                   : isCreateMode
-                    ? "Create account"
-                    : "Sign in with email"}
+                    ? "Tạo tài khoản"
+                    : "Đăng nhập bằng email"}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -269,7 +269,7 @@ export default function SignInScreen() {
                 style={styles.buttonIcon}
               />
               <Text style={[styles.buttonText, styles.googleButtonText]}>
-                Continue with Google
+                Tiếp tục với Google
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -293,13 +293,13 @@ export default function SignInScreen() {
             >
               <Text style={styles.modeToggleText}>
                 {isCreateMode
-                  ? "Already have an account? Sign in"
-                  : "New here? Create an account"}
+                  ? "Đã có tài khoản? Đăng nhập"
+                  : "Chưa có tài khoản? Đăng ký ngay"}
               </Text>
             </TouchableOpacity>
             {!isCreateMode && (
               <TouchableOpacity onPress={handleResetPassword}>
-                <Text style={styles.resetText}>Forgot password?</Text>
+                <Text style={styles.resetText}>Quên mật khẩu?</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -307,12 +307,12 @@ export default function SignInScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              By signing up you agree to our{" "}
-              <Text style={styles.footerLink}>Terms and Conditions</Text>
+              Bằng việc đăng ký, bạn đồng ý với{" "}
+              <Text style={styles.footerLink}>Điều khoản & Điều kiện</Text>
             </Text>
             <Text style={styles.footerText}>
-              See how we use your data in our{" "}
-              <Text style={styles.footerLink}>Privacy Policy</Text>
+              Xem cách chúng tôi sử dụng dữ liệu trong{" "}
+              <Text style={styles.footerLink}>Chính sách quyền riêng tư</Text>
             </Text>
           </View>
         </ScrollView>

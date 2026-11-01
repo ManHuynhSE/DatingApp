@@ -169,20 +169,20 @@ export default function InboxScreen() {
 
         <Animated.View entering={springFadeInDown(70)} style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>NEW MATCHES</Text>
+            <Text style={styles.sectionTitle}>TƯƠNG HỢP MỚI</Text>
             {matches.length > 0 && (
               <View style={styles.countBadge}>
                 <Text style={styles.countText}>{matches.length}</Text>
               </View>
             )}
           </View>
-          {matches.length > 0 && <Text style={styles.sectionHint}>Say hi to someone new</Text>}
+          {matches.length > 0 && <Text style={styles.sectionHint}>Gửi lời chào đến người mới</Text>}
         </Animated.View>
 
         {loading ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={theme.primary} />
-            <Text style={styles.loadingText}>Loading matches…</Text>
+            <Text style={styles.loadingText}>Đang tải tương hợp…</Text>
           </View>
         ) : matches.length > 0 ? (
           <FlatList
@@ -197,20 +197,20 @@ export default function InboxScreen() {
         ) : (
           <Animated.View entering={springFadeInDown(120)} style={styles.noNewMatches}>
             <Ionicons name="heart-outline" size={18} color={theme.textTertiary} />
-            <Text style={styles.noNewMatchesText}>New mutual likes will show up here.</Text>
+            <Text style={styles.noNewMatchesText}>Những người cùng thích bạn sẽ xuất hiện tại đây.</Text>
           </Animated.View>
         )}
 
         <Animated.View entering={springFadeInDown(150)} style={styles.messagesHeader}>
           <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>MESSAGES</Text>
+            <Text style={styles.sectionTitle}>TIN NHẮN</Text>
             {chats.length > 0 && (
               <View style={styles.countBadge}>
                 <Text style={styles.countText}>{chats.length}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.sectionHint}>Your conversations</Text>
+          <Text style={styles.sectionHint}>Các cuộc trò chuyện của bạn</Text>
         </Animated.View>
 
         {loading ? (
@@ -230,8 +230,8 @@ export default function InboxScreen() {
             <View style={styles.emptyIcon}>
               <Ionicons name="chatbubble-ellipses-outline" size={26} color={theme.primary} />
             </View>
-            <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptyText}>When you’re ready, start a chat with one of your matches.</Text>
+            <Text style={styles.emptyTitle}>Chưa có cuộc trò chuyện nào</Text>
+            <Text style={styles.emptyText}>Khi bạn đã sẵn sàng, hãy bắt đầu trò chuyện với người bạn đã tương hợp.</Text>
           </Animated.View>
         )}
       </ScrollView>

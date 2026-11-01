@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { UserProfile } from '@/data/mockData';
+import { useProfileEditStore } from './profileEditStore';
+import { useDiscoveryStore } from './discoveryStore';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -24,13 +26,20 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   idToken: null,
 
-  logout: () =>
+  logout: () => {
+    try {
+      useProfileEditStore.getState().reset();
+      useDiscoveryStore.getState().resetDiscovery();
+    } catch {
+      // Safe fallback
+    }
     set({
       isAuthenticated: false,
       isOnboarded: false,
       user: null,
       idToken: null,
-    }),
+    });
+  },
 
   completeOnboarding: () =>
     set({

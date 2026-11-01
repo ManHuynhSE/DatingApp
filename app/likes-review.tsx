@@ -128,7 +128,7 @@ function LikesCard({ profile, theme, styles, onOpenProfile }: LikesCardProps) {
                   backgroundColor: getGenderBadgeColor(
                     profile.gender,
                     profile.pronouns,
-                    theme.primary,
+                    '#EC4899',
                   ),
                 },
               ]}
@@ -260,7 +260,7 @@ export default function LikesReviewScreen() {
         setCurrentIndex(Math.max(0, likedUsers.length - 2));
       }
     } catch {
-      Alert.alert('Error', 'Could not pass profile. Please try again.');
+      Alert.alert('Lỗi', 'Không thể bỏ qua hồ sơ. Vui lòng thử lại sau.');
     } finally {
       setIsSubmitting(false);
     }
@@ -293,7 +293,7 @@ export default function LikesReviewScreen() {
         setCurrentIndex(Math.max(0, likedUsers.length - 2));
       }
     } catch {
-      Alert.alert('Error', 'Could not like profile. Please try again.');
+      Alert.alert('Lỗi', 'Không thể thích hồ sơ. Vui lòng thử lại sau.');
     } finally {
       setIsSubmitting(false);
     }
@@ -306,7 +306,7 @@ export default function LikesReviewScreen() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.headerButton}
-          accessibilityLabel="Go back"
+          accessibilityLabel="Quay lại"
         >
           <Ionicons name="chevron-back" size={26} color={theme.textPrimary} />
         </TouchableOpacity>
@@ -314,11 +314,11 @@ export default function LikesReviewScreen() {
         <View style={styles.headerTitleWrap}>
           <View style={styles.headerTitleRow}>
             <Ionicons name="heart" size={18} color="#EF4444" />
-            <Text style={styles.headerTitle}>Liked You</Text>
+            <Text style={styles.headerTitle}>Đã thích bạn</Text>
           </View>
           {likedUsers.length > 0 && currentProfile && (
             <Text style={styles.headerSubtitle}>
-              {safeIndex + 1} of {likedUsers.length}
+              {safeIndex + 1} trên {likedUsers.length}
             </Text>
           )}
         </View>
@@ -330,23 +330,23 @@ export default function LikesReviewScreen() {
       {loading && likedUsers.length === 0 ? (
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.loadingText}>Loading profiles who liked you…</Text>
+          <Text style={styles.loadingText}>Đang tải những người đã thích bạn…</Text>
         </View>
       ) : !currentProfile ? (
         <Animated.View entering={FadeIn} style={styles.emptyContainer}>
           <View style={styles.emptyIconCircle}>
             <Ionicons name="sparkles" size={44} color={theme.primary} />
           </View>
-          <Text style={styles.emptyTitle}>All caught up!</Text>
+          <Text style={styles.emptyTitle}>Đã xem hết danh sách!</Text>
           <Text style={styles.emptySubtitle}>
-            You’ve reviewed everyone who liked your photos for now. Check back soon or explore more profiles.
+            Bạn đã xem hết những người thích hồ sơ của bạn. Hãy quay lại sau hoặc khám phá thêm những người mới.
           </Text>
 
           <TouchableOpacity
             style={styles.exploreButton}
             onPress={() => router.push('/(tabs)/swipe')}
           >
-            <Text style={styles.exploreButtonText}>Explore New People</Text>
+            <Text style={styles.exploreButtonText}>Khám phá người mới</Text>
             <Ionicons name="flame" size={18} color={theme.white} />
           </TouchableOpacity>
 
@@ -354,7 +354,7 @@ export default function LikesReviewScreen() {
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.backButtonText}>Return to Matches</Text>
+            <Text style={styles.backButtonText}>Quay lại mục Matches</Text>
           </TouchableOpacity>
         </Animated.View>
       ) : (
@@ -378,11 +378,11 @@ export default function LikesReviewScreen() {
                 disabled={isSubmitting}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Pass"
+                accessibilityLabel="Bỏ qua"
               >
                 <Ionicons name="close" size={32} color="#EF4444" />
               </TouchableOpacity>
-              <Text style={styles.actionBtnLabel}>Pass</Text>
+              <Text style={styles.actionBtnLabel}>Bỏ qua</Text>
             </View>
 
             {/* Like / Match Button */}
@@ -393,11 +393,11 @@ export default function LikesReviewScreen() {
                 disabled={isSubmitting}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Like back"
+                accessibilityLabel="Thích lại"
               >
                 <Ionicons name="heart" size={30} color="#10B981" />
               </TouchableOpacity>
-              <Text style={styles.actionBtnLabel}>Like</Text>
+              <Text style={styles.actionBtnLabel}>Thích lại</Text>
             </View>
           </Animated.View>
         </View>

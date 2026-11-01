@@ -25,7 +25,7 @@ const DetailRow: React.FC<DetailRowProps> = ({
   icon,
   label,
   value,
-  placeholder = 'Add',
+  placeholder = 'Thêm',
   onPress,
   showChevron = true,
   iconColor = colors.primary,

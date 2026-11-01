@@ -25,6 +25,7 @@ import { useProfileEditStore } from "../src/store/profileEditStore";
 import { useThemeStore } from "../src/store/themeStore";
 import { normalizeRelationshipIntention } from "../src/api/datingClient";
 import InterestsPicker from "../src/components/InterestsPicker";
+import { EDUCATION_OPTIONS } from "../src/components/ProfilePickerModal";
 
 const vnAddressData = require("../assets/vn-address.json") as Record<
   string,
@@ -300,36 +301,36 @@ export default function ProfilePickerScreen() {
   const getFieldTitle = (field?: string) => {
     switch (field) {
       case "location":
-        return "Address";
+        return "Khu vực (Tỉnh / Thành phố)";
       case "occupation":
-        return "Occupation";
+        return "Nghề nghiệp";
       case "height":
-        return "Height";
+        return "Chiều cao";
       case "education":
-        return "Education";
+        return "Học vấn";
       case "pets":
-        return "Pets";
+        return "Thú cưng";
       case "exercise":
-        return "Lifestyle";
+        return "Lối sống";
       default:
         return field
           ? field.charAt(0).toUpperCase() + field.slice(1)
-          : "Choose option";
+          : "Chọn tùy chọn";
     }
   };
 
   const title =
     type === "photos"
-      ? "Photos"
+      ? "Ảnh đại diện"
       : isAddressField
-        ? "Address"
+        ? "Khu vực (Tỉnh / Thành phố)"
         : type === "relationship_intention" || params.field === "relationship_intention"
           ? "Mục đích hẹn hò"
           : type === "detail"
             ? getFieldTitle(params.field)
             : type === "languages"
-              ? "Languages"
-              : "My Interests";
+              ? "Ngôn ngữ"
+              : "Sở thích của tôi";
 
   // ─── Header Done Handler ───────────────────────────────────────────────────
   const handleDone = () => {
@@ -489,7 +490,7 @@ export default function ProfilePickerScreen() {
   // ─── Other Detail Options (Education, etc.) ────────────────────────────────
   const detailOptions =
     params.field === "education"
-      ? ["Đại học", "Cao Đẳng", "Thạc sĩ"]
+      ? (EDUCATION_OPTIONS as readonly string[])
       : [
           "Prefer not to say",
           "Never",
@@ -545,7 +546,7 @@ export default function ProfilePickerScreen() {
           {title}
         </Text>
         <Pressable onPress={handleDone} style={styles.doneButton}>
-          <Text style={[styles.doneText, { color: theme.primary }]}>Done</Text>
+          <Text style={[styles.doneText, { color: theme.primary }]}>Xong</Text>
         </Pressable>
       </View>
 
@@ -1214,15 +1215,15 @@ export default function ProfilePickerScreen() {
         <View style={styles.freeTextContainer}>
           <Text style={[styles.freeTextHint, { color: theme.textSecondary }]}>
             {params.field === "occupation"
-              ? "Nhập nghề nghiệp hoặc vị trí công việc của bạn. Nhấn 'Done' ở góc phải trên để lưu."
-              : "Nhập chiều cao tính bằng cm (từ 100 đến 250). Nhấn 'Done' ở góc phải trên để lưu."}
+              ? "Nhập nghề nghiệp hoặc vị trí công việc của bạn. Nhấn 'Xong' ở góc phải trên để lưu."
+              : "Nhập chiều cao tính bằng cm (từ 100 đến 250). Nhấn 'Xong' ở góc phải trên để lưu."}
           </Text>
           <TextInput
             value={detailValue}
             onChangeText={setDetailValue}
             placeholder={
               params.field === "occupation"
-                ? "Nghề nghiệp (Occupation)"
+                ? "Nghề nghiệp"
                 : "Chiều cao (cm)"
             }
             placeholderTextColor={theme.textTertiary}

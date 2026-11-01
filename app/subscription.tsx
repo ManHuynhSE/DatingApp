@@ -6,8 +6,8 @@ import { useRouter } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '@/theme';
 
 const PLANS = [
-  { id: 'free', title: 'Free', price: '$0', description: 'Meet people at your own pace.', features: ['Daily discovery matches', 'Basic filters', 'Message your matches'] },
-  { id: 'premium', title: 'Premium', price: '$19.99', description: 'More control for meaningful connections.', features: ['Unlimited likes', 'Advanced filters', 'See who likes you', 'Undo accidental passes'] },
+  { id: 'free', title: 'Miễn phí', price: '$0', description: 'Gặp gỡ mọi người theo nhịp độ của riêng bạn.', features: ['Gợi ý tương hợp mỗi ngày', 'Bộ lọc tìm kiếm cơ bản', 'Nhắn tin với người đã tương hợp'] },
+  { id: 'premium', title: 'Cao cấp', price: '$19.99', description: 'Nhiều quyền năng hơn cho những kết nối ý nghĩa.', features: ['Lượt thích không giới hạn', 'Bộ lọc tìm kiếm nâng cao', 'Xem ai đã thích bạn', 'Hoàn tác lượt bỏ qua'] },
 ];
 
 export default function SubscriptionScreen() {
@@ -23,21 +23,21 @@ export default function SubscriptionScreen() {
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      Alert.alert('Prototype purchase complete', 'Premium is simulated for this UI prototype. No payment was processed.', [{ text: 'Done', onPress: () => router.back() }]);
+      Alert.alert('Hoàn tất đăng ký thử nghiệm', 'Gói Cao cấp đã được mô phỏng cho phiên bản thử nghiệm này. Không có khoản phí nào phát sinh.', [{ text: 'Xong', onPress: () => router.back() }]);
     }, 700);
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity style={styles.iconButton} onPress={() => router.back()} accessibilityLabel="Quay lại">
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Choose your plan</Text>
+        <Text style={styles.title}>Chọn gói tài khoản</Text>
         <View style={styles.iconButton} />
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.subtitle}>Unlock tools that help your profile stand out.</Text>
+        <Text style={styles.subtitle}>Mở khóa các công cụ giúp hồ sơ của bạn nổi bật hơn.</Text>
         {PLANS.map((plan) => {
           const selected = plan.id === selectedPlan;
           return (
@@ -47,7 +47,7 @@ export default function SubscriptionScreen() {
                   <Text style={styles.planTitle}>{plan.title}</Text>
                   <Text style={styles.planDescription}>{plan.description}</Text>
                 </View>
-                <Text style={styles.price}>{plan.price}<Text style={styles.priceSuffix}>{plan.id === 'premium' ? '/month' : ''}</Text></Text>
+                <Text style={styles.price}>{plan.price}<Text style={styles.priceSuffix}>{plan.id === 'premium' ? '/tháng' : ''}</Text></Text>
               </View>
               {plan.features.map((feature) => (
                 <View key={feature} style={styles.featureRow}>
@@ -55,17 +55,17 @@ export default function SubscriptionScreen() {
                   <Text style={styles.featureText}>{feature}</Text>
                 </View>
               ))}
-              {selected && <View style={styles.selectedBadge}><Text style={styles.selectedBadgeText}>Selected</Text></View>}
+              {selected && <View style={styles.selectedBadge}><Text style={styles.selectedBadgeText}>Đã chọn</Text></View>}
             </TouchableOpacity>
           );
         })}
         <TouchableOpacity style={[styles.primaryButton, isLoading && styles.disabledButton]} onPress={handleContinue} disabled={isLoading}>
-          {isLoading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>{selectedPlan === 'premium' ? 'Continue with Premium' : 'Continue with Free'}</Text>}
+          {isLoading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>{selectedPlan === 'premium' ? 'Tiếp tục với gói Cao cấp' : 'Tiếp tục với gói Miễn phí'}</Text>}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.restoreButton} onPress={() => Alert.alert('Restore purchases', 'No previous prototype purchase was found.')}>
-          <Text style={styles.restoreText}>Restore purchases</Text>
+        <TouchableOpacity style={styles.restoreButton} onPress={() => Alert.alert('Khôi phục gói mua', 'Không tìm thấy giao dịch thử nghiệm nào trước đó.')}>
+          <Text style={styles.restoreText}>Khôi phục gói mua</Text>
         </TouchableOpacity>
-        <Text style={styles.disclaimer}>This is a UI prototype. Payment processing is not connected.</Text>
+        <Text style={styles.disclaimer}>Đây là bản thử nghiệm giao diện. Hệ thống thanh toán chưa được kết nối.</Text>
       </ScrollView>
     </SafeAreaView>
   );

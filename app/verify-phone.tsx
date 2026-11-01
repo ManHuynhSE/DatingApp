@@ -43,19 +43,19 @@ function friendlyError(error: unknown) {
   if (
     /RNFB|native module|not registered|not found/i.test(`${code} ${message}`)
   ) {
-    return "Phone verification needs the Android development build. It is not available in Expo Go.";
+    return "Tính năng xác minh qua điện thoại cần bản phát triển Android. Chưa hỗ trợ trên Expo Go.";
   }
   if (
     code.includes("credential-already-in-use") ||
     code.includes("account-exists-with-different-credential")
   ) {
-    return "This phone number is already linked to another Firebase account.";
+    return "Số điện thoại này đã được liên kết với một tài khoản Firebase khác.";
   }
   if (code.includes("invalid-verification-code"))
-    return "The code is incorrect. Check it and try again.";
+    return "Mã xác thực không chính xác. Vui lòng kiểm tra lại.";
   if (code.includes("too-many-requests"))
-    return "Too many attempts. Wait a while before trying again.";
-  return message || "Could not verify this phone number.";
+    return "Bạn đã gửi yêu cầu quá nhiều lần. Vui lòng đợi ít phút trước khi thử lại.";
+  return message || "Không thể xác minh số điện thoại này.";
 }
 
 export default function VerifyPhoneScreen() {
@@ -228,7 +228,7 @@ export default function VerifyPhoneScreen() {
     if (!verificationId) return;
     const normalizedCode = code.replace(/\s/g, "");
     if (!/^\d{6}$/.test(normalizedCode)) {
-      Alert.alert("Invalid code", "Enter the six digit code from the SMS.");
+      Alert.alert("Mã không hợp lệ", "Vui lòng nhập đủ 6 chữ số từ tin nhắn SMS.");
       return;
     }
     setBusy(true);
@@ -260,14 +260,14 @@ export default function VerifyPhoneScreen() {
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <View style={styles.titleContainer} pointerEvents="none">
           <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
-            Verify account
+            Xác minh tài khoản
           </Text>
         </View>
         <Pressable
           onPress={() => router.back()}
           style={styles.back}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel="Quay lại"
         >
           <Ionicons name="arrow-back" size={23} color={theme.textPrimary} />
         </Pressable>
@@ -297,23 +297,23 @@ export default function VerifyPhoneScreen() {
         </View>
         <Text style={[styles.title, { color: theme.textPrimary }]}>
           {stage === "done"
-            ? "You’re verified"
+            ? "Tài khoản đã xác minh"
             : stage === "code"
-              ? "Enter your code"
-              : "Verify your phone"}
+              ? "Nhập mã xác thực"
+              : "Xác minh số điện thoại"}
         </Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
           {stage === "done"
-            ? "Your phone is linked to your account. The verified badge will appear on your profile."
+            ? "Số điện thoại đã được liên kết với tài khoản. Huy hiệu xác minh sẽ xuất hiện trên hồ sơ của bạn."
             : stage === "code"
-              ? `We sent a 6 digit code to ${phone}.`
-              : "We’ll send a one time code by SMS and link the number to your signed in account."}
+              ? `Chúng tôi đã gửi mã xác thực 6 chữ số tới ${phone}.`
+              : "Chúng tôi sẽ gửi mã OTP một lần qua tin nhắn SMS và liên kết số điện thoại này với tài khoản của bạn."}
         </Text>
 
         {stage === "phone" && (
           <>
             <Text style={[styles.label, { color: theme.textPrimary }]}>
-              Phone number
+              Số điện thoại
             </Text>
             <TextInput
               value={phone}
@@ -332,8 +332,8 @@ export default function VerifyPhoneScreen() {
               ]}
             />
             <Text style={[styles.hint, { color: theme.textSecondary }]}>
-              Use an international number. Vietnamese numbers starting with 0
-              are converted to +84.
+              Sử dụng định dạng quốc tế. Số điện thoại Việt Nam bắt đầu bằng 0
+              sẽ được chuyển sang +84.
             </Text>
           </>
         )}
@@ -341,7 +341,7 @@ export default function VerifyPhoneScreen() {
         {stage === "code" && (
           <>
             <Text style={[styles.label, { color: theme.textPrimary }]}>
-              6 digit code
+              Mã gồm 6 chữ số
             </Text>
             <TextInput
               value={code}
@@ -372,7 +372,7 @@ export default function VerifyPhoneScreen() {
               style={styles.changeNumber}
             >
               <Text style={[styles.link, { color: theme.primary }]}>
-                Change phone number
+                Đổi số điện thoại khác
               </Text>
             </Pressable>
           </>
@@ -392,7 +392,7 @@ export default function VerifyPhoneScreen() {
               <ActivityIndicator color={theme.white} />
             ) : (
               <Text style={[styles.buttonText, { color: theme.white }]}>
-                {stage === "phone" ? "Send code" : "Verify phone"}
+                {stage === "phone" ? "Gửi mã xác thực" : "Xác minh ngay"}
               </Text>
             )}
           </Pressable>
@@ -404,7 +404,7 @@ export default function VerifyPhoneScreen() {
             style={[styles.primaryButton, { backgroundColor: theme.primary }]}
           >
             <Text style={[styles.buttonText, { color: theme.white }]}>
-              Done
+              Hoàn tất
             </Text>
           </Pressable>
         )}

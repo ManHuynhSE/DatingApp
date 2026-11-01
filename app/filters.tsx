@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,13 +14,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, typography, spacing, borderRadius } from '../src/theme';
+import { colors, darkColors, typography, spacing, borderRadius } from '../src/theme';
 import { useDiscoveryStore } from '../src/store/discoveryStore';
 import { useAuthStore } from '../src/store/authStore';
+import { useThemeStore } from '../src/store/themeStore';
 import { datingApi } from '../src/api/datingClient';
 import { RangeSlider, SingleSlider } from '../src/components/ui/Sliders';
+import ProfilePickerModal from '../src/components/ProfilePickerModal';
 
-type GenderOption = 'Male' | 'Female' | 'Nonbinary';
+type GenderOption = 'Female' | 'Male';
 
 const POPULAR_LANGUAGES = [
   'Vietnamese',
@@ -38,13 +40,16 @@ export default function FiltersScreen() {
   const userId = useAuthStore((state) => state.user?.id);
   const currentFilters = useDiscoveryStore((state) => state.filters);
   const setFilters = useDiscoveryStore((state) => state.setFilters);
+  const mode = useThemeStore((state) => state.mode);
+  const theme = mode === 'dark' ? darkColors : colors;
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [selectedGenders, setSelectedGenders] = useState<GenderOption[]>(
     currentFilters.gender === 'women'
       ? ['Female']
       : currentFilters.gender === 'men'
         ? ['Male']
-        : ['Male', 'Female', 'Nonbinary'],
+        : ['Female', 'Male'],
   );
   const [ageMin, setAgeMin] = useState(String(currentFilters.ageRange[0]));
   const [ageMax, setAgeMax] = useState(String(currentFilters.ageRange[1]));
@@ -55,13 +60,12 @@ export default function FiltersScreen() {
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(
     currentFilters.languages,
   );
-  const [customLanguage, setCustomLanguage] = useState('');
-  const [showLanguageInput, setShowLanguageInput] = useState(false);
+  const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(!!userId);
   const [scrollEnabled, setScrollEnabled] = useState(true);
 
-  const genderOptions: GenderOption[] = ['Male', 'Female', 'Nonbinary'];
+  const genderOptions: GenderOption[] = ['Female', 'Male'];
 
   useEffect(() => {
     if (!userId) {
@@ -79,7 +83,7 @@ export default function FiltersScreen() {
         } else if (pref.interested_in === 'male') {
           setSelectedGenders(['Male']);
         } else if (pref.interested_in === 'everyone') {
-          setSelectedGenders(['Male', 'Female', 'Nonbinary']);
+          setSelectedGenders(['Female', 'Male']);
         }
         if (pref.age_min !== undefined) setAgeMin(String(pref.age_min));
         if (pref.age_max !== undefined) setAgeMax(String(pref.age_max));
@@ -103,11 +107,16 @@ export default function FiltersScreen() {
   }, [userId]);
 
   const toggleGender = (gender: GenderOption) => {
-    setSelectedGenders((prev) =>
-      prev.includes(gender)
-        ? prev.filter((g) => g !== gender)
-        : [...prev, gender],
-    );
+    setSelectedGenders((prev) => {
+      if (prev.includes(gender)) {
+        if (prev.length <= 1) {
+          // Keep at least one selected so filter is always active
+          return prev;
+        }
+        return prev.filter((g) => g !== gender);
+      }
+      return [...prev, gender];
+    });
   };
 
   const toggleLanguage = (lang: string) => {
@@ -116,21 +125,12 @@ export default function FiltersScreen() {
     );
   };
 
-  const addCustomLanguage = () => {
-    const trimmed = customLanguage.trim();
-    if (trimmed && !selectedLanguages.includes(trimmed)) {
-      setSelectedLanguages((prev) => [...prev, trimmed]);
-      setCustomLanguage('');
-      setShowLanguageInput(false);
-    }
-  };
-
   const removeLanguage = (lang: string) => {
     setSelectedLanguages((prev) => prev.filter((l) => l !== lang));
   };
 
   const clearAll = () => {
-    setSelectedGenders(['Male', 'Female', 'Nonbinary']);
+    setSelectedGenders(['Female', 'Male']);
     setAgeMin('18');
     setAgeMax('80');
     setDistance('50');
@@ -189,10 +189,12 @@ export default function FiltersScreen() {
       1,
       Math.min(20000, Number.parseInt(distance, 10) || 50),
     );
+    const isFemaleSelected = selectedGenders.includes('Female');
+    const isMaleSelected = selectedGenders.includes('Male');
     const gender =
-      selectedGenders.length === 1 && selectedGenders[0] === 'Female'
+      isFemaleSelected && !isMaleSelected
         ? 'women'
-        : selectedGenders.length === 1 && selectedGenders[0] === 'Male'
+        : isMaleSelected && !isFemaleSelected
           ? 'men'
           : 'everyone';
 
@@ -245,17 +247,17 @@ export default function FiltersScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleContainer} pointerEvents="none">
-          <Text style={styles.headerTitle}>Filters</Text>
+          <Text style={styles.headerTitle}>Bộ lọc tìm kiếm</Text>
         </View>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.closeBtn}
-          accessibilityLabel="Close filters"
+          accessibilityLabel="Đóng bộ lọc"
         >
-          <Ionicons name="close" size={26} color={colors.textPrimary} />
+          <Ionicons name="close" size={26} color={theme.textPrimary} />
         </TouchableOpacity>
         <View style={styles.closeBtn}>
-          {isSaving && <ActivityIndicator size="small" color={colors.primary} />}
+          {isSaving && <ActivityIndicator size="small" color={theme.primary} />}
         </View>
       </View>
 
@@ -275,14 +277,14 @@ export default function FiltersScreen() {
         >
           {isLoadingPreferences ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.loadingText}>Syncing preferences...</Text>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text style={styles.loadingText}>Đang đồng bộ tùy chọn...</Text>
             </View>
           ) : null}
 
           {/* Gender */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>What is your preferred gender?</Text>
+            <Text style={styles.sectionLabel}>Bạn muốn tìm kiếm đối tượng nào?</Text>
             {genderOptions.map((gender) => {
               const isSelected = selectedGenders.includes(gender);
               return (
@@ -302,11 +304,13 @@ export default function FiltersScreen() {
                       <Ionicons
                         name="checkmark"
                         size={16}
-                        color={colors.white}
+                        color={theme.white}
                       />
                     )}
                   </View>
-                  <Text style={styles.checkboxLabel}>{gender}</Text>
+                  <Text style={styles.checkboxLabel}>
+                    {gender === 'Female' ? 'Nữ' : 'Nam'}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -315,33 +319,35 @@ export default function FiltersScreen() {
           {/* Age range */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionLabel}>Age range:</Text>
+              <Text style={styles.sectionLabel}>Độ tuổi:</Text>
               <Text style={styles.rangeValueBadge}>
                 {ageMin} – {parseInt(ageMax, 10) >= 80 ? '80+' : ageMax}
               </Text>
             </View>
             <View style={styles.rangeContainer}>
               <View style={styles.rangeInputWrapper}>
-                <Text style={styles.rangeLabel}>Min</Text>
+                <Text style={styles.rangeLabel}>Tối thiểu</Text>
                 <TextInput
                   style={styles.rangeInput}
                   value={ageMin}
                   onChangeText={setAgeMin}
                   onBlur={handleAgeMinBlur}
+                  placeholderTextColor={theme.textTertiary}
                   keyboardType="number-pad"
                   maxLength={3}
                 />
               </View>
               <View style={styles.rangeDivider}>
-                <Text style={styles.rangeDividerText}>to</Text>
+                <Text style={styles.rangeDividerText}>đến</Text>
               </View>
               <View style={styles.rangeInputWrapper}>
-                <Text style={styles.rangeLabel}>Max</Text>
+                <Text style={styles.rangeLabel}>Tối đa</Text>
                 <TextInput
                   style={styles.rangeInput}
                   value={ageMax}
                   onChangeText={setAgeMax}
                   onBlur={handleAgeMaxBlur}
+                  placeholderTextColor={theme.textTertiary}
                   keyboardType="number-pad"
                   maxLength={3}
                 />
@@ -356,6 +362,8 @@ export default function FiltersScreen() {
               minRange={0}
               onValueChange={handleAgeChange}
               onDragStateChange={handleDragStateChange}
+              activeColor={theme.primary}
+              inactiveColor={theme.border}
             />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabelText}>18</Text>
@@ -366,7 +374,7 @@ export default function FiltersScreen() {
           {/* Distance */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionLabel}>Maximum distance:</Text>
+              <Text style={styles.sectionLabel}>Khoảng cách tối đa:</Text>
               <Text style={styles.rangeValueBadge}>
                 {parseInt(distance, 10) >= 80 ? '80+ km' : `${distance} km`}
               </Text>
@@ -378,6 +386,7 @@ export default function FiltersScreen() {
                   value={distance}
                   onChangeText={setDistance}
                   onBlur={handleDistanceBlur}
+                  placeholderTextColor={theme.textTertiary}
                   keyboardType="number-pad"
                   maxLength={5}
                 />
@@ -390,6 +399,8 @@ export default function FiltersScreen() {
               step={1}
               onValueChange={handleDistanceChange}
               onDragStateChange={handleDragStateChange}
+              activeColor={theme.primary}
+              inactiveColor={theme.border}
             />
             <View style={styles.sliderLabels}>
               <Text style={styles.sliderLabelText}>10 km</Text>
@@ -398,22 +409,30 @@ export default function FiltersScreen() {
 
             <View style={styles.toggleRow}>
               <Text style={styles.toggleLabel}>
-                Show profiles within extended range when running out of matches
+                Mở rộng phạm vi tìm kiếm khi danh sách tương hợp đã hết
               </Text>
               <Switch
                 value={showExtraProfiles}
                 onValueChange={setShowExtraProfiles}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.white}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={theme.white}
               />
             </View>
           </View>
 
           {/* Languages */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Languages (Ranking signal):</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>Ngôn ngữ giao tiếp:</Text>
+              <TouchableOpacity
+                onPress={() => setIsLanguageModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.headerActionText}>Chọn từ danh sách</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.sectionHelper}>
-              Languages you are interested in sharing with candidates
+              Ưu tiên những hồ sơ có chung ngôn ngữ với bạn
             </Text>
 
             {/* Selected Languages Chips */}
@@ -426,7 +445,7 @@ export default function FiltersScreen() {
                       <Ionicons
                         name="close-circle"
                         size={18}
-                        color={colors.white}
+                        color={theme.white}
                       />
                     </TouchableOpacity>
                   </View>
@@ -435,7 +454,7 @@ export default function FiltersScreen() {
             )}
 
             {/* Popular Languages Suggestions */}
-            <Text style={styles.subSectionTitle}>Popular languages:</Text>
+            <Text style={styles.subSectionTitle}>Ngôn ngữ phổ biến:</Text>
             <View style={styles.chipsRow}>
               {POPULAR_LANGUAGES.map((lang) => {
                 const isSelected = selectedLanguages.includes(lang);
@@ -461,49 +480,21 @@ export default function FiltersScreen() {
               })}
             </View>
 
-            {/* Add custom language */}
-            {showLanguageInput ? (
-              <View style={styles.customLangRow}>
-                <TextInput
-                  style={styles.customLangInput}
-                  placeholder="Enter language (e.g. Italian)"
-                  placeholderTextColor={colors.textTertiary}
-                  value={customLanguage}
-                  onChangeText={setCustomLanguage}
-                  onSubmitEditing={addCustomLanguage}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={styles.addLangBtn}
-                  onPress={addCustomLanguage}
-                >
-                  <Text style={styles.addLangBtnText}>Add</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.cancelLangBtn}
-                  onPress={() => {
-                    setCustomLanguage('');
-                    setShowLanguageInput(false);
-                  }}
-                >
-                  <Ionicons name="close" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.addLanguageTrigger}
-                onPress={() => setShowLanguageInput(true)}
-              >
-                <Ionicons
-                  name="add-circle-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-                <Text style={styles.addLanguageTriggerText}>
-                  Add another language
-                </Text>
-              </TouchableOpacity>
-            )}
+            {/* Add custom language from list */}
+            <TouchableOpacity
+              style={styles.addLanguageTrigger}
+              onPress={() => setIsLanguageModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="list-circle-outline"
+                size={20}
+                color={theme.primary}
+              />
+              <Text style={styles.addLanguageTriggerText}>
+                Thêm ngôn ngữ khác từ danh sách...
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -515,7 +506,7 @@ export default function FiltersScreen() {
           onPress={clearAll}
           activeOpacity={0.7}
         >
-          <Text style={styles.clearButtonText}>Clear all</Text>
+          <Text style={styles.clearButtonText}>Đặt lại</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.applyButton}
@@ -524,318 +515,307 @@ export default function FiltersScreen() {
           disabled={isSaving}
         >
           {isSaving ? (
-            <ActivityIndicator size="small" color={colors.white} />
+            <ActivityIndicator size="small" color={theme.white} />
           ) : (
-            <Text style={styles.applyButtonText}>Apply filters</Text>
+            <Text style={styles.applyButtonText}>Áp dụng bộ lọc</Text>
           )}
         </TouchableOpacity>
       </View>
+
+      <ProfilePickerModal
+        key={`filter-language-picker-${isLanguageModalVisible}`}
+        visible={isLanguageModalVisible}
+        type="languages"
+        initialData={{ languages: selectedLanguages }}
+        onSelectLanguages={(langs) => setSelectedLanguages(langs)}
+        onClose={() => setIsLanguageModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.primaryLight,
-  },
-  loadingText: {
-    fontSize: typography.caption.fontSize,
-    color: colors.primary,
-  },
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.base,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    position: 'relative',
-  },
-  headerTitleContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: typography.h2.fontSize,
-    fontWeight: typography.h2.fontWeight,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: spacing.xxl,
-  },
-  section: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.base,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  sectionLabel: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: spacing.xs,
-  },
-  sectionHelper: {
-    fontSize: typography.caption.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  subSectionTitle: {
-    fontSize: typography.caption.fontSize,
-    color: colors.textTertiary,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    gap: spacing.md,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  checkboxLabel: {
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-  },
-  rangeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.base,
-  },
-  rangeInputWrapper: {
-    flex: 1,
-  },
-  rangeLabel: {
-    fontSize: typography.caption.fontSize,
-    color: colors.textTertiary,
-    marginBottom: spacing.xs,
-  },
-  rangeInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  rangeDivider: {
-    paddingTop: spacing.base,
-  },
-  rangeDividerText: {
-    fontSize: typography.body.fontSize,
-    color: colors.textTertiary,
-  },
-  sliderTrack: {
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    marginTop: spacing.sm,
-    position: 'relative',
-  },
-  sliderFill: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    backgroundColor: colors.primary,
-    borderRadius: 2,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  rangeValueBadge: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  sliderLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-  },
-  sliderLabelText: {
-    fontSize: typography.caption.fontSize,
-    color: colors.textTertiary,
-  },
-  distanceRow: {
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  distanceValue: {
-    fontSize: typography.h3.fontSize,
-    fontWeight: typography.h3.fontWeight,
-    color: colors.primary,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.lg,
-    gap: spacing.md,
-  },
-  toggleLabel: {
-    flex: 1,
-    fontSize: typography.bodySmall.fontSize,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  languageChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  languageChipActive: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primary,
-  },
-  languageChipText: {
-    fontSize: typography.bodySmall.fontSize,
-    color: colors.textSecondary,
-  },
-  languageChipActiveText: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  languageChipSelected: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    gap: spacing.xs,
-  },
-  languageChipTextSelected: {
-    fontSize: typography.bodySmall.fontSize,
-    color: colors.white,
-    fontWeight: '600',
-  },
-  addLanguageTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  addLanguageTriggerText: {
-    fontSize: typography.bodySmall.fontSize,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  customLangRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  customLangInput: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.md,
-    color: colors.textPrimary,
-    fontSize: typography.bodySmall.fontSize,
-  },
-  addLangBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
-  },
-  addLangBtnText: {
-    color: colors.white,
-    fontSize: typography.bodySmall.fontSize,
-    fontWeight: '600',
-  },
-  cancelLangBtn: {
-    padding: spacing.xs,
-  },
-  bottomButtons: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.base,
-    gap: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  clearButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clearButtonText: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  applyButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  applyButtonText: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
-    color: colors.white,
-  },
-});
+const createStyles = (theme: typeof colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    loadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      backgroundColor: theme.primaryLight,
+    },
+    loadingText: {
+      fontSize: typography.caption.fontSize,
+      color: theme.primary,
+    },
+    header: {
+      height: 56,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.base,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      position: 'relative',
+    },
+    headerTitleContainer: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    closeBtn: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: typography.h2.fontSize,
+      fontWeight: typography.h2.fontWeight,
+      color: theme.textPrimary,
+      textAlign: 'center',
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingBottom: spacing.xxl,
+    },
+    section: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.base,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderLight,
+    },
+    sectionLabel: {
+      fontSize: typography.body.fontSize,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: spacing.xs,
+    },
+    sectionHelper: {
+      fontSize: typography.caption.fontSize,
+      color: theme.textSecondary,
+      marginBottom: spacing.md,
+    },
+    subSectionTitle: {
+      fontSize: typography.caption.fontSize,
+      color: theme.textTertiary,
+      marginTop: spacing.md,
+      marginBottom: spacing.xs,
+    },
+    checkboxRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      gap: spacing.md,
+    },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: 4,
+      borderWidth: 2,
+      borderColor: theme.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    checkboxLabel: {
+      fontSize: typography.body.fontSize,
+      color: theme.textPrimary,
+    },
+    rangeContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginBottom: spacing.base,
+    },
+    rangeInputWrapper: {
+      flex: 1,
+    },
+    rangeLabel: {
+      fontSize: typography.caption.fontSize,
+      color: theme.textTertiary,
+      marginBottom: spacing.xs,
+    },
+    rangeInput: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: borderRadius.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      fontSize: typography.body.fontSize,
+      color: theme.textPrimary,
+      backgroundColor: theme.surface,
+      textAlign: 'center',
+    },
+    rangeDivider: {
+      paddingTop: spacing.base,
+    },
+    rangeDividerText: {
+      fontSize: typography.body.fontSize,
+      color: theme.textTertiary,
+    },
+    sliderTrack: {
+      height: 4,
+      backgroundColor: theme.border,
+      borderRadius: 2,
+      marginTop: spacing.sm,
+      position: 'relative',
+    },
+    sliderFill: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      backgroundColor: theme.primary,
+      borderRadius: 2,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.xs,
+    },
+    rangeValueBadge: {
+      fontSize: typography.body.fontSize,
+      fontWeight: '700',
+      color: theme.primary,
+    },
+    sliderLabels: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: spacing.sm,
+    },
+    sliderLabelText: {
+      fontSize: typography.caption.fontSize,
+      color: theme.textTertiary,
+    },
+    distanceRow: {
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    distanceValue: {
+      fontSize: typography.h3.fontSize,
+      fontWeight: typography.h3.fontWeight,
+      color: theme.primary,
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: spacing.lg,
+      gap: spacing.md,
+    },
+    toggleLabel: {
+      flex: 1,
+      fontSize: typography.bodySmall.fontSize,
+      color: theme.textSecondary,
+      lineHeight: 20,
+    },
+    chipsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    languageChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.full,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    languageChipActive: {
+      backgroundColor: theme.primaryLight,
+      borderColor: theme.primary,
+    },
+    languageChipText: {
+      fontSize: typography.bodySmall.fontSize,
+      color: theme.textSecondary,
+    },
+    languageChipActiveText: {
+      color: theme.primary,
+      fontWeight: '600',
+    },
+    languageChipSelected: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.primary,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.full,
+      gap: spacing.xs,
+    },
+    languageChipTextSelected: {
+      fontSize: typography.bodySmall.fontSize,
+      color: theme.white,
+      fontWeight: '600',
+    },
+    headerActionText: {
+      ...typography.bodySmall,
+      color: theme.primary,
+      fontWeight: '600',
+    },
+    addLanguageTrigger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    addLanguageTriggerText: {
+      fontSize: typography.bodySmall.fontSize,
+      color: theme.primary,
+      fontWeight: '600',
+    },
+    bottomButtons: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.base,
+      gap: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      backgroundColor: theme.background,
+    },
+    clearButton: {
+      flex: 1,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.full,
+      borderWidth: 1.5,
+      borderColor: theme.primary,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    clearButtonText: {
+      fontSize: typography.body.fontSize,
+      fontWeight: '600',
+      color: theme.primary,
+    },
+    applyButton: {
+      flex: 1,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.full,
+      backgroundColor: theme.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    applyButtonText: {
+      fontSize: typography.body.fontSize,
+      fontWeight: '600',
+      color: theme.white,
+    },
+  });

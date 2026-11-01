@@ -257,7 +257,7 @@ const DiscoveryCardContent = React.memo(function DiscoveryCardContent({
                 backgroundColor: getGenderBadgeColor(
                   profile.gender,
                   profile.pronouns,
-                  colors.primary,
+                  '#EC4899',
                 ),
               },
             ]}
@@ -1303,9 +1303,20 @@ function DiscoveryFeedContent({
 
       {/* Swipe Feedback Badge */}
       {swipeFeedback ? (
-        <Animated.View style={[styles.swipeFeedback, feedbackAnimatedStyle]}>
-          <Ionicons name="sparkles" size={16} color={colors.primary} />
-          <Text style={styles.swipeFeedbackText}>{swipeFeedback}</Text>
+        <Animated.View
+          style={[
+            styles.swipeFeedback,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+            feedbackAnimatedStyle,
+          ]}
+        >
+          <Ionicons name="sparkles" size={16} color={theme.primary} />
+          <Text style={[styles.swipeFeedbackText, { color: theme.textPrimary }]}>
+            {swipeFeedback}
+          </Text>
         </Animated.View>
       ) : null}
 
@@ -1356,7 +1367,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
