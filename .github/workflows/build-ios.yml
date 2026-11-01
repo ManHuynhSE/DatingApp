@@ -4,42 +4,67 @@ on:
   workflow_dispatch:
     inputs:
       configuration:
-        description: 'Build Configuration (Release bundles JS for standalone IPA, Debug requires Metro)'
-        required: true
-        default: 'Release'
+        description: 'Build configuration. Release embeds the JS bundle (app runs standalone). Debug needs a Metro dev server.'
         type: choice
         options:
           - Release
           - Debug
+        default: Release
+      xcode_version:
+        description: 'Optional: select a specific Xcode, e.g. 26.0 (uses /Applications/Xcode_<version>.app). Empty = runner default.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
 
 jobs:
   build-ios:
-    name: Build iOS Unsigned IPA (${{ inputs.configuration || 'Release' }})
+    name: Build iOS Unsigned IPA
     runs-on: macos-15
+    timeout-minutes: 90
 
     env:
-      BUILD_CONFIG: ${{ inputs.configuration || 'Release' }}
+      CONFIGURATION: ${{ inputs.configuration }}
 
     steps:
       # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup pnpm
+      # 2. Setup pnpm (repo has pnpm-lock.yaml v9 + pnpm-workspace.yaml with `allowBuilds`, i.e. pnpm 11)
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 11.20.0
           run_install: false
 
-      # 3. Setup Node.js
+      # 3. Setup Node.js (eas.json pins Node 24.x for this project's cloud builds)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
-      # 4. Diagnostics: Environment & Tooling
+      # 4. Optionally select a specific Xcode (before diagnostics so they show the selected one)
+      - name: Select Xcode
+        if: ${{ inputs.xcode_version != '' }}
+        shell: bash
+        env:
+          XCODE_VERSION: ${{ inputs.xcode_version }}
+        run: |
+          set -euo pipefail
+          XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$XCODE_APP" ]; then
+            echo "❌ $XCODE_APP not found. Installed Xcode versions:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          echo "Selected: $XCODE_APP"
+
+      # 5. Diagnostics: Environment & Tooling
       - name: Environment Diagnostics
         shell: bash
         run: |
@@ -56,37 +81,171 @@ jobs:
           echo ""
           echo "=== Available iOS SDKs ==="
           xcodebuild -showsdks
+          echo ""
+          echo "=== Build configuration ==="
+          echo "$CONFIGURATION"
 
-      # 5. Install JS dependencies
+      # 6. Install JS dependencies
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 6. Ensure .env (from Secret or .env.example) & GoogleService-Info.plist exist
-      - name: Ensure .env and Firebase config files exist
+      # 7. Create .env (the app reads EXPO_PUBLIC_* at bundle time; .env is not committed, only .env.example)
+      # Add each value as a repository Secret or Variable with the same name.
+      # EXPO_PUBLIC_* values end up inside the app bundle anyway, so Variables are fine too.
+      - name: Create .env from secrets/variables
         shell: bash
         env:
-          ENV_FILE_SECRET: ${{ secrets.ENV_FILE }}
-          GOOGLE_SERVICE_INFO_PLIST_SECRET: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || vars.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_DATING_API_URL: ${{ secrets.EXPO_PUBLIC_DATING_API_URL || vars.EXPO_PUBLIC_DATING_API_URL }}
+          EXPO_PUBLIC_AUTH_API_URL: ${{ secrets.EXPO_PUBLIC_AUTH_API_URL || vars.EXPO_PUBLIC_AUTH_API_URL }}
+          EXPO_PUBLIC_API_HOST: ${{ secrets.EXPO_PUBLIC_API_HOST || vars.EXPO_PUBLIC_API_HOST }}
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY || vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || vars.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID || vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || vars.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || vars.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID || vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || vars.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || vars.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
         run: |
-          if [ -n "$ENV_FILE_SECRET" ]; then
-            echo "Writing .env from GitHub Secret ENV_FILE..."
-            printf "%s\n" "$ENV_FILE_SECRET" > .env
-          elif [ ! -f .env ]; then
-            if [ -f .env.example ]; then
-              echo "Copying .env.example to .env for build process..."
-              cp .env.example .env
-            else
-              echo "Creating empty .env for build process..."
-              touch .env
-            fi
+          set -euo pipefail
+
+          NAMES="EXPO_PUBLIC_API_URL EXPO_PUBLIC_DATING_API_URL EXPO_PUBLIC_AUTH_API_URL EXPO_PUBLIC_API_HOST
+          EXPO_PUBLIC_FIREBASE_API_KEY EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN EXPO_PUBLIC_FIREBASE_PROJECT_ID
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID EXPO_PUBLIC_FIREBASE_APP_ID
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID"
+
+          : > .env
+          for name in $NAMES; do
+            printf "%s='%s'\n" "$name" "${!name:-}" >> .env
+          done
+
+          echo ".env created with these keys (values hidden):"
+          cut -d= -f1 .env
+
+          if [ -z "${EXPO_PUBLIC_DATING_API_URL:-}" ] && [ -z "${EXPO_PUBLIC_API_URL:-}" ]; then
+            echo "::warning title=API URL not set::EXPO_PUBLIC_DATING_API_URL / EXPO_PUBLIC_API_URL is empty. The app will fall back to http://localhost:3000/api and cannot reach your server from a real iPhone. Use an https URL."
+          fi
+          if [ -z "${EXPO_PUBLIC_FIREBASE_API_KEY:-}" ] || [ -z "${EXPO_PUBLIC_FIREBASE_APP_ID:-}" ]; then
+            echo "::warning title=Firebase JS config not set::EXPO_PUBLIC_FIREBASE_* is empty, so Firebase will be disabled in the app (login will not work)."
           fi
 
-          if [ -n "$GOOGLE_SERVICE_INFO_PLIST_SECRET" ] && [ ! -f GoogleService-Info.plist ]; then
-            echo "Writing GoogleService-Info.plist from GitHub Secret..."
-            printf "%s\n" "$GOOGLE_SERVICE_INFO_PLIST_SECRET" > GoogleService-Info.plist
+      # 8. Firebase iOS config. @react-native-firebase/app needs GoogleService-Info.plist on iOS,
+      #    but the repo only has the Android google-services.json.
+      #    - Real file: store base64 of it in the secret GOOGLE_SERVICE_INFO_PLIST_BASE64  (base64 -i GoogleService-Info.plist | pbcopy)
+      #    - Otherwise a PLACEHOLDER is generated so the build can compile (Firebase/Google login will NOT work at runtime).
+      - name: Prepare GoogleService-Info.plist
+        shell: bash
+        env:
+          GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${GOOGLE_SERVICE_INFO_PLIST_BASE64:-}" ]; then
+            node -e 'process.stdout.write(Buffer.from(process.env.GOOGLE_SERVICE_INFO_PLIST_BASE64, "base64"))' > GoogleService-Info.plist
+            echo "Using GoogleService-Info.plist from secret GOOGLE_SERVICE_INFO_PLIST_BASE64"
+          else
+            echo "::warning title=Placeholder GoogleService-Info.plist::Secret GOOGLE_SERVICE_INFO_PLIST_BASE64 is not set. Generating a PLACEHOLDER plist so the build compiles. Firebase native auth and Google Sign-In will not work in this IPA."
+            node <<'NODE'
+          const fs = require('fs');
+
+          let gs = {};
+          try { gs = JSON.parse(fs.readFileSync('google-services.json', 'utf8')); } catch (e) {}
+
+          const info = gs.project_info || {};
+          const projectId = info.project_id || 'placeholder-project';
+          const senderId = info.project_number || '000000000000';
+          const bucket = info.storage_bucket || `${projectId}.appspot.com`;
+
+          const oauth = ((gs.client || [])[0] || {}).oauth_client || [];
+          const web = oauth.find((c) => c.client_type === 3);
+          const clientId = (web && web.client_id) || `${senderId}-placeholder.apps.googleusercontent.com`;
+          const reversed = 'com.googleusercontent.apps.' + clientId.replace('.apps.googleusercontent.com', '');
+
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8')).expo || {};
+          const bundleId = (app.ios && app.ios.bundleIdentifier) || 'com.example.app';
+
+          const entries = [
+            ['CLIENT_ID', clientId],
+            ['REVERSED_CLIENT_ID', reversed],
+            ['API_KEY', 'AIzaSy' + 'A'.repeat(33)],
+            ['GCM_SENDER_ID', senderId],
+            ['PLIST_VERSION', '1'],
+            ['BUNDLE_ID', bundleId],
+            ['PROJECT_ID', projectId],
+            ['STORAGE_BUCKET', bucket],
+            ['GOOGLE_APP_ID', `1:${senderId}:ios:0000000000000000`],
+          ];
+          const bools = [
+            ['IS_ADS_ENABLED', false],
+            ['IS_ANALYTICS_ENABLED', false],
+            ['IS_APPINVITE_ENABLED', true],
+            ['IS_GCM_ENABLED', true],
+            ['IS_SIGNIN_ENABLED', true],
+          ];
+
+          const xml = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+            '<plist version="1.0">',
+            '<dict>',
+            ...entries.map(([k, v]) => `  <key>${k}</key>\n  <string>${v}</string>`),
+            ...bools.map(([k, v]) => `  <key>${k}</key>\n  <${v}/>`),
+            '</dict>',
+            '</plist>',
+            '',
+          ].join('\n');
+
+          fs.writeFileSync('GoogleService-Info.plist', xml);
+          NODE
           fi
 
-      # 7. Setup Ruby for CocoaPods
+          plutil -lint GoogleService-Info.plist
+
+      # 9. Patch app.json (CI only, not committed) so iOS prebuild works with React Native Firebase:
+      #    - expo.ios.googleServicesFile -> ./GoogleService-Info.plist  (repo only sets android.googleServicesFile)
+      #    - expo-build-properties ios.useFrameworks = "dynamic"        (RNFirebase uses Swift Package Manager on iOS,
+      #      which requires dynamic linkage; static linkage fails with "SPM + static linkage is not supported")
+      #    Values already present in app.json are kept.
+      - name: Patch Expo config for iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+
+          const file = 'app.json';
+          const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const expo = cfg.expo || (cfg.expo = {});
+
+          expo.ios = expo.ios || {};
+          if (!expo.ios.googleServicesFile) {
+            expo.ios.googleServicesFile = './GoogleService-Info.plist';
+          }
+
+          expo.plugins = expo.plugins || [];
+          const nameOf = (p) => (Array.isArray(p) ? p[0] : p);
+          let idx = expo.plugins.findIndex((p) => nameOf(p) === 'expo-build-properties');
+          if (idx === -1) {
+            expo.plugins.push(['expo-build-properties', {}]);
+            idx = expo.plugins.length - 1;
+          }
+          if (!Array.isArray(expo.plugins[idx])) {
+            expo.plugins[idx] = [expo.plugins[idx], {}];
+          }
+          const opts = expo.plugins[idx][1] || (expo.plugins[idx][1] = {});
+          opts.ios = opts.ios || {};
+          if (!opts.ios.useFrameworks) {
+            opts.ios.useFrameworks = 'dynamic';
+          }
+
+          fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');
+          console.log('ios.googleServicesFile =', expo.ios.googleServicesFile);
+          console.log('expo-build-properties ios =', JSON.stringify(opts.ios));
+          NODE
+
+      # 10. Setup Ruby for CocoaPods
       # bundler-cache is disabled because Gemfile.lock is not committed in repository
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -94,7 +253,7 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: false
 
-      # 8. Install Bundler dependencies
+      # 11. Install Bundler dependencies
       - name: Install Bundler dependencies
         shell: bash
         run: |
@@ -104,14 +263,31 @@ jobs:
           fi
           bundle install
 
-      # 9. Generate iOS native project via Expo Prebuild
+      # 12. Generate iOS native project via Expo Prebuild
       # --no-install skips automatic pod install so we run it deterministically under Ruby 3.3
       - name: Generate iOS native project
         run: pnpm expo prebuild --platform ios --clean --no-install
         env:
           EXPO_USE_PNPM: "1"
 
-      # 10. Install CocoaPods dependencies
+      # 13. Show what prebuild generated (helps debugging pod install issues)
+      - name: Inspect generated iOS project
+        working-directory: ios
+        shell: bash
+        run: |
+          echo "=== ios/ ==="
+          ls -la
+          echo ""
+          echo "=== Podfile.properties.json ==="
+          cat Podfile.properties.json || true
+          echo ""
+          echo "=== use_frameworks / RNFirebase lines in Podfile ==="
+          grep -nE "use_frameworks|RNFirebase|USE_FRAMEWORKS|useFrameworks" Podfile || true
+          echo ""
+          echo "=== GoogleService-Info.plist inside the Xcode project ==="
+          find . -name GoogleService-Info.plist -not -path "./Pods/*" || true
+
+      # 14. Install CocoaPods dependencies
       - name: Install CocoaPods dependencies
         working-directory: ios
         env:
@@ -128,7 +304,7 @@ jobs:
           echo "Active CocoaPods: $(bundle exec pod --version)"
           bundle exec pod install
 
-      # 11. Detect Xcode workspace and scheme
+      # 15. Detect Xcode workspace and scheme
       - name: Detect Xcode workspace and scheme
         id: detect
         working-directory: ios
@@ -166,10 +342,10 @@ jobs:
                 const data = JSON.parse(process.argv[1]);
                 const schemes = (data.workspace && data.workspace.schemes) || (data.project && data.project.schemes) || [];
                 const workspaceBase = process.argv[2].replace(/\.xcworkspace$/, "");
-                
+
                 // Exclude CocoaPods and testing schemes
                 const appSchemes = schemes.filter(s => !s.startsWith("Pods-") && !s.toLowerCase().includes("test"));
-                
+
                 // Prefer scheme matching workspace base name (case-insensitive)
                 let matched = appSchemes.find(s => s.toLowerCase() === workspaceBase.toLowerCase());
                 if (!matched && appSchemes.length > 0) {
@@ -190,45 +366,45 @@ jobs:
           echo "Selected Scheme: $SCHEME"
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
 
-      # 12. Build unsigned iOS app
+      # 16. Build unsigned iOS app
       - name: Build unsigned iOS app
         working-directory: ios
         shell: bash
+        env:
+          WORKSPACE: ${{ steps.detect.outputs.workspace }}
+          SCHEME: ${{ steps.detect.outputs.scheme }}
         run: |
           set -euo pipefail
-
-          WORKSPACE="${{ steps.detect.outputs.workspace }}"
-          SCHEME="${{ steps.detect.outputs.scheme }}"
 
           echo "=== Build Configuration ==="
           echo "Workspace: $WORKSPACE"
           echo "Scheme: $SCHEME"
-          echo "Configuration: $BUILD_CONFIG"
+          echo "Configuration: $CONFIGURATION"
           echo "SDK: iphoneos"
           echo "Destination: generic/platform=iOS"
 
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -configuration "$BUILD_CONFIG" \
+            -configuration "$CONFIGURATION" \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath build \
-            COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_STYLE=Manual
 
-      # 13. Package .app into unsigned .ipa
+      # 17. Package .app into unsigned .ipa
       - name: Package unsigned IPA
         working-directory: ios
         shell: bash
+        env:
+          SCHEME: ${{ steps.detect.outputs.scheme }}
         run: |
           set -euo pipefail
 
-          SCHEME="${{ steps.detect.outputs.scheme }}"
-          PRODUCTS_DIR="build/Build/Products/${BUILD_CONFIG}-iphoneos"
+          PRODUCTS_DIR="build/Build/Products/${CONFIGURATION}-iphoneos"
 
           if [ ! -d "$PRODUCTS_DIR" ]; then
             echo "❌ Build products directory does not exist: $PRODUCTS_DIR"
@@ -288,11 +464,11 @@ jobs:
           IPA_SIZE=$(ls -lh App-Unsigned.ipa | awk '{print $5}')
           echo "✅ Unsigned IPA created successfully: App-Unsigned.ipa ($IPA_SIZE)"
 
-      # 14. Upload IPA as GitHub Actions artifact
+      # 18. Upload IPA as GitHub Actions artifact
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ios-unsigned-ipa-${{ inputs.configuration || 'Release' }}
+          name: mewdy-ios-unsigned-ipa
           path: ios/App-Unsigned.ipa
           if-no-files-found: error
           retention-days: 7
