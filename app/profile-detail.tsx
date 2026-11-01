@@ -65,8 +65,8 @@ export default function ProfileDetailScreen() {
   const source = Array.isArray(params.source)
     ? params.source[0]
     : params.source;
-  // const currentUserId = useAuthStore((state) => state.user?.id);
-  const userId = routeUserId || currentUserId;
+  const userId =
+    source === "own-profile" ? currentUserId : routeUserId || currentUserId;
   const [profile, setProfile] = useState<DatingProfile | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);

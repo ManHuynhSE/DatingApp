@@ -44,8 +44,19 @@ export default function ChatDetailScreen() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
-  const [profile, setProfile] = useState({
-    name: 'Match', age: 0, verified: false, occupation: '',
+  const [profile, setProfile] = useState<{
+    id?: string;
+    name: string;
+    age: number;
+    verified: boolean;
+    occupation: string;
+    avatar: string;
+  }>({
+    id: undefined,
+    name: 'Match',
+    age: 0,
+    verified: false,
+    occupation: '',
     avatar: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200',
   });
   const scrollViewRef = useRef<ScrollView>(null);
@@ -80,6 +91,7 @@ export default function ChatDetailScreen() {
         if (beforeBirthday) age -= 1;
       }
       setProfile({
+        id: data.partner.id,
         name: data.partner.name,
         age,
         verified: data.partner.verified,
@@ -145,7 +157,16 @@ export default function ChatDetailScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerProfile}
-          onPress={() => router.push('/profile-detail')}
+          onPress={() => {
+            if (!profile.id) return;
+            router.push({
+              pathname: '/profile-detail',
+              params: {
+                userId: profile.id,
+                source: 'matches',
+              },
+            });
+          }}
           activeOpacity={0.75}
           accessibilityLabel={`Open ${profile.name}'s profile`}
         >
