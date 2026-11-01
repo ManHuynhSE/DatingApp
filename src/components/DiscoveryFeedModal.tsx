@@ -45,7 +45,7 @@ import {
   type Hobby,
   type RecommendationProfile,
 } from '@/api/datingClient';
-import { HOBBY_EMOJIS } from '@/data/hobbies';
+import { getHobbyEmoji, getVietnameseHobbyName } from '@/data/hobbies';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = Math.min(Math.max(SCREEN_WIDTH * 0.25, 90), 140);
@@ -322,10 +322,10 @@ const DiscoveryCardContent = React.memo(function DiscoveryCardContent({
               style={styles.hobbyPreviewChip}
             >
               <Text style={styles.hobbyPreviewText}>
-                {HOBBY_EMOJIS[hobby.name]
-                  ? `${HOBBY_EMOJIS[hobby.name]} `
+                {getHobbyEmoji(hobby.name)
+                  ? `${getHobbyEmoji(hobby.name)} `
                   : ''}
-                {hobby.name}
+                {getVietnameseHobbyName(hobby.name)}
               </Text>
             </View>
           ))}

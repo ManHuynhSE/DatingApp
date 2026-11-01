@@ -1,507 +1,507 @@
 [
   {
     "id": "reading",
-    "name": "Reading",
-    "category": "Arts & Creativity"
+    "name": "Đọc sách",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "writing",
-    "name": "Writing",
-    "category": "Arts & Creativity"
+    "name": "Viết lách",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "poetry",
-    "name": "Poetry",
-    "category": "Arts & Creativity"
+    "name": "Làm thơ",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "painting",
-    "name": "Painting",
-    "category": "Arts & Creativity"
+    "name": "Vẽ tranh",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "drawing",
-    "name": "Drawing",
-    "category": "Arts & Creativity"
+    "name": "Phác họa",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "photography",
-    "name": "Photography",
-    "category": "Arts & Creativity"
+    "name": "Nhiếp ảnh",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "dancing",
-    "name": "Dancing",
-    "category": "Arts & Creativity"
+    "name": "Nhảy múa / Khiêu vũ",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "acting",
-    "name": "Acting",
-    "category": "Arts & Creativity"
+    "name": "Diễn xuất",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "crafts",
-    "name": "Arts & Crafts",
-    "category": "Arts & Creativity"
+    "name": "Thủ công mỹ nghệ",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "fashion",
-    "name": "Fashion",
-    "category": "Arts & Creativity"
+    "name": "Thời trang",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "interior_design",
-    "name": "Interior Design",
-    "category": "Arts & Creativity"
+    "name": "Thiết kế nội thất",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "theater",
-    "name": "Theater",
-    "category": "Arts & Creativity"
+    "name": "Kịch nghệ",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "museums",
-    "name": "Museums & Galleries",
-    "category": "Arts & Creativity"
+    "name": "Bảo tàng & Triển lãm",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "content_creation",
-    "name": "Content Creation",
-    "category": "Arts & Creativity"
+    "name": "Sáng tạo nội dung",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "blogging",
-    "name": "Blogging",
-    "category": "Arts & Creativity"
+    "name": "Viết blog",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "makeup",
-    "name": "Makeup & Beauty",
-    "category": "Arts & Creativity"
+    "name": "Trang điểm & Làm đẹp",
+    "category": "Nghệ thuật & Sáng tạo"
   },
   {
     "id": "gaming",
-    "name": "Video Games",
-    "category": "Gaming"
+    "name": "Trò chơi điện tử",
+    "category": "Trò chơi"
   },
   {
     "id": "board_games",
-    "name": "Board Games",
-    "category": "Gaming"
+    "name": "Trò chơi trên bàn",
+    "category": "Trò chơi"
   },
   {
     "id": "puzzles",
-    "name": "Puzzles",
-    "category": "Gaming"
+    "name": "Giải đố / Xếp hình",
+    "category": "Trò chơi"
   },
   {
     "id": "esports",
-    "name": "Esports",
-    "category": "Gaming"
+    "name": "Thể thao điện tử",
+    "category": "Trò chơi"
   },
   {
     "id": "movies",
-    "name": "Watching Movies",
-    "category": "Movies & Entertainment"
+    "name": "Xem phim",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "tv_shows",
-    "name": "Watching TV Shows",
-    "category": "Movies & Entertainment"
+    "name": "Cày phim bộ",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "anime",
-    "name": "Anime",
-    "category": "Movies & Entertainment"
+    "name": "Hoạt hình Nhật Bản",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "manga",
-    "name": "Manga",
-    "category": "Movies & Entertainment"
+    "name": "Truyện tranh Nhật Bản",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "comics",
-    "name": "Comics",
-    "category": "Movies & Entertainment"
+    "name": "Truyện tranh",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "comedy",
-    "name": "Comedy",
-    "category": "Movies & Entertainment"
+    "name": "Hài kịch",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "podcasts",
-    "name": "Podcasts",
-    "category": "Movies & Entertainment"
+    "name": "Nghe chương trình âm thanh trực tuyến",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "standup_comedy",
-    "name": "Stand-up Comedy",
-    "category": "Movies & Entertainment"
+    "name": "Hài độc thoại",
+    "category": "Phim ảnh & Giải trí"
   },
   {
     "id": "travel",
-    "name": "Traveling",
-    "category": "Travel & Exploration"
+    "name": "Du lịch",
+    "category": "Du lịch & Khám phá"
   },
   {
     "id": "road_trips",
-    "name": "Road Trips",
-    "category": "Travel & Exploration"
+    "name": "Du lịch đường dài",
+    "category": "Du lịch & Khám phá"
   },
   {
     "id": "backpacking",
-    "name": "Backpacking",
-    "category": "Travel & Exploration"
+    "name": "Du lịch bụi",
+    "category": "Du lịch & Khám phá"
   },
   {
     "id": "beach",
-    "name": "Beach Trips",
-    "category": "Travel & Exploration"
+    "name": "Đi biển",
+    "category": "Du lịch & Khám phá"
   },
   {
     "id": "food_travel",
-    "name": "Food Tourism",
-    "category": "Travel & Exploration"
+    "name": "Khám phá ẩm thực",
+    "category": "Du lịch & Khám phá"
   },
   {
     "id": "picnics",
-    "name": "Picnics",
-    "category": "Travel & Exploration"
+    "name": "Dã ngoại",
+    "category": "Du lịch & Khám phá"
   },
   {
     "id": "cycling",
-    "name": "Cycling",
-    "category": "Sports & Fitness"
+    "name": "Đạp xe",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "running",
-    "name": "Running",
-    "category": "Sports & Fitness"
+    "name": "Chạy bộ",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "gym",
-    "name": "Going to the Gym",
-    "category": "Sports & Fitness"
+    "name": "Tập gym",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "yoga",
     "name": "Yoga",
-    "category": "Sports & Fitness"
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "pilates",
     "name": "Pilates",
-    "category": "Sports & Fitness"
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "swimming",
-    "name": "Swimming",
-    "category": "Sports & Fitness"
+    "name": "Bơi lội",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "badminton",
-    "name": "Badminton",
-    "category": "Sports & Fitness"
+    "name": "Cầu lông",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "basketball",
-    "name": "Basketball",
-    "category": "Sports & Fitness"
+    "name": "Bóng rổ",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "football",
-    "name": "American Football",
-    "category": "Sports & Fitness"
+    "name": "Bóng bầu dục",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "soccer",
-    "name": "Soccer",
-    "category": "Sports & Fitness"
+    "name": "Bóng đá",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "tennis",
-    "name": "Tennis",
-    "category": "Sports & Fitness"
+    "name": "Quần vợt",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "martial_arts",
-    "name": "Martial Arts",
-    "category": "Sports & Fitness"
+    "name": "Võ thuật",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "climbing",
-    "name": "Rock Climbing",
-    "category": "Sports & Fitness"
+    "name": "Leo núi",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "skateboarding",
-    "name": "Skateboarding",
-    "category": "Sports & Fitness"
+    "name": "Trượt ván",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "snowboarding",
-    "name": "Snowboarding",
-    "category": "Sports & Fitness"
+    "name": "Trượt ván tuyết",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "skiing",
-    "name": "Skiing",
-    "category": "Sports & Fitness"
+    "name": "Trượt tuyết",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "surfing",
-    "name": "Surfing",
-    "category": "Sports & Fitness"
+    "name": "Lướt sóng",
+    "category": "Thể thao & Rèn luyện"
   },
   {
     "id": "cooking",
-    "name": "Cooking",
-    "category": "Food & Drink"
+    "name": "Nấu ăn",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "baking",
-    "name": "Baking",
-    "category": "Food & Drink"
+    "name": "Làm bánh",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "coffee",
-    "name": "Coffee",
-    "category": "Food & Drink"
+    "name": "Cà phê",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "tea",
-    "name": "Tea",
-    "category": "Food & Drink"
+    "name": "Trà",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "foodie",
-    "name": "Trying New Foods",
-    "category": "Food & Drink"
+    "name": "Thử món ăn mới",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "wine_tasting",
-    "name": "Wine Tasting",
-    "category": "Food & Drink"
+    "name": "Thưởng thức rượu",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "mixology",
-    "name": "Making Cocktails",
-    "category": "Food & Drink"
+    "name": "Pha cocktail",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "craft_beer",
-    "name": "Craft Beer",
-    "category": "Food & Drink"
+    "name": "Bia thủ công",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "street_food",
-    "name": "Street Food",
-    "category": "Food & Drink"
+    "name": "Ăn vặt đường phố",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "restaurant_hopping",
-    "name": "Restaurant Hopping",
-    "category": "Food & Drink"
+    "name": "Khám phá nhiều quán ăn",
+    "category": "Ẩm thực & Đồ uống"
   },
   {
     "id": "pub_crawling",
-    "name": "Pub Crawling",
-    "category": "Socializing & Nightlife"
+    "name": "Đi nhiều quán rượu",
+    "category": "Giao lưu & Giải trí về đêm"
   },
   {
     "id": "bar_hopping",
-    "name": "Bar Hopping",
-    "category": "Socializing & Nightlife"
+    "name": "Đi nhiều quán bar",
+    "category": "Giao lưu & Giải trí về đêm"
   },
   {
     "id": "nightlife",
-    "name": "Nightlife",
-    "category": "Socializing & Nightlife"
+    "name": "Đời sống về đêm",
+    "category": "Giao lưu & Giải trí về đêm"
   },
   {
     "id": "socializing",
-    "name": "Meeting New People",
-    "category": "Socializing & Nightlife"
+    "name": "Giao lưu kết bạn",
+    "category": "Giao lưu & Giải trí về đêm"
   },
   {
     "id": "karaoke",
-    "name": "Karaoke",
-    "category": "Socializing & Nightlife"
+    "name": "Hát karaoke",
+    "category": "Giao lưu & Giải trí về đêm"
   },
   {
     "id": "dancing_salsa",
-    "name": "Salsa Dancing",
-    "category": "Socializing & Nightlife"
+    "name": "Nhảy điệu salsa",
+    "category": "Giao lưu & Giải trí về đêm"
   },
   {
     "id": "music",
-    "name": "Listening to Music",
-    "category": "Music"
+    "name": "Nghe nhạc",
+    "category": "Âm nhạc"
   },
   {
     "id": "singing",
-    "name": "Singing",
-    "category": "Music"
+    "name": "Ca hát",
+    "category": "Âm nhạc"
   },
   {
     "id": "playing_instruments",
-    "name": "Playing Instruments",
-    "category": "Music"
+    "name": "Chơi nhạc cụ",
+    "category": "Âm nhạc"
   },
   {
     "id": "concerts",
-    "name": "Live Music & Concerts",
-    "category": "Music"
+    "name": "Đi nghe hòa nhạc",
+    "category": "Âm nhạc"
   },
   {
     "id": "hiking",
-    "name": "Hiking",
-    "category": "Nature & Outdoors"
+    "name": "Đi bộ đường dài / Leo núi",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "camping",
-    "name": "Camping",
-    "category": "Nature & Outdoors"
+    "name": "Cắm trại",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "nature",
-    "name": "Exploring Nature",
-    "category": "Nature & Outdoors"
+    "name": "Khám phá tự nhiên",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "stargazing",
-    "name": "Stargazing",
-    "category": "Nature & Outdoors"
+    "name": "Ngắm sao",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "gardening",
-    "name": "Gardening",
-    "category": "Nature & Outdoors"
+    "name": "Làm vườn",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "plants",
-    "name": "Houseplants",
-    "category": "Nature & Outdoors"
+    "name": "Trồng cây trong nhà",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "fishing",
-    "name": "Fishing",
-    "category": "Nature & Outdoors"
+    "name": "Câu cá",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "birdwatching",
-    "name": "Birdwatching",
-    "category": "Nature & Outdoors"
+    "name": "Ngắm chim",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "sailing",
-    "name": "Sailing",
-    "category": "Nature & Outdoors"
+    "name": "Chèo thuyền",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "environment",
-    "name": "Environmental Causes",
-    "category": "Nature & Outdoors"
+    "name": "Bảo vệ môi trường",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "pets",
-    "name": "Spending Time with Pets",
-    "category": "Nature & Outdoors"
+    "name": "Chơi với thú cưng",
+    "category": "Thiên nhiên & Ngoài trời"
   },
   {
     "id": "learning",
-    "name": "Learning New Things",
-    "category": "Learning & Technology"
+    "name": "Học điều mới",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "languages",
-    "name": "Learning Languages",
-    "category": "Learning & Technology"
+    "name": "Học ngoại ngữ",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "programming",
-    "name": "Programming",
-    "category": "Learning & Technology"
+    "name": "Lập trình",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "technology",
-    "name": "Technology",
-    "category": "Learning & Technology"
+    "name": "Công nghệ",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "science",
-    "name": "Science",
-    "category": "Learning & Technology"
+    "name": "Khoa học",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "astronomy",
-    "name": "Astronomy",
-    "category": "Learning & Technology"
+    "name": "Thiên văn học",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "investing",
-    "name": "Investing",
-    "category": "Learning & Technology"
+    "name": "Đầu tư tài chính",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "entrepreneurship",
-    "name": "Entrepreneurship",
-    "category": "Learning & Technology"
+    "name": "Khởi nghiệp",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "history",
-    "name": "History",
-    "category": "Learning & Technology"
+    "name": "Lịch sử",
+    "category": "Học tập & Công nghệ"
   },
   {
     "id": "meditation",
-    "name": "Meditation",
-    "category": "Wellness & Lifestyle"
+    "name": "Thiền định",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "mindfulness",
-    "name": "Mindfulness",
-    "category": "Wellness & Lifestyle"
+    "name": "Chánh niệm",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "journaling",
-    "name": "Journaling",
-    "category": "Wellness & Lifestyle"
+    "name": "Viết nhật ký",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "fashion_shopping",
-    "name": "Shopping",
-    "category": "Wellness & Lifestyle"
+    "name": "Mua sắm",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "thrifting",
-    "name": "Thrifting",
-    "category": "Wellness & Lifestyle"
+    "name": "Săn đồ cũ",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "diy",
-    "name": "DIY Projects",
-    "category": "Wellness & Lifestyle"
+    "name": "Tự làm đồ thủ công",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "cars",
-    "name": "Cars",
-    "category": "Wellness & Lifestyle"
+    "name": "Xe hơi",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "motorcycles",
-    "name": "Motorcycles",
-    "category": "Wellness & Lifestyle"
+    "name": "Xe máy",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "collecting",
-    "name": "Collecting",
-    "category": "Wellness & Lifestyle"
+    "name": "Sưu tầm",
+    "category": "Sức khỏe & Lối sống"
   },
   {
     "id": "volunteering",
-    "name": "Volunteering",
-    "category": "Community & Lifestyle"
+    "name": "Tình nguyện",
+    "category": "Cộng đồng & Lối sống"
   }
 ]

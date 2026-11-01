@@ -25,6 +25,7 @@ import { useThemeStore } from '../../src/store/themeStore';
 import { datingApi } from '../../src/api/datingClient';
 import { firebaseAuth } from '../../src/auth/firebase';
 import { createClientMessageId, listenToLatestMessages } from '../../src/services/chatService';
+import { useChatUnreadStore } from '../../src/store/chatUnreadStore';
 
 interface Message {
   id: string;
@@ -62,6 +63,7 @@ export default function ChatDetailScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const pendingMessageId = useRef<string | null>(null);
   const currentFirebaseUid = firebaseAuth.currentAuth?.currentUser?.uid ?? '';
+  const markChatRead = useChatUnreadStore((state) => state.markRead);
 
   const scrollMessagesToBottom = (animated = true) => {
     requestAnimationFrame(() => {
@@ -106,6 +108,11 @@ export default function ChatDetailScreen() {
       conversationId,
       (liveMessages) => {
         if (!active) return;
+        markChatRead(
+          conversationId,
+          liveMessages[liveMessages.length - 1]?.createdAt.getTime() ?? Date.now(),
+          currentFirebaseUid,
+        );
         setMessages(liveMessages.map((item) => ({
           id: item.id,
           text: item.text,
@@ -124,7 +131,7 @@ export default function ChatDetailScreen() {
       active = false;
       unsubscribe();
     };
-  }, [conversationId, currentFirebaseUid]);
+  }, [conversationId, currentFirebaseUid, markChatRead]);
 
   const handleSend = async () => {
     const text = message.trim();

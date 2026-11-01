@@ -1,7 +1,4 @@
 import type { Hobby, SwipedMeItem } from '../api/datingClient';
-import type { UserProfile } from '../data/mockData';
-
-export const FALLBACK_PHOTO = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500';
 
 export interface LikedUserItem {
   id: string;
@@ -46,7 +43,7 @@ export function mapSwipedMeToLikedUser(item: SwipedMeItem): LikedUserItem {
     (a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position,
   );
   const photoUrls = photos.map((p) => p.url).filter(Boolean);
-  const primaryPhoto = photoUrls[0] || FALLBACK_PHOTO;
+  const primaryPhoto = photoUrls[0] || '';
 
   const rawHobbies = profile?.hobbies ?? [];
   const normalizedHobbies: Hobby[] = Array.isArray(rawHobbies)
@@ -70,7 +67,7 @@ export function mapSwipedMeToLikedUser(item: SwipedMeItem): LikedUserItem {
     name: profile?.display_name || 'Someone',
     age: calculateAge(profile?.birth_date),
     photo: primaryPhoto,
-    photos: photoUrls.length > 0 ? photoUrls : [primaryPhoto],
+    photos: photoUrls,
     bio: profile?.bio,
     job_title: profile?.job_title,
     city: profile?.city,
@@ -81,28 +78,6 @@ export function mapSwipedMeToLikedUser(item: SwipedMeItem): LikedUserItem {
     pronouns: profile?.gender === 'female' ? 'She/Her' : profile?.gender === 'male' ? 'He/Him' : undefined,
     hobbies: normalizedHobbies,
     likedAt: item.created_at,
-    hasPhotoLiked: true,
-  };
-}
-
-export function mapMockProfileToLikedUser(profile: UserProfile): LikedUserItem {
-  return {
-    id: profile.id,
-    userId: profile.id,
-    name: profile.name,
-    age: profile.age,
-    photo: profile.photos[0] || FALLBACK_PHOTO,
-    photos: profile.photos.length > 0 ? profile.photos : [FALLBACK_PHOTO],
-    bio: profile.aboutMe,
-    job_title: profile.occupation,
-    city: profile.city || profile.location,
-    ward: profile.ward,
-    distanceText: profile.distance || profile.location,
-    is_verified: profile.verified,
-    gender: profile.pronouns,
-    pronouns: profile.pronouns,
-    hobbies: profile.hobbies || profile.interests?.map((name, i) => ({ id: `mock-${i}`, name, category: 'General' })) || [],
-    likedAt: new Date().toISOString(),
     hasPhotoLiked: true,
   };
 }

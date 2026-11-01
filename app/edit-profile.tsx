@@ -33,7 +33,7 @@ import {
   type Hobby,
 } from "@/api/datingClient";
 import ProfilePickerModal from "../src/components/ProfilePickerModal";
-import { HOBBY_EMOJIS } from "../src/data/hobbies";
+import { getHobbyEmoji, normalizeHobbiesToVietnamese } from "../src/data/hobbies";
 
 const hobbiesCatalog = require("../assets/hobbies_list.json") as Hobby[];
 
@@ -84,6 +84,7 @@ export default function EditProfileScreen({
             Number(b.is_primary) - Number(a.is_primary) ||
             a.position - b.position,
         );
+        const profileHobbies = normalizeHobbiesToVietnamese(profile.hobbies ?? []);
         const updatedFields: Partial<typeof user> = {
           name: profile.display_name,
           occupation: profile.job_title ?? "",
@@ -96,8 +97,8 @@ export default function EditProfileScreen({
           aboutMe: profile.bio ?? "",
           photos: photos.length ? photos.map((p) => p.url) : user.photos,
           education: profile.education ?? "",
-          hobbies: profile.hobbies ?? [],
-          interests: profile.hobbies?.map((h) => h.name) ?? [],
+          hobbies: profileHobbies,
+          interests: profileHobbies.map((hobby) => hobby.name),
           languages: profile.languages ?? [],
           relationship_intention: profile.relationship_intention ?? null,
           relationshipGoal: profile.relationship_intention ?? "",
@@ -242,7 +243,10 @@ export default function EditProfileScreen({
 
       const hobbiesPayload = current.hobbies?.length
         ? current.hobbies
-        : hobbiesCatalog.filter((h) => current.interests.includes(h.name));
+        : hobbiesCatalog.filter((h) =>
+            current.interests.some((name) => getVietnameseHobbyName(name) === h.name),
+          );
+      const vietnameseHobbies = normalizeHobbiesToVietnamese(hobbiesPayload);
 
       const normalizedIntention = current.relationship_intention !== undefined
         ? normalizeRelationshipIntention(current.relationship_intention) ?? current.relationship_intention ?? null
@@ -268,7 +272,7 @@ export default function EditProfileScreen({
           .map((value) => value.trim())
           .filter(Boolean)
           .slice(0, 20),
-        hobbies: hobbiesPayload.slice(0, 100),
+        hobbies: vietnameseHobbies.slice(0, 100),
         languages: current.languages.slice(0, 20),
         relationship_intention: normalizedIntention,
       });
@@ -279,6 +283,7 @@ export default function EditProfileScreen({
         [response.data.ward, response.data.city].filter(Boolean).join(", ") ||
         response.data.city ||
         "";
+      const savedHobbies = normalizeHobbiesToVietnamese(response.data.hobbies ?? []);
       if (normalizedIntention !== undefined) {
         try {
           await datingApi.updateMyRelationshipIntention(
@@ -298,9 +303,8 @@ export default function EditProfileScreen({
         city: response.data.city ?? undefined,
         ward: response.data.ward ?? undefined,
         education: response.data.education ?? "",
-        hobbies: response.data.hobbies ?? [],
-        interests:
-          response.data.hobbies?.map((h) => h.name) ?? current.interests,
+        hobbies: savedHobbies,
+        interests: savedHobbies.map((hobby) => hobby.name),
         languages: response.data.languages ?? [],
         relationship_intention:
           response.data.relationship_intention ??
@@ -601,7 +605,7 @@ export default function EditProfileScreen({
                   style={[styles.tag, { backgroundColor: theme.primaryLight }]}
                 >
                   <Text style={[styles.tagText, { color: theme.primary }]}>
-                    {HOBBY_EMOJIS[item] ? `${HOBBY_EMOJIS[item]} ` : ""}
+                    {getHobbyEmoji(item) ? `${getHobbyEmoji(item)} ` : ""}
                     {item}
                   </Text>
                 </View>

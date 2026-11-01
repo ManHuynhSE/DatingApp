@@ -20,7 +20,6 @@ import { useThemeStore } from '@/store/themeStore';
 import { datingApi, type DatingMatchItem } from '@/api/datingClient';
 import { useLikesStore } from '@/store/likesStore';
 
-const FALLBACK_PHOTO = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300';
 const springFadeInDown = (delay = 0) =>
   FadeInDown.delay(delay).springify().damping(22).stiffness(240).mass(0.85);
 
@@ -41,7 +40,7 @@ function getPartnerPhoto(match: DatingMatchItem) {
   const photos = [...match.partner.photo].sort(
     (a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position,
   );
-  return photos[0]?.url ?? FALLBACK_PHOTO;
+  return photos[0]?.url;
 }
 
 function formatMatchDate(value: string) {
@@ -62,6 +61,7 @@ export default function MatchesScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const likedUsers = useLikesStore((state) => state.likedUsers);
+  const likesError = useLikesStore((state) => state.error);
   const fetchLikedUsers = useLikesStore((state) => state.fetchLikedUsers);
 
   const refreshMatches = useCallback(async () => {
@@ -75,6 +75,8 @@ export default function MatchesScreen() {
             setMatches(response.data ?? []);
           }),
         );
+      } else {
+        setMatches([]);
       }
       await Promise.all(promises);
     } catch (err) {
@@ -90,6 +92,8 @@ export default function MatchesScreen() {
       let active = true;
       void fetchLikedUsers(userId);
       if (!userId) {
+        setMatches([]);
+        setError(null);
         setLoading(false);
         return;
       }
@@ -125,6 +129,7 @@ export default function MatchesScreen() {
     const profile = item.partner.profile;
     const age = calculateAge(profile?.birth_date);
     const context = [profile?.job_title, profile?.city].filter(Boolean).join(' · ');
+    const photo = getPartnerPhoto(item);
 
     return (
       <Animated.View entering={springFadeInDown(Math.min(index, 8) * 45)}>
@@ -136,7 +141,13 @@ export default function MatchesScreen() {
           style={[styles.matchCard, !profile && styles.matchCardUnavailable]}
         >
         <View style={styles.photoWrap}>
-          <Image source={{ uri: getPartnerPhoto(item) }} style={styles.avatar} />
+          {photo ? (
+            <Image source={{ uri: photo }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Ionicons name="person-outline" size={28} color={theme.textTertiary} />
+            </View>
+          )}
           <View style={styles.photoHeart}>
             <Ionicons name="heart" size={12} color={theme.white} />
           </View>
@@ -180,7 +191,7 @@ export default function MatchesScreen() {
             <Text style={styles.countText}>{matches.length}</Text>
           </View>
         </View>
-        <Text style={styles.subtitleHeader}>Một lượt thích từ cả hai phía là khởi đầu hoàn hảo.</Text>
+        <Text style={styles.subtitleHeader}>Khi cả hai cùng thích, một kết nối mới bắt đầu.</Text>
       </Animated.View>
 
       {/* Horizontal Story Avatar List for Users Who Liked You */}
@@ -227,7 +238,13 @@ export default function MatchesScreen() {
                 style={styles.storyItem}
               >
                 <View style={styles.storyAvatarWrapper}>
-                  <Image source={{ uri: item.photo }} style={styles.storyAvatar} />
+                  {item.photo ? (
+                    <Image source={{ uri: item.photo }} style={styles.storyAvatar} />
+                  ) : (
+                    <View style={[styles.storyAvatar, styles.storyAvatarPlaceholder]}>
+                      <Ionicons name="person-outline" size={24} color={theme.textTertiary} />
+                    </View>
+                  )}
                   {/* Small red heart badge attached to bottom-right of avatar */}
                   <View style={styles.storyHeartBadge}>
                     <Ionicons name="heart" size={12} color="#EF4444" />
@@ -242,6 +259,10 @@ export default function MatchesScreen() {
         </Animated.View>
       )}
 
+      {likesError && (
+        <Text style={styles.likesError}>Không thể tải lượt thích: {likesError}</Text>
+      )}
+
       {matches.length > 0 && (
         <Animated.View entering={springFadeInDown(90)} style={styles.noteCard}>
           <View style={styles.noteIcon}>
@@ -252,7 +273,7 @@ export default function MatchesScreen() {
       )}
 
       <Animated.View entering={springFadeInDown(140)} style={styles.listHeading}>
-        <Text style={styles.listTitle}>Những người đã tương hợp với bạn</Text>
+        <Text style={styles.listTitle}>Các cặp đôi của bạn</Text>
         <Text style={styles.listCount}>{matches.length}</Text>
       </Animated.View>
     </View>
@@ -300,9 +321,9 @@ export default function MatchesScreen() {
                   <Ionicons name="sparkles" size={16} color={theme.secondary} />
                 </View>
               </View>
-              <Text style={styles.emptyTitle}>Câu chuyện của bạn bắt đầu từ sự tương hợp</Text>
+              <Text style={styles.emptyTitle}>Chưa có lượt ghép đôi nào!</Text>
               <Text style={styles.emptyDescription}>
-                Hãy thích người bạn có ấn tượng. Nếu họ cũng thích bạn, họ sẽ xuất hiện tại đây.
+                Thấy ai thú vị? Hãy thả tim cho họ. Nếu họ cũng thích bạn, hai bạn sẽ xuất hiện tại đây.
               </Text>
               <Pressable onPress={() => router.push('/(tabs)/swipe')} style={styles.discoverButton}>
                 <Text style={styles.discoverButtonText}>Khám phá hồ sơ</Text>
@@ -354,6 +375,12 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
   },
   countText: { ...typography.bodyBold, color: theme.primary },
   subtitleHeader: { ...typography.bodySmall, color: theme.textSecondary, marginTop: spacing.xs },
+  likesError: {
+    ...typography.caption,
+    color: theme.error,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+  },
   likesSection: {
     marginTop: spacing.sm,
     marginBottom: spacing.xs,
@@ -424,6 +451,7 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
     borderRadius: 29,
     backgroundColor: theme.border,
   },
+  storyAvatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   storyHeartBadge: {
     position: 'absolute',
     right: -2,
@@ -502,6 +530,7 @@ const createStyles = (theme: typeof colors) => StyleSheet.create({
     borderRadius: borderRadius.lg,
     backgroundColor: theme.border,
   },
+  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   photoHeart: {
     position: 'absolute',
     right: -5,

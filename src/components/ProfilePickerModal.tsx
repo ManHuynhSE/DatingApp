@@ -41,6 +41,7 @@ import {
   type DatingPhoto,
 } from "../api/datingClient";
 import InterestsPicker from "./InterestsPicker";
+import { getVietnameseHobbyName } from "../data/hobbies";
 
 const vnAddressData = require("../../assets/vn-address.json") as Record<
   string,
@@ -423,7 +424,7 @@ function ProfilePickerSheetContent({
   }, [maxDays]);
 
   const [tempInterests, setTempInterests] = useState<string[]>(
-    () => draft?.interests ?? user?.interests ?? [],
+    () => (draft?.interests ?? user?.interests ?? []).map(getVietnameseHobbyName),
   );
   const [tempLifestyles, setTempLifestyles] = useState<string[]>(() => {
     const rawLifestyle = details?.exercise ?? "";
@@ -492,7 +493,9 @@ function ProfilePickerSheetContent({
         initialData?.languages ?? draft?.languages ?? user?.languages ?? [],
       );
       setTempInterestedIn(initialData?.interestedIn ?? "everyone");
-      setTempInterests(draft?.interests ?? user?.interests ?? []);
+      setTempInterests(
+        (draft?.interests ?? user?.interests ?? []).map(getVietnameseHobbyName),
+      );
       const rawLifestyle = details?.exercise ?? "";
       setTempLifestyles(
         rawLifestyle

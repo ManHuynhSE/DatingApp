@@ -18,7 +18,7 @@ import { colors, darkColors, borderRadius, spacing, typography, getGenderBadgeCo
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useLikesStore } from '@/store/likesStore';
-import { HOBBY_EMOJIS } from '@/data/hobbies';
+import { getHobbyEmoji, getVietnameseHobbyName } from '@/data/hobbies';
 import type { LikedUserItem } from '@/types/likedUser';
 
 interface LikesCardProps {
@@ -32,10 +32,7 @@ function LikesCard({ profile, theme, styles, onOpenProfile }: LikesCardProps) {
   const [photoIndex, setPhotoIndex] = useState(0);
 
   const photos = useMemo(() => {
-    if (profile.photos && profile.photos.length > 0) {
-      return profile.photos;
-    }
-    return [profile.photo];
+    return (profile.photos?.length ? profile.photos : [profile.photo]).filter(Boolean);
   }, [profile]);
 
   const handleNextPhoto = () => {
@@ -55,11 +52,17 @@ function LikesCard({ profile, theme, styles, onOpenProfile }: LikesCardProps) {
   return (
     <Animated.View entering={FadeIn.duration(200)} style={styles.card}>
       {/* Hero Image */}
-      <Image
-        source={{ uri: photos[photoIndex] || profile.photo }}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
+      {photos[photoIndex] ? (
+        <Image
+          source={{ uri: photos[photoIndex] }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+          <Ionicons name="person-outline" size={72} color="rgba(255,255,255,0.7)" />
+        </View>
+      )}
 
       {/* Segmented Photo Progress Bar */}
       {photos.length > 1 && (
@@ -173,8 +176,8 @@ function LikesCard({ profile, theme, styles, onOpenProfile }: LikesCardProps) {
                 style={styles.hobbyPreviewChip}
               >
                 <Text style={styles.hobbyPreviewText}>
-                  {HOBBY_EMOJIS[hobby.name] ? `${HOBBY_EMOJIS[hobby.name]} ` : ''}
-                  {hobby.name}
+                  {getHobbyEmoji(hobby.name) ? `${getHobbyEmoji(hobby.name)} ` : ''}
+                  {getVietnameseHobbyName(hobby.name)}
                 </Text>
               </View>
             ))}
@@ -206,6 +209,7 @@ export default function LikesReviewScreen() {
 
   const likedUsers = useLikesStore((state) => state.likedUsers);
   const loading = useLikesStore((state) => state.loading);
+  const likesError = useLikesStore((state) => state.error);
   const passLikedUser = useLikesStore((state) => state.passLikedUser);
   const likeLikedUser = useLikesStore((state) => state.likeLikedUser);
   const fetchLikedUsers = useLikesStore((state) => state.fetchLikedUsers);
@@ -332,6 +336,21 @@ export default function LikesReviewScreen() {
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={styles.loadingText}>Đang tải những người đã thích bạn…</Text>
         </View>
+      ) : likesError && !currentProfile ? (
+        <Animated.View entering={FadeIn} style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="cloud-offline-outline" size={42} color={theme.primary} />
+          </View>
+          <Text style={styles.emptyTitle}>Không thể tải lượt thích</Text>
+          <Text style={styles.emptySubtitle}>{likesError}</Text>
+          <TouchableOpacity
+            style={styles.exploreButton}
+            onPress={() => void fetchLikedUsers(currentUserId)}
+          >
+            <Text style={styles.exploreButtonText}>Thử lại</Text>
+            <Ionicons name="reload" size={18} color={theme.white} />
+          </TouchableOpacity>
+        </Animated.View>
       ) : !currentProfile ? (
         <Animated.View entering={FadeIn} style={styles.emptyContainer}>
           <View style={styles.emptyIconCircle}>
@@ -474,6 +493,11 @@ const createStyles = (theme: typeof colors) =>
       ...StyleSheet.absoluteFill,
       width: '100%',
       height: '100%',
+    },
+    cardImagePlaceholder: {
+      backgroundColor: '#52525B',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     photoIndicators: {
       position: 'absolute',

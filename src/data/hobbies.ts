@@ -146,24 +146,24 @@ export const HOBBY_VI_NAMES: Record<string, string> = {
   'Content Creation': 'Sáng tạo nội dung',
   Blogging: 'Viết blog',
   'Makeup & Beauty': 'Trang điểm & Làm đẹp',
-  'Video Games': 'Chơi game',
-  'Board Games': 'Board game',
+  'Video Games': 'Trò chơi điện tử',
+  'Board Games': 'Trò chơi trên bàn',
   Puzzles: 'Giải đố / Xếp hình',
   Esports: 'Thể thao điện tử',
   'Watching Movies': 'Xem phim',
   'Watching TV Shows': 'Cày phim bộ',
-  Anime: 'Anime',
-  Manga: 'Manga',
+  Anime: 'Hoạt hình Nhật Bản',
+  Manga: 'Truyện tranh Nhật Bản',
   Comics: 'Truyện tranh',
   Comedy: 'Hài kịch',
-  Podcasts: 'Nghe podcast',
+  Podcasts: 'Nghe chương trình âm thanh trực tuyến',
   'Stand-up Comedy': 'Hài độc thoại',
   Traveling: 'Du lịch',
-  'Road Trips': 'Phượt đường dài',
+  'Road Trips': 'Du lịch đường dài',
   Backpacking: 'Du lịch bụi',
   'Beach Trips': 'Đi biển',
   'Food Tourism': 'Khám phá ẩm thực',
-  Picnics: 'Dã ngoại / Picnic',
+  Picnics: 'Dã ngoại',
   Cycling: 'Đạp xe',
   Running: 'Chạy bộ',
   'Going to the Gym': 'Tập gym',
@@ -174,7 +174,7 @@ export const HOBBY_VI_NAMES: Record<string, string> = {
   Basketball: 'Bóng rổ',
   'American Football': 'Bóng bầu dục',
   Soccer: 'Bóng đá',
-  Tennis: 'Quần vợt / Tennis',
+  Tennis: 'Quần vợt',
   'Martial Arts': 'Võ thuật',
   'Rock Climbing': 'Leo núi',
   Skateboarding: 'Trượt ván',
@@ -190,18 +190,18 @@ export const HOBBY_VI_NAMES: Record<string, string> = {
   'Making Cocktails': 'Pha cocktail',
   'Craft Beer': 'Bia thủ công',
   'Street Food': 'Ăn vặt đường phố',
-  'Restaurant Hopping': 'Lượn quán ăn',
-  'Pub Crawling': 'Đi pub',
-  'Bar Hopping': 'Đi bar',
+  'Restaurant Hopping': 'Khám phá nhiều quán ăn',
+  'Pub Crawling': 'Đi nhiều quán rượu',
+  'Bar Hopping': 'Đi nhiều quán bar',
   Nightlife: 'Đời sống về đêm',
   'Meeting New People': 'Giao lưu kết bạn',
   Karaoke: 'Hát karaoke',
-  'Salsa Dancing': 'Nhảy Salsa',
+  'Salsa Dancing': 'Nhảy điệu salsa',
   'Listening to Music': 'Nghe nhạc',
   Singing: 'Ca hát',
   'Playing Instruments': 'Chơi nhạc cụ',
-  'Live Music & Concerts': 'Đi concert ca nhạc',
-  Hiking: 'Trekking / Leo núi',
+  'Live Music & Concerts': 'Đi nghe hòa nhạc',
+  Hiking: 'Đi bộ đường dài / Leo núi',
   Camping: 'Cắm trại',
   'Exploring Nature': 'Khám phá tự nhiên',
   Stargazing: 'Ngắm sao',
@@ -225,13 +225,30 @@ export const HOBBY_VI_NAMES: Record<string, string> = {
   Mindfulness: 'Chánh niệm',
   Journaling: 'Viết nhật ký',
   Shopping: 'Mua sắm',
-  Thrifting: 'Săn đồ second-hand',
-  'DIY Projects': 'Tự làm đồ thủ công (DIY)',
+  Thrifting: 'Săn đồ cũ',
+  'DIY Projects': 'Tự làm đồ thủ công',
   Cars: 'Xe hơi',
-  Motorcycles: 'Mô tô / Xe máy',
+  Motorcycles: 'Xe máy',
   Collecting: 'Sưu tầm',
   Volunteering: 'Tình nguyện',
 };
+
+export const HOBBY_EN_NAMES_BY_VI: Record<string, string> = Object.fromEntries(
+  Object.entries(HOBBY_VI_NAMES).map(([englishName, vietnameseName]) => [
+    vietnameseName,
+    englishName,
+  ]),
+);
+
+export function getVietnameseHobbyName(name: string): string {
+  const englishName = HOBBY_EN_NAMES_BY_VI[name] ?? name;
+  return HOBBY_VI_NAMES[englishName] ?? name;
+}
+
+export function getHobbyEmoji(name: string): string | undefined {
+  const englishName = HOBBY_EN_NAMES_BY_VI[name] ?? name;
+  return HOBBY_EMOJIS[englishName];
+}
 
 export interface HobbyCategory {
   id: string;
@@ -242,19 +259,32 @@ export interface HobbyCategory {
 
 export const HOBBY_CATEGORIES: HobbyCategory[] = [
   { id: 'all', name: 'All', labelVi: 'Tất cả', emoji: '✨' },
-  { id: 'Arts & Creativity', name: 'Arts & Creativity', labelVi: 'Sáng tạo', emoji: '🎨' },
-  { id: 'Gaming', name: 'Gaming', labelVi: 'Gaming', emoji: '🎮' },
-  { id: 'Movies & Entertainment', name: 'Movies & Entertainment', labelVi: 'Giải trí', emoji: '🎬' },
-  { id: 'Travel & Exploration', name: 'Travel & Exploration', labelVi: 'Du lịch', emoji: '✈️' },
-  { id: 'Sports & Fitness', name: 'Sports & Fitness', labelVi: 'Thể thao', emoji: '⚽' },
-  { id: 'Food & Drink', name: 'Food & Drink', labelVi: 'Ẩm thực', emoji: '🍜' },
-  { id: 'Socializing & Nightlife', name: 'Socializing & Nightlife', labelVi: 'Tiệc tùng', emoji: '🍻' },
-  { id: 'Music', name: 'Music', labelVi: 'Âm nhạc', emoji: '🎵' },
-  { id: 'Nature & Outdoors', name: 'Nature & Outdoors', labelVi: 'Dã ngoại', emoji: '🌿' },
-  { id: 'Learning & Technology', name: 'Learning & Technology', labelVi: 'Công nghệ', emoji: '💻' },
-  { id: 'Wellness & Lifestyle', name: 'Wellness & Lifestyle', labelVi: 'Lối sống', emoji: '🧘' },
-  { id: 'Community & Lifestyle', name: 'Community & Lifestyle', labelVi: 'Cộng đồng', emoji: '🤝' },
+  { id: 'Arts & Creativity', name: 'Nghệ thuật & Sáng tạo', labelVi: 'Nghệ thuật & Sáng tạo', emoji: '🎨' },
+  { id: 'Gaming', name: 'Trò chơi', labelVi: 'Trò chơi', emoji: '🎮' },
+  { id: 'Movies & Entertainment', name: 'Phim ảnh & Giải trí', labelVi: 'Phim ảnh & Giải trí', emoji: '🎬' },
+  { id: 'Travel & Exploration', name: 'Du lịch & Khám phá', labelVi: 'Du lịch & Khám phá', emoji: '✈️' },
+  { id: 'Sports & Fitness', name: 'Thể thao & Rèn luyện', labelVi: 'Thể thao & Rèn luyện', emoji: '⚽' },
+  { id: 'Food & Drink', name: 'Ẩm thực & Đồ uống', labelVi: 'Ẩm thực & Đồ uống', emoji: '🍜' },
+  { id: 'Socializing & Nightlife', name: 'Giao lưu & Giải trí về đêm', labelVi: 'Giao lưu & Giải trí về đêm', emoji: '🍻' },
+  { id: 'Music', name: 'Âm nhạc', labelVi: 'Âm nhạc', emoji: '🎵' },
+  { id: 'Nature & Outdoors', name: 'Thiên nhiên & Ngoài trời', labelVi: 'Thiên nhiên & Ngoài trời', emoji: '🌿' },
+  { id: 'Learning & Technology', name: 'Học tập & Công nghệ', labelVi: 'Học tập & Công nghệ', emoji: '💻' },
+  { id: 'Wellness & Lifestyle', name: 'Sức khỏe & Lối sống', labelVi: 'Sức khỏe & Lối sống', emoji: '🧘' },
+  { id: 'Community & Lifestyle', name: 'Cộng đồng & Lối sống', labelVi: 'Cộng đồng & Lối sống', emoji: '🤝' },
 ];
+
+export function getVietnameseHobbyCategory(category: string): string {
+  return HOBBY_CATEGORIES.find((item) => item.id === category || item.name === category)
+    ?.name ?? category;
+}
+
+export function normalizeHobbiesToVietnamese(hobbies: Hobby[] = []): Hobby[] {
+  return hobbies.map((hobby) => ({
+    ...hobby,
+    name: getVietnameseHobbyName(hobby.name),
+    category: getVietnameseHobbyCategory(hobby.category),
+  }));
+}
 
 export function normalizeSearchText(text: string): string {
   return text

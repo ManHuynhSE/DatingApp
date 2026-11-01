@@ -1,11 +1,6 @@
 import { create } from 'zustand';
 import { datingApi } from '../api/datingClient';
-import { discoveryProfiles } from '../data/mockData';
-import {
-  type LikedUserItem,
-  mapSwipedMeToLikedUser,
-  mapMockProfileToLikedUser,
-} from '../types/likedUser';
+import { type LikedUserItem, mapSwipedMeToLikedUser } from '../types/likedUser';
 
 interface LikesState {
   likedUsers: LikedUserItem[];
@@ -28,32 +23,21 @@ export const useLikesStore = create<LikesState>((set, get) => ({
   fetchLikedUsers: async (currentUserId?: string) => {
     set({ loading: true, error: null });
 
-    // Fallback sample profiles if unauthenticated or offline/empty
-    const fallbackSamples = discoveryProfiles.slice(0, 6).map(mapMockProfileToLikedUser);
-
     if (!currentUserId) {
-      set({ likedUsers: fallbackSamples, loading: false });
+      set({ likedUsers: [], loading: false });
       return;
     }
 
     try {
       const response = await datingApi.getUsersSwipedMe(currentUserId, {
-        action: 'like',
         limit: 50,
       });
 
       const serverItems = response.data || [];
-      if (serverItems.length > 0) {
-        const mapped = serverItems.map(mapSwipedMeToLikedUser);
-        set({ likedUsers: mapped, loading: false });
-      } else {
-        // If server returned 0 likes, fall back to sample liked users for demonstration
-        set({ likedUsers: fallbackSamples, loading: false });
-      }
+      set({ likedUsers: serverItems.map(mapSwipedMeToLikedUser), loading: false });
     } catch (err: unknown) {
-      // In case of error (e.g. server offline or network failure), use fallback sample profiles
-      console.warn('Could not fetch server likes, using sample profiles:', err);
-      set({ likedUsers: fallbackSamples, loading: false });
+      const message = err instanceof Error ? err.message : 'Could not load likes.';
+      set({ likedUsers: [], loading: false, error: message });
     }
   },
 
@@ -62,7 +46,7 @@ export const useLikesStore = create<LikesState>((set, get) => ({
       likedUsers: state.likedUsers.filter((u) => u.userId !== targetUserId),
     }));
 
-    if (currentUserId && !targetUserId.startsWith('profile-')) {
+    if (currentUserId) {
       try {
         await datingApi.createSwipe(currentUserId, targetUserId, 'pass');
       } catch (err) {
@@ -79,7 +63,7 @@ export const useLikesStore = create<LikesState>((set, get) => ({
     }));
 
     let isMatch = true;
-    if (currentUserId && !targetUserId.startsWith('profile-')) {
+    if (currentUserId) {
       try {
         const res = await datingApi.createSwipe(currentUserId, targetUserId, 'like');
         isMatch = res.isMatch ?? true;

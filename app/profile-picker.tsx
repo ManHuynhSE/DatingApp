@@ -26,6 +26,7 @@ import { useThemeStore } from "../src/store/themeStore";
 import { normalizeRelationshipIntention } from "../src/api/datingClient";
 import InterestsPicker from "../src/components/InterestsPicker";
 import { EDUCATION_OPTIONS } from "../src/components/ProfilePickerModal";
+import { getVietnameseHobbyName } from "../src/data/hobbies";
 
 const vnAddressData = require("../assets/vn-address.json") as Record<
   string,
@@ -209,7 +210,7 @@ export default function ProfilePickerScreen() {
 
   // ─── Hobbies / Interests State ─────────────────────────────────────────────
   const [selectedInterests, setSelectedInterests] = useState<string[]>(() => {
-    return draft?.interests ?? user?.interests ?? [];
+    return (draft?.interests ?? user?.interests ?? []).map(getVietnameseHobbyName);
   });
   const [selectedRelationshipIntention, setSelectedRelationshipIntention] = useState<string | null>(
     () => {

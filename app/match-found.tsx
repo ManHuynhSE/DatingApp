@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
+import { datingApi } from '../src/api/datingClient';
+import { useAuthStore } from '../src/store/authStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_SIZE = SCREEN_WIDTH * 0.35;
@@ -36,19 +38,63 @@ const CONFETTI_DOTS = [
 export default function MatchFoundScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
-    matchedName?: string;
-    matchedPhoto?: string;
-    userPhoto?: string;
+    matchedUserId?: string | string[];
+    matchedName?: string | string[];
   }>();
   const [message, setMessage] = useState('');
+  const [matchedName, setMatchedName] = useState(
+    Array.isArray(params.matchedName) ? params.matchedName[0] : params.matchedName ?? 'đối phương',
+  );
+  const [matchedPhoto, setMatchedPhoto] = useState('');
+  const [userPhoto, setUserPhoto] = useState('');
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const matchedUserId = Array.isArray(params.matchedUserId)
+    ? params.matchedUserId[0]
+    : params.matchedUserId;
 
-  const matchedName = params.matchedName ?? 'your match';
-  const matchedPhoto =
-    params.matchedPhoto ??
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';
-  const userPhoto =
-    params.userPhoto ??
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400';
+  useEffect(() => {
+    const routeMatchedName = Array.isArray(params.matchedName)
+      ? params.matchedName[0]
+      : params.matchedName;
+    setMatchedName(routeMatchedName || 'đối phương');
+    setMatchedPhoto('');
+    setUserPhoto('');
+    if (!currentUserId || !matchedUserId) return;
+    let active = true;
+
+    const loadMatchPhotos = async () => {
+      const [currentUserResult, matchedUserResult] = await Promise.allSettled([
+        datingApi.getUserProfile(currentUserId),
+        datingApi.getUserProfile(matchedUserId),
+      ]);
+      if (!active) return;
+
+      if (currentUserResult.status === 'fulfilled') {
+        const photos = [...(currentUserResult.value.data.users?.photos ?? [])].sort(
+          (a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position,
+        );
+        setUserPhoto(photos[0]?.url ?? '');
+      } else {
+        setUserPhoto('');
+      }
+
+      if (matchedUserResult.status === 'fulfilled') {
+        const profile = matchedUserResult.value.data;
+        const photos = [...(profile.users?.photos ?? [])].sort(
+          (a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position,
+        );
+        setMatchedName(profile.display_name || 'đối phương');
+        setMatchedPhoto(photos[0]?.url ?? '');
+      } else {
+        setMatchedPhoto('');
+      }
+    };
+
+    void loadMatchPhotos();
+    return () => {
+      active = false;
+    };
+  }, [currentUserId, matchedUserId, params.matchedName]);
 
   const handleSend = () => {
     if (message.trim()) {
@@ -117,13 +163,15 @@ export default function MatchFoundScreen() {
                 { backgroundColor: '#EDE9FE' },
               ]}
             >
-              <Image
-                source={{
-                  uri: matchedPhoto,
-                }}
-                style={styles.matchPhoto}
-                resizeMode="cover"
-              />
+              {matchedPhoto ? (
+                <Image
+                  source={{ uri: matchedPhoto }}
+                  style={styles.matchPhoto}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.matchPhoto, styles.emptyMatchPhoto]} />
+              )}
             </View>
           </View>
 
@@ -142,13 +190,15 @@ export default function MatchFoundScreen() {
                 { backgroundColor: '#FEF3C7' },
               ]}
             >
-              <Image
-                source={{
-                  uri: userPhoto,
-                }}
-                style={styles.matchPhoto}
-                resizeMode="cover"
-              />
+              {userPhoto ? (
+                <Image
+                  source={{ uri: userPhoto }}
+                  style={styles.matchPhoto}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.matchPhoto, styles.emptyMatchPhoto]} />
+              )}
             </View>
           </View>
         </View>
@@ -267,6 +317,9 @@ const styles = StyleSheet.create({
   matchPhoto: {
     flex: 1,
     borderRadius: borderRadius.md,
+  },
+  emptyMatchPhoto: {
+    backgroundColor: colors.surface,
   },
   heartContainer: {
     position: 'absolute',

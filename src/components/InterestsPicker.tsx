@@ -14,8 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Theme } from '../theme';
 import {
   hobbiesList,
-  HOBBY_EMOJIS,
-  HOBBY_VI_NAMES,
+  getHobbyEmoji,
+  HOBBY_EN_NAMES_BY_VI,
   HOBBY_CATEGORIES,
   normalizeSearchText,
 } from '../data/hobbies';
@@ -65,22 +65,30 @@ export default function InterestsPicker({
     if (!q) return null;
 
     return hobbiesList.filter((item) => {
-      const nameMatch = normalizeSearchText(item.name).includes(q);
-      const catMatch = normalizeSearchText(item.category).includes(q);
-      const viName = HOBBY_VI_NAMES[item.name] || '';
-      const viMatch = normalizeSearchText(viName).includes(q);
-      return nameMatch || catMatch || viMatch;
+      const englishName = HOBBY_EN_NAMES_BY_VI[item.name] ?? item.name;
+      const englishCategory =
+        HOBBY_CATEGORIES.find((category) => category.name === item.category)?.id ??
+        item.category;
+      return (
+        normalizeSearchText(item.name).includes(q) ||
+        normalizeSearchText(englishName).includes(q) ||
+        normalizeSearchText(item.category).includes(q) ||
+        normalizeSearchText(englishCategory).includes(q)
+      );
     });
   }, [searchQuery]);
 
   // Grouped items by category for normal mode
   const categoryGroups = useMemo(() => {
     if (activeCategory !== 'all') {
-      const filtered = hobbiesList.filter((item) => item.category === activeCategory);
+      const categoryName =
+        HOBBY_CATEGORIES.find((category) => category.id === activeCategory)?.name ??
+        activeCategory;
+      const filtered = hobbiesList.filter((item) => item.category === categoryName);
       return [
         {
           id: activeCategory,
-          name: activeCategory,
+          name: categoryName,
           items: filtered,
         },
       ];
@@ -118,7 +126,7 @@ export default function InterestsPicker({
         <TextInput
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Tìm sở thích, ví dụ: Cafe, Gym, Game..."
+          placeholder="Tìm sở thích, ví dụ: Cà phê, Tập thể hình, Trò chơi..."
           placeholderTextColor={theme.textTertiary}
           style={[styles.searchInput, { color: theme.textPrimary }]}
           autoCorrect={false}
@@ -168,7 +176,7 @@ export default function InterestsPicker({
             keyboardShouldPersistTaps="handled"
           >
             {selected.map((hobbyName) => {
-              const emoji = HOBBY_EMOJIS[hobbyName] || '✨';
+              const emoji = getHobbyEmoji(hobbyName) || '✨';
               return (
                 <TouchableOpacity
                   key={`selected-${hobbyName}`}
@@ -265,7 +273,7 @@ export default function InterestsPicker({
               <View style={styles.chipGrid}>
                 {searchResults.map((item) => {
                   const isSelected = selected.includes(item.name);
-                  const emoji = HOBBY_EMOJIS[item.name] || '✨';
+                  const emoji = getHobbyEmoji(item.name) || '✨';
                   const disabled = isMaxReached && !isSelected;
 
                   return (
@@ -368,7 +376,7 @@ export default function InterestsPicker({
                 <View style={styles.chipGrid}>
                   {group.items.map((item) => {
                     const isSelected = selected.includes(item.name);
-                    const emoji = HOBBY_EMOJIS[item.name] || '✨';
+                    const emoji = getHobbyEmoji(item.name) || '✨';
                     const disabled = isMaxReached && !isSelected;
 
                     return (

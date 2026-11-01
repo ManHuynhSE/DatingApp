@@ -12,6 +12,7 @@ import { useAuthStore } from '../src/store/authStore';
 import { useLocationStore } from '../src/store/locationStore';
 import { useThemeStore } from '../src/store/themeStore';
 import { requestCurrentCoordinates } from '../src/location/currentLocation';
+import { normalizeHobbiesToVietnamese } from '../src/data/hobbies';
 
 function calculateAge(birthDate: string) {
   const date = new Date(birthDate);
@@ -126,8 +127,8 @@ export default function RootLayout() {
           user.photos = photos.map((photo) => photo.url);
           user.education = profile.education ?? '';
           user.details = { ...user.details, height: profile.height_cm ? `${profile.height_cm}cm` : '', education: profile.education ?? '', pets: profile.pet ?? '', exercise: profile.life_style?.join(', ') ?? '' };
-          user.hobbies = profile.hobbies ?? [];
-          user.interests = profile.hobbies?.map((h) => h.name) ?? [];
+          user.hobbies = normalizeHobbiesToVietnamese(profile.hobbies ?? []);
+          user.interests = user.hobbies.map((hobby) => hobby.name);
           user.languages = profile.languages ?? [];
           user.relationship_intention = profile.relationship_intention ?? null;
           user.relationshipGoal = profile.relationship_intention ?? '';

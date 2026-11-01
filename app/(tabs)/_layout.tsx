@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Octicons from '@expo/vector-icons/Octicons';
@@ -5,10 +6,82 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { colors, darkColors } from '@/theme';
 import { useThemeStore } from '@/store/themeStore';
+import { useAuthStore } from '@/store/authStore';
+import { datingApi } from '@/api/datingClient';
+import { firebaseAuth } from '@/auth/firebase';
+import { listenToLatestMessages } from '@/services/chatService';
+import { useChatUnreadStore } from '@/store/chatUnreadStore';
 
 export default function TabLayout() {
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === 'dark' ? darkColors : colors;
+  const userId = useAuthStore((state) => state.user?.id);
+  const firebaseUid = firebaseAuth.currentAuth?.currentUser?.uid ?? null;
+  const hasUnreadMessages = useChatUnreadStore((state) => state.unreadConversationIds.length > 0);
+  const hydrateChatUnread = useChatUnreadStore((state) => state.hydrate);
+  const observeMessages = useChatUnreadStore((state) => state.observeMessages);
+  const clearChatUnread = useChatUnreadStore((state) => state.clear);
+
+  useEffect(() => {
+    if (!userId || !firebaseUid) {
+      clearChatUnread();
+      return undefined;
+    }
+
+    let active = true;
+    let ready = false;
+    let syncInFlight = false;
+    const subscriptions = new Map<string, () => void>();
+
+    const syncConversationListeners = async () => {
+      if (!ready || syncInFlight) return;
+      syncInFlight = true;
+      try {
+        const response = await datingApi.getChatConversations();
+        if (!active) return;
+        const conversationIds = new Set(response.data.map((conversation) => conversation.conversationId));
+
+        for (const [conversationId, unsubscribe] of subscriptions) {
+          if (!conversationIds.has(conversationId)) {
+            unsubscribe();
+            subscriptions.delete(conversationId);
+          }
+        }
+
+        for (const conversationId of conversationIds) {
+          if (subscriptions.has(conversationId)) continue;
+          try {
+            const unsubscribe = listenToLatestMessages(
+              conversationId,
+              (messages) => observeMessages(conversationId, messages, firebaseUid),
+              () => undefined,
+            );
+            subscriptions.set(conversationId, unsubscribe);
+          } catch {
+            // Chat notifications stay disabled when Firestore is unavailable.
+          }
+        }
+      } catch {
+        // Inbox loading reports API errors separately; the tab badge remains hidden.
+      } finally {
+        syncInFlight = false;
+      }
+    };
+
+    void hydrateChatUnread(firebaseUid).then(() => {
+      if (!active) return;
+      ready = true;
+      void syncConversationListeners();
+    });
+    const refreshTimer = setInterval(() => void syncConversationListeners(), 30000);
+
+    return () => {
+      active = false;
+      clearInterval(refreshTimer);
+      for (const unsubscribe of subscriptions.values()) unsubscribe();
+      subscriptions.clear();
+    };
+  }, [userId, firebaseUid, hydrateChatUnread, observeMessages, clearChatUnread]);
 
   return (
     <Tabs
@@ -80,7 +153,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
               <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={21} color={color} />
-              <View style={styles.notificationDot} />
+              {hasUnreadMessages && <View style={styles.notificationDot} />}
             </View>
           ),
         }}

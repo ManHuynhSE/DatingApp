@@ -1,0 +1,298 @@
+name: Build iOS Unsigned IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build Configuration (Release bundles JS for standalone IPA, Debug requires Metro)'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+
+jobs:
+  build-ios:
+    name: Build iOS Unsigned IPA (${{ inputs.configuration || 'Release' }})
+    runs-on: macos-15
+
+    env:
+      BUILD_CONFIG: ${{ inputs.configuration || 'Release' }}
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+          run_install: false
+
+      # 3. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # 4. Diagnostics: Environment & Tooling
+      - name: Environment Diagnostics
+        shell: bash
+        run: |
+          echo "=== System Information ==="
+          sw_vers
+          uname -m
+          echo ""
+          echo "=== Node & Package Managers ==="
+          node --version
+          pnpm --version
+          echo ""
+          echo "=== Xcode Toolchain ==="
+          xcodebuild -version
+          echo ""
+          echo "=== Available iOS SDKs ==="
+          xcodebuild -showsdks
+
+      # 5. Install JS dependencies
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 6. Ensure .env (from Secret or .env.example) & GoogleService-Info.plist exist
+      - name: Ensure .env and Firebase config files exist
+        shell: bash
+        env:
+          ENV_FILE_SECRET: ${{ secrets.ENV_FILE }}
+          GOOGLE_SERVICE_INFO_PLIST_SECRET: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          if [ -n "$ENV_FILE_SECRET" ]; then
+            echo "Writing .env from GitHub Secret ENV_FILE..."
+            printf "%s\n" "$ENV_FILE_SECRET" > .env
+          elif [ ! -f .env ]; then
+            if [ -f .env.example ]; then
+              echo "Copying .env.example to .env for build process..."
+              cp .env.example .env
+            else
+              echo "Creating empty .env for build process..."
+              touch .env
+            fi
+          fi
+
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST_SECRET" ] && [ ! -f GoogleService-Info.plist ]; then
+            echo "Writing GoogleService-Info.plist from GitHub Secret..."
+            printf "%s\n" "$GOOGLE_SERVICE_INFO_PLIST_SECRET" > GoogleService-Info.plist
+          fi
+
+      # 7. Setup Ruby for CocoaPods
+      # bundler-cache is disabled because Gemfile.lock is not committed in repository
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      # 8. Install Bundler dependencies
+      - name: Install Bundler dependencies
+        shell: bash
+        run: |
+          if [ ! -f Gemfile ]; then
+            echo "⚠️ Gemfile not found. Creating default Gemfile with cocoapods ~> 1.16 and json < 3.0..."
+            printf 'source "https://rubygems.org"\n\ngem "cocoapods", "~> 1.16"\ngem "json", "< 3.0"\n' > Gemfile
+          fi
+          bundle install
+
+      # 9. Generate iOS native project via Expo Prebuild
+      # --no-install skips automatic pod install so we run it deterministically under Ruby 3.3
+      - name: Generate iOS native project
+        run: pnpm expo prebuild --platform ios --clean --no-install
+        env:
+          EXPO_USE_PNPM: "1"
+
+      # 10. Install CocoaPods dependencies
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f Podfile ]; then
+            echo "❌ ios/Podfile not found. Expo prebuild failed to generate native project."
+            exit 1
+          fi
+          echo "Active Ruby: $(ruby -v)"
+          echo "Active Bundler: $(bundle -v)"
+          echo "Active CocoaPods: $(bundle exec pod --version)"
+          bundle exec pod install
+
+      # 11. Detect Xcode workspace and scheme
+      - name: Detect Xcode workspace and scheme
+        id: detect
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          WORKSPACES=()
+          for ws in *.xcworkspace; do
+            if [ -e "$ws" ]; then
+              WORKSPACES+=("$ws")
+            fi
+          done
+
+          if [ ${#WORKSPACES[@]} -eq 0 ]; then
+            echo "❌ No .xcworkspace found in ios directory"
+            ls -la
+            exit 1
+          fi
+
+          WORKSPACE_NAME="${WORKSPACES[0]}"
+          echo "Found workspace: $WORKSPACE_NAME"
+          echo "workspace=$WORKSPACE_NAME" >> "$GITHUB_OUTPUT"
+
+          echo "=== Available Xcode Targets & Schemes ==="
+          xcodebuild -workspace "$WORKSPACE_NAME" -list
+
+          # Extract app scheme programmatically using JSON
+          SCHEME_JSON=$(xcodebuild -workspace "$WORKSPACE_NAME" -list -json 2>/dev/null || true)
+          SCHEME=""
+
+          if [ -n "$SCHEME_JSON" ]; then
+            SCHEME=$(node -e '
+              try {
+                const data = JSON.parse(process.argv[1]);
+                const schemes = (data.workspace && data.workspace.schemes) || (data.project && data.project.schemes) || [];
+                const workspaceBase = process.argv[2].replace(/\.xcworkspace$/, "");
+                
+                // Exclude CocoaPods and testing schemes
+                const appSchemes = schemes.filter(s => !s.startsWith("Pods-") && !s.toLowerCase().includes("test"));
+                
+                // Prefer scheme matching workspace base name (case-insensitive)
+                let matched = appSchemes.find(s => s.toLowerCase() === workspaceBase.toLowerCase());
+                if (!matched && appSchemes.length > 0) {
+                  matched = appSchemes[0];
+                }
+                if (matched) {
+                  console.log(matched);
+                }
+              } catch (e) {}
+            ' "$SCHEME_JSON" "$WORKSPACE_NAME")
+          fi
+
+          if [ -z "$SCHEME" ]; then
+            SCHEME="${WORKSPACE_NAME%.xcworkspace}"
+            echo "⚠️ Could not extract scheme from JSON. Using workspace base name: $SCHEME"
+          fi
+
+          echo "Selected Scheme: $SCHEME"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+
+      # 12. Build unsigned iOS app
+      - name: Build unsigned iOS app
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          WORKSPACE="${{ steps.detect.outputs.workspace }}"
+          SCHEME="${{ steps.detect.outputs.scheme }}"
+
+          echo "=== Build Configuration ==="
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme: $SCHEME"
+          echo "Configuration: $BUILD_CONFIG"
+          echo "SDK: iphoneos"
+          echo "Destination: generic/platform=iOS"
+
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration "$BUILD_CONFIG" \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual
+
+      # 13. Package .app into unsigned .ipa
+      - name: Package unsigned IPA
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SCHEME="${{ steps.detect.outputs.scheme }}"
+          PRODUCTS_DIR="build/Build/Products/${BUILD_CONFIG}-iphoneos"
+
+          if [ ! -d "$PRODUCTS_DIR" ]; then
+            echo "❌ Build products directory does not exist: $PRODUCTS_DIR"
+            echo "Contents of build/ directory:"
+            find build -maxdepth 4 -ls || true
+            exit 1
+          fi
+
+          echo "Searching for .app bundles in $PRODUCTS_DIR..."
+          APPS=()
+          for app in "$PRODUCTS_DIR"/*.app; do
+            if [ -e "$app" ]; then
+              APPS+=("$app")
+            fi
+          done
+
+          if [ ${#APPS[@]} -eq 0 ]; then
+            echo "❌ No .app found in $PRODUCTS_DIR"
+            ls -la "$PRODUCTS_DIR"
+            exit 1
+          fi
+
+          SELECTED_APP=""
+          if [ ${#APPS[@]} -eq 1 ]; then
+            SELECTED_APP="${APPS[0]}"
+          else
+            echo "Multiple .app bundles found: ${APPS[*]}"
+            SCHEME_LOWER=$(echo "$SCHEME" | tr '[:upper:]' '[:lower:]')
+            for app in "${APPS[@]}"; do
+              base=$(basename "$app" .app)
+              base_lower=$(echo "$base" | tr '[:upper:]' '[:lower:]')
+              if [ "$base" = "$SCHEME" ] || [ "$base_lower" = "$SCHEME_LOWER" ]; then
+                SELECTED_APP="$app"
+                break
+              fi
+            done
+            if [ -z "$SELECTED_APP" ]; then
+              echo "❌ Multiple .app bundles found and none matched scheme '$SCHEME'"
+              exit 1
+            fi
+          fi
+
+          echo "Packaging application: $SELECTED_APP"
+
+          rm -rf Payload App-Unsigned.ipa
+          mkdir -p Payload
+
+          cp -R "$SELECTED_APP" Payload/
+
+          zip -qry App-Unsigned.ipa Payload
+
+          if [ ! -f "App-Unsigned.ipa" ]; then
+            echo "❌ Failed to create App-Unsigned.ipa"
+            exit 1
+          fi
+
+          IPA_SIZE=$(ls -lh App-Unsigned.ipa | awk '{print $5}')
+          echo "✅ Unsigned IPA created successfully: App-Unsigned.ipa ($IPA_SIZE)"
+
+      # 14. Upload IPA as GitHub Actions artifact
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-ipa-${{ inputs.configuration || 'Release' }}
+          path: ios/App-Unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7

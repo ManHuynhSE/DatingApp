@@ -289,21 +289,6 @@ export default function SignInScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.button, styles.demoButton]}
-              onPress={() => router.replace("/(tabs)/swipe")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="sparkles"
-                size={18}
-                color={colors.primary}
-                style={styles.buttonIcon}
-              />
-              <Text style={[styles.buttonText, styles.demoButtonText]}>
-                Vào chế độ thử nghiệm (Bỏ qua login)
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               onPress={() => setIsCreateMode((value) => !value)}
               style={styles.modeToggle}
             >
@@ -477,15 +462,6 @@ const styles = StyleSheet.create({
   },
   phoneButtonText: {
     color: colors.primary,
-  },
-  demoButton: {
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  demoButtonText: {
-    color: colors.primary,
-    fontWeight: "700",
   },
   modeToggle: {
     alignItems: "center",

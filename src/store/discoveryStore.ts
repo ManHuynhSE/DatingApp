@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { discoveryProfiles } from '@/data/mockData';
 import type { UserPreferences } from '@/api/datingClient';
 
 export interface DiscoveryFilters {
@@ -22,7 +21,6 @@ interface DiscoveryState {
   swipeHistory: SwipeRecord[];
   likedProfiles: string[];
   passedProfiles: string[];
-  profiles: typeof discoveryProfiles;
   swipeRight: (profileId: string) => void;
   swipeLeft: (profileId: string) => void;
   undoSwipe: () => void;
@@ -64,8 +62,6 @@ export const useDiscoveryStore = create<DiscoveryState>((set) => ({
   swipeHistory: [],
   likedProfiles: [],
   passedProfiles: [],
-  profiles: discoveryProfiles,
-
   swipeRight: (profileId: string) =>
     set((state) => ({
       likedProfiles: [...state.likedProfiles, profileId],

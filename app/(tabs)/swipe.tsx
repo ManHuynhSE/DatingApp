@@ -41,10 +41,9 @@ import {
   resolveThemeStyles,
   getGenderBadgeColor,
 } from "@/theme";
-import { discoveryProfiles } from "@/data/mockData";
 import { useDiscoveryStore } from "@/store/discoveryStore";
 import { useThemeStore } from "@/store/themeStore";
-import { HOBBY_EMOJIS } from "@/data/hobbies";
+import { getHobbyEmoji, getVietnameseHobbyName } from "@/data/hobbies";
 import { useAuthStore } from "@/store/authStore";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import {
@@ -79,7 +78,6 @@ interface ProfileCard {
   image: string;
   photos: string[];
   bio?: string;
-  isIntro?: boolean;
 }
 
 const calculateAge = (birthDate: string) => {
@@ -102,8 +100,7 @@ const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
     return a.position - b.position;
   });
   const photoUrls = sortedPhotos.map((p) => p.url);
-  const primaryPhoto =
-    photoUrls[0] ?? `https://picsum.photos/seed/${profile.user_id}/700/900`;
+  const primaryPhoto = photoUrls[0] ?? "";
 
   const locationText =
     [profile.ward, profile.city].filter(Boolean).join(", ") ||
@@ -165,41 +162,10 @@ const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
     height_cm: profile.height_cm ?? null,
     verified: profile.is_verified,
     image: primaryPhoto,
-    photos: photoUrls.length > 0 ? photoUrls : [primaryPhoto],
+    photos: photoUrls,
     bio: profile.bio ?? undefined,
   };
 };
-
-const mapMockProfile = (
-  profile: (typeof discoveryProfiles)[number],
-): ProfileCard => ({
-  id: profile.id,
-  userId: profile.id,
-  name: profile.name,
-  age: profile.age,
-  pronouns: profile.pronouns,
-  gender: profile.pronouns.toLowerCase().includes("she")
-    ? "female"
-    : profile.pronouns.toLowerCase().includes("he")
-      ? "male"
-      : "other",
-  occupation: profile.company
-    ? `${profile.occupation} at ${profile.company}`
-    : profile.occupation,
-  location: profile.location,
-  distanceKm: Number.parseFloat(profile.distance) || 3.2,
-  city: profile.location,
-  languages: profile.languages,
-  hobbies: (profile.interests || []).map((name) => ({
-    id: name.toLowerCase().replace(/\s+/g, "-"),
-    name,
-    category: "General",
-  })),
-  verified: profile.verified,
-  image: profile.photos[0],
-  photos: profile.photos,
-  bio: profile.aboutMe,
-});
 
 interface CardContentProps {
   profile: ProfileCard;
@@ -285,10 +251,10 @@ const CardContent = React.memo(function CardContent({
               style={styles.hobbyPreviewChip}
             >
               <Text style={styles.hobbyPreviewText}>
-                {HOBBY_EMOJIS[hobby.name]
-                  ? `${HOBBY_EMOJIS[hobby.name]} `
+                {getHobbyEmoji(hobby.name)
+                  ? `${getHobbyEmoji(hobby.name)} `
                   : ""}
-                {hobby.name}
+                {getVietnameseHobbyName(hobby.name)}
               </Text>
             </View>
           ))}
@@ -301,11 +267,17 @@ const CardContent = React.memo(function CardContent({
     <>
       {/* Card Hero Photo */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <Image
-          source={{ uri: profile.image }}
-          style={styles.cardImage}
-          resizeMode="cover"
-        />
+        {profile.image ? (
+          <Image
+            source={{ uri: profile.image }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+            <Ionicons name="person-outline" size={72} color="rgba(255,255,255,0.7)" />
+          </View>
+        )}
       </View>
 
       {/* Profile Details Container */}
@@ -804,8 +776,6 @@ export default function SwipeScreen() {
   const preferencesVersion = useDiscoveryStore(
     (state) => state.preferencesVersion,
   );
-  const filterGender = useDiscoveryStore((state) => state.filters.gender);
-
   const mode = useThemeStore((state) => state.mode);
   const theme = mode === "dark" ? darkColors : colors;
   const styles = resolveThemeStyles(baseStyles, theme);
@@ -836,15 +806,7 @@ export default function SwipeScreen() {
     recordedImpressionKeysRef.current = new Set();
 
     if (!userId) {
-      // Fallback for non-authenticated exploration mode
-      const currentFilters = useDiscoveryStore.getState().filters;
-      let fallback = discoveryProfiles.map(mapMockProfile);
-      if (currentFilters.gender === 'women') {
-        fallback = fallback.filter((p) => p.gender === 'female');
-      } else if (currentFilters.gender === 'men') {
-        fallback = fallback.filter((p) => p.gender === 'male');
-      }
-      setRemoteProfiles(fallback);
+      setRemoteProfiles([]);
       setIsLoadingProfiles(false);
       return;
     }
@@ -1039,17 +1001,8 @@ export default function SwipeScreen() {
 
   // Order from server ranking snapshot must be preserved directly (no client-side re-sorting)
   const candidateProfiles = useMemo(() => {
-    if (remoteProfiles !== null) {
-      return remoteProfiles;
-    }
-    let fallback = discoveryProfiles.map(mapMockProfile);
-    if (filterGender === 'women') {
-      fallback = fallback.filter((p) => p.gender === 'female');
-    } else if (filterGender === 'men') {
-      fallback = fallback.filter((p) => p.gender === 'male');
-    }
-    return fallback;
-  }, [filterGender, remoteProfiles]);
+    return remoteProfiles ?? [];
+  }, [remoteProfiles]);
 
   // Pre-load next batch using cursor pagination when nearing end
   useEffect(() => {
@@ -1096,7 +1049,6 @@ export default function SwipeScreen() {
       !userId ||
       !recommendationSessionId ||
       !currentProfile ||
-      currentProfile.isIntro ||
       laidOutProfileKey !== visibleProfileKey
     ) {
       return undefined;
@@ -1189,57 +1141,55 @@ export default function SwipeScreen() {
       const profile = currentProfileRef.current;
       if (!profile) return;
 
-      if (!profile.isIntro) {
-        if (action === "like") {
-          swipeRight(profile.userId);
-          if (userId) {
-            datingApi
-              .createSwipe(userId, profile.userId, "like")
-              .then((res) => {
-                if (res.isMatch) {
-                  showSwipeFeedback("Đã ghép đôi thành công! 🎉");
-                  setTimeout(() => {
-                    router.push({
-                      pathname: "/match-found",
-                      params: {
-                        matchedUserId: profile.userId,
-                        matchedName: profile.name,
-                        matchedPhoto: profile.image,
-                      },
-                    });
-                  }, 350);
-                } else {
-                  showSwipeFeedback("Đã gửi thích");
-                }
-              })
-              .catch((error: unknown) => {
-                showSwipeFeedback(
-                  error instanceof Error
-                    ? error.message
-                    : "Không thể lưu lượt thích",
-                );
-              });
-          } else {
-            showSwipeFeedback("Đã gửi thích");
-          }
+      if (action === "like") {
+        swipeRight(profile.userId);
+        if (userId) {
+          datingApi
+            .createSwipe(userId, profile.userId, "like")
+            .then((res) => {
+              if (res.isMatch) {
+                showSwipeFeedback("Đã ghép đôi thành công! 🎉");
+                setTimeout(() => {
+                  router.push({
+                    pathname: "/match-found",
+                    params: {
+                      matchedUserId: profile.userId,
+                      matchedName: profile.name,
+                      matchedPhoto: profile.image,
+                    },
+                  });
+                }, 350);
+              } else {
+                showSwipeFeedback("Đã gửi thích");
+              }
+            })
+            .catch((error: unknown) => {
+              showSwipeFeedback(
+                error instanceof Error
+                  ? error.message
+                  : "Không thể lưu lượt thích",
+              );
+            });
         } else {
-          swipeLeft(profile.userId);
-          if (userId) {
-            datingApi
-              .createSwipe(userId, profile.userId, "pass")
-              .then(() => {
-                showSwipeFeedback("Đã bỏ qua");
-              })
-              .catch((error: unknown) => {
-                showSwipeFeedback(
-                  error instanceof Error
-                    ? error.message
-                    : "Không thể lưu lượt bỏ qua",
-                );
-              });
-          } else {
-            showSwipeFeedback("Đã bỏ qua");
-          }
+          showSwipeFeedback("Đã gửi thích");
+        }
+      } else {
+        swipeLeft(profile.userId);
+        if (userId) {
+          datingApi
+            .createSwipe(userId, profile.userId, "pass")
+            .then(() => {
+              showSwipeFeedback("Đã bỏ qua");
+            })
+            .catch((error: unknown) => {
+              showSwipeFeedback(
+                error instanceof Error
+                  ? error.message
+                  : "Không thể lưu lượt bỏ qua",
+              );
+            });
+        } else {
+          showSwipeFeedback("Đã bỏ qua");
         }
       }
 
@@ -1304,6 +1254,24 @@ export default function SwipeScreen() {
           <Text style={styles.emptySubtitle}>
             Dựa trên hồ sơ và sở thích của bạn
           </Text>
+        </View>
+      );
+    }
+
+    if (!userId) {
+      return (
+        <View style={styles.emptyCard}>
+          <Ionicons name="person-circle-outline" size={56} color={theme.primary} />
+          <Text style={styles.emptyTitle}>Đăng nhập để khám phá hồ sơ</Text>
+          <Text style={styles.emptySubtitle}>
+            Đăng nhập để xem gợi ý và lưu lượt thích của bạn.
+          </Text>
+          <TouchableOpacity
+            style={[styles.reloadBtn, { backgroundColor: theme.primary }]}
+            onPress={() => router.push('/(auth)/sign-in')}
+          >
+            <Text style={styles.reloadBtnText}>Đăng nhập</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -1531,6 +1499,11 @@ const baseStyles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     width: "100%",
     height: "100%",
+  },
+  cardImagePlaceholder: {
+    backgroundColor: "#52525B",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardInfo: {
     position: "absolute",
