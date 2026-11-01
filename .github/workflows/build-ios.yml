@@ -11,7 +11,7 @@ on:
           - Debug
         default: Release
       xcode_version:
-        description: 'Optional: select a specific Xcode, e.g. 26.0 (uses /Applications/Xcode_<version>.app). Empty = runner default.'
+        description: 'Optional: select a specific Xcode, e.g. 26.6 (uses /Applications/Xcode_<version>.app, must be >= 26.2). Empty = runner default.'
         type: string
         required: false
         default: ''
@@ -22,7 +22,9 @@ permissions:
 jobs:
   build-ios:
     name: Build iOS Unsigned IPA
-    runs-on: macos-15
+    # macos-26 (default Xcode 26.x): firebase-ios-sdk 13.x, pulled in by @react-native-firebase 27, needs Xcode >= 26.2.
+    # macos-15 only has Xcode 16.4 by default and fails with "incompatible tools version (6.2.0)".
+    runs-on: macos-26
     timeout-minutes: 90
 
     env:
@@ -82,14 +84,31 @@ jobs:
           echo "=== Available iOS SDKs ==="
           xcodebuild -showsdks
           echo ""
+          echo "=== Installed Xcode versions ==="
+          ls -d /Applications/Xcode*.app
+          echo ""
           echo "=== Build configuration ==="
           echo "$CONFIGURATION"
 
-      # 6. Install JS dependencies
+      # 6. Fail fast: firebase-ios-sdk 13.x (Swift tools 6.2.1) only resolves on Xcode >= 26.2
+      - name: Check Xcode version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(xcodebuild -version | awk '/^Xcode/ {print $2}')
+          IFS=. read -r MAJOR MINOR _ <<< "$VERSION"
+          MINOR="${MINOR:-0}"
+          if [ "$MAJOR" -lt 26 ] || { [ "$MAJOR" -eq 26 ] && [ "$MINOR" -lt 2 ]; }; then
+            echo "::error title=Xcode too old::Xcode $VERSION is selected, but firebase-ios-sdk 13.x needs Xcode >= 26.2. Use runs-on: macos-26 or set the xcode_version input (see 'Installed Xcode versions' in the previous step)."
+            exit 1
+          fi
+          echo "✅ Xcode $VERSION is OK (>= 26.2)"
+
+      # 7. Install JS dependencies
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 7. Create .env (the app reads EXPO_PUBLIC_* at bundle time; .env is not committed, only .env.example)
+      # 8. Create .env (the app reads EXPO_PUBLIC_* at bundle time; .env is not committed, only .env.example)
       # Add each value as a repository Secret or Variable with the same name.
       # EXPO_PUBLIC_* values end up inside the app bundle anyway, so Variables are fine too.
       - name: Create .env from secrets/variables
@@ -131,7 +150,7 @@ jobs:
             echo "::warning title=Firebase JS config not set::EXPO_PUBLIC_FIREBASE_* is empty, so Firebase will be disabled in the app (login will not work)."
           fi
 
-      # 8. Firebase iOS config. @react-native-firebase/app needs GoogleService-Info.plist on iOS,
+      # 9. Firebase iOS config. @react-native-firebase/app needs GoogleService-Info.plist on iOS,
       #    but the repo only has the Android google-services.json.
       #    - Real file: store base64 of it in the secret GOOGLE_SERVICE_INFO_PLIST_BASE64  (base64 -i GoogleService-Info.plist | pbcopy)
       #    - Otherwise a PLACEHOLDER is generated so the build can compile (Firebase/Google login will NOT work at runtime).
@@ -203,7 +222,7 @@ jobs:
 
           plutil -lint GoogleService-Info.plist
 
-      # 9. Patch app.json (CI only, not committed) so iOS prebuild works with React Native Firebase:
+      # 10. Patch app.json (CI only, not committed) so iOS prebuild works with React Native Firebase:
       #    - expo.ios.googleServicesFile -> ./GoogleService-Info.plist  (repo only sets android.googleServicesFile)
       #    - expo-build-properties ios.useFrameworks = "dynamic"        (RNFirebase uses Swift Package Manager on iOS,
       #      which requires dynamic linkage; static linkage fails with "SPM + static linkage is not supported")
@@ -245,7 +264,7 @@ jobs:
           console.log('expo-build-properties ios =', JSON.stringify(opts.ios));
           NODE
 
-      # 10. Setup Ruby for CocoaPods
+      # 11. Setup Ruby for CocoaPods
       # bundler-cache is disabled because Gemfile.lock is not committed in repository
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -253,7 +272,7 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: false
 
-      # 11. Install Bundler dependencies
+      # 12. Install Bundler dependencies
       - name: Install Bundler dependencies
         shell: bash
         run: |
@@ -263,14 +282,14 @@ jobs:
           fi
           bundle install
 
-      # 12. Generate iOS native project via Expo Prebuild
+      # 13. Generate iOS native project via Expo Prebuild
       # --no-install skips automatic pod install so we run it deterministically under Ruby 3.3
       - name: Generate iOS native project
         run: pnpm expo prebuild --platform ios --clean --no-install
         env:
           EXPO_USE_PNPM: "1"
 
-      # 13. Show what prebuild generated (helps debugging pod install issues)
+      # 14. Show what prebuild generated (helps debugging pod install issues)
       - name: Inspect generated iOS project
         working-directory: ios
         shell: bash
@@ -287,7 +306,7 @@ jobs:
           echo "=== GoogleService-Info.plist inside the Xcode project ==="
           find . -name GoogleService-Info.plist -not -path "./Pods/*" || true
 
-      # 14. Install CocoaPods dependencies
+      # 15. Install CocoaPods dependencies
       - name: Install CocoaPods dependencies
         working-directory: ios
         env:
@@ -304,7 +323,7 @@ jobs:
           echo "Active CocoaPods: $(bundle exec pod --version)"
           bundle exec pod install
 
-      # 15. Detect Xcode workspace and scheme
+      # 16. Detect Xcode workspace and scheme
       - name: Detect Xcode workspace and scheme
         id: detect
         working-directory: ios
@@ -366,7 +385,7 @@ jobs:
           echo "Selected Scheme: $SCHEME"
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
 
-      # 16. Build unsigned iOS app
+      # 17. Build unsigned iOS app
       - name: Build unsigned iOS app
         working-directory: ios
         shell: bash
@@ -395,7 +414,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_STYLE=Manual
 
-      # 17. Package .app into unsigned .ipa
+      # 18. Package .app into unsigned .ipa
       - name: Package unsigned IPA
         working-directory: ios
         shell: bash
@@ -464,7 +483,7 @@ jobs:
           IPA_SIZE=$(ls -lh App-Unsigned.ipa | awk '{print $5}')
           echo "✅ Unsigned IPA created successfully: App-Unsigned.ipa ($IPA_SIZE)"
 
-      # 18. Upload IPA as GitHub Actions artifact
+      # 19. Upload IPA as GitHub Actions artifact
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
