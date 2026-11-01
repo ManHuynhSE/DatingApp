@@ -9,6 +9,8 @@ import {
   initializeAuth,
   getReactNativePersistence,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
   GoogleAuthProvider,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -69,6 +71,20 @@ export const firebaseAuth = {
   async createAccount(email: string, password: string) {
     if (!auth) throw new Error('Firebase is not configured');
     return createUserWithEmailAndPassword(auth, email, password);
+  },
+  async sendVerificationEmail() {
+    const user = auth?.currentUser;
+    if (!user) throw new Error('Sign in before requesting email verification');
+    if (!user.email) throw new Error('This Firebase account does not have an email address');
+    if (user.emailVerified) return false;
+    await sendEmailVerification(user);
+    return true;
+  },
+  async reloadCurrentUser() {
+    const user = auth?.currentUser;
+    if (!user) throw new Error('No user signed in');
+    await reload(user);
+    return user;
   },
   async resetPassword(email: string) {
     if (!auth) throw new Error('Firebase is not configured');

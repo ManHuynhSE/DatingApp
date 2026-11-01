@@ -76,6 +76,7 @@ export interface DatingProfile {
   users?: {
     id: string;
     email?: string | null;
+    email_verified?: boolean;
     phone?: string | null;
     status?: string;
     last_active_at?: string | null;
@@ -227,6 +228,17 @@ export interface SwipedMeResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
+export interface SafeUser {
+  id: string;
+  email: string | null;
+  email_verified: boolean;
+  phone: string | null;
+  status: string;
+  last_active_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuthResponse {
   success: boolean;
   message: string;
@@ -234,6 +246,7 @@ export interface AuthResponse {
     user: {
       id: string;
       email: string | null;
+      email_verified?: boolean;
       phone: string | null;
       status: string;
       last_active_at: string | null;
@@ -798,6 +811,9 @@ export const datingApi = {
     }
     return body as { success: boolean; data: { customToken: string } };
   },
+
+  getUser: (userId: string) =>
+    request<{ success: boolean; data: SafeUser }>(`/users/${userId}`),
 
   updateMyRelationshipIntention: (
     relationship_intention: RelationshipIntentionType | string | null,

@@ -18,6 +18,7 @@ export default function Index() {
   const navigationState = useRootNavigationState();
   const isAuthReady = useAuthStore((state) => state.isAuthReady);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
   const hasNavigated = useRef(false);
 
   useEffect(() => {
@@ -28,11 +29,15 @@ export default function Index() {
 
     hasNavigated.current = true;
     if (isAuthenticated) {
-      router.replace('/(tabs)/swipe');
+      if (user?.email && !user.email_verified) {
+        router.replace('/verify-email');
+      } else {
+        router.replace('/(tabs)/swipe');
+      }
     } else {
       router.replace('/(auth)/sign-in');
     }
-  }, [navigationState?.key, isAuthReady, isAuthenticated]);
+  }, [navigationState?.key, isAuthReady, isAuthenticated, user]);
 
   // Show a blank spinner while Firebase is resolving the persisted session.
   return (

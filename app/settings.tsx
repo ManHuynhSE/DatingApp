@@ -1,12 +1,17 @@
+import { useState, useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, darkColors, spacing, typography } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { useThemeStore } from '@/store/themeStore';
 import { firebaseAuth } from '@/auth/firebase';
+import {
+  getFirebaseVerificationErrorMessage,
+  refreshEmailVerificationStatus,
+} from '@/auth/emailVerification';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -14,8 +19,90 @@ export default function SettingsScreen() {
   const theme = mode === 'dark' ? darkColors : colors;
   const verified = useAuthStore((state) => state.user?.verified ?? false);
   const user = useAuthStore((state) => state.user);
+  const updateUser = useAuthStore((state) => state.updateUser);
   const logout = useAuthStore((state) => state.logout);
   const setCoordinates = useLocationStore((state) => state.setCoordinates);
+
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      cooldownTimerRef.current = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    };
+  }, [resendCooldown]);
+
+  const handleResendEmail = async () => {
+    if (resendCooldown > 0 || isResending || !user?.email) return;
+
+    setIsResending(true);
+    try {
+      const firebaseUser = await firebaseAuth.reloadCurrentUser();
+      if (firebaseUser.emailVerified) {
+        const isVerified = await refreshEmailVerificationStatus();
+        if (isVerified) updateUser({ email_verified: true });
+        return;
+      }
+      await firebaseAuth.sendVerificationEmail();
+      setResendCooldown(60);
+      Alert.alert(
+        'Đã gửi email',
+        'Firebase đã gửi email xác minh đến hộp thư của bạn. Hãy mở liên kết trong email để hoàn tất.'
+      );
+    } catch (error) {
+      Alert.alert('Không thể gửi email', getFirebaseVerificationErrorMessage(error));
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleCheckEmailStatus = async () => {
+    if (isCheckingEmail || !user?.id) return;
+
+    setIsCheckingEmail(true);
+    try {
+      const isVerified = await refreshEmailVerificationStatus();
+      if (isVerified) {
+        updateUser({ email_verified: true });
+        Alert.alert('Xác minh thành công', 'Email của bạn đã được xác minh thành công!');
+      } else {
+        Alert.alert(
+          'Chưa xác minh',
+          'Email vẫn chưa được xác minh. Bạn có muốn nhận lại email xác minh không?',
+          [
+            { text: 'Đóng', style: 'cancel' },
+            {
+              text: 'Gửi lại email',
+              onPress: handleResendEmail,
+            },
+          ]
+        );
+      }
+    } catch {
+      Alert.alert('Lỗi', 'Không thể kiểm tra trạng thái xác minh lúc này. Vui lòng thử lại sau.');
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -74,6 +161,76 @@ export default function SettingsScreen() {
         {verified ? <Ionicons name="checkmark-circle" size={22} color={theme.success} /> : <Ionicons name="chevron-forward" size={21} color={theme.textTertiary} />}
       </Pressable>
 
+      {user?.email ? (
+        <Pressable
+          onPress={user.email_verified ? undefined : handleCheckEmailStatus}
+          accessibilityRole="button"
+          style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: spacing.sm }]}
+        >
+          <View
+            style={[
+              styles.iconWrap,
+              {
+                backgroundColor: user.email_verified ? `${theme.success}20` : `${theme.warning}20`,
+              },
+            ]}
+          >
+            <Ionicons
+              name={user.email_verified ? 'mail-open-outline' : 'mail-unread-outline'}
+              size={22}
+              color={user.email_verified ? theme.success : theme.warning}
+            />
+          </View>
+          <View style={styles.rowText}>
+            <Text style={[styles.rowTitle, { color: theme.textPrimary }]}>Xác minh email</Text>
+            <Text style={[styles.rowSubtitle, { color: theme.textSecondary }]}>
+              {user.email} • {user.email_verified ? 'Đã xác minh' : 'Chưa xác minh'}
+            </Text>
+          </View>
+          {user.email_verified ? (
+            <Ionicons name="checkmark-circle" size={22} color={theme.success} />
+          ) : isCheckingEmail ? (
+            <ActivityIndicator size="small" color={theme.primary} />
+          ) : (
+            <Pressable
+              onPress={handleResendEmail}
+              disabled={isResending || resendCooldown > 0}
+              style={[
+                styles.resendBadge,
+                {
+                  backgroundColor:
+                    resendCooldown > 0
+                      ? mode === 'dark'
+                        ? '#374151'
+                        : '#E5E7EB'
+                      : `${theme.primary}20`,
+                },
+              ]}
+            >
+              {isResending ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                <Text
+                  style={[
+                    styles.resendBadgeText,
+                    {
+                      color:
+                        resendCooldown > 0
+                          ? mode === 'dark'
+                            ? '#9CA3AF'
+                            : '#6B7280'
+                          : theme.primary,
+                    },
+                  ]}
+                >
+                  {resendCooldown > 0 ? `${resendCooldown}s` : 'Gửi lại'}
+                </Text>
+              )}
+            </Pressable>
+          )}
+        </Pressable>
+      ) : null}
+
       {/* Session / Log Out Section */}
       <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: spacing.xl }]}>PHIÊN ĐĂNG NHẬP</Text>
       <Pressable
@@ -124,4 +281,16 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: 4 },
   rowTitle: { ...typography.bodyBold },
   rowSubtitle: { ...typography.caption },
+  resendBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 64,
+  },
+  resendBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });

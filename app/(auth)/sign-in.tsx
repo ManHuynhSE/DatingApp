@@ -16,7 +16,9 @@ import { useRouter } from "expo-router";
 import Constants, { AppOwnership } from "expo-constants";
 import { colors, typography, spacing, borderRadius } from "../../src/theme";
 import { firebaseAuth } from "../../src/auth/firebase";
-import { DatingApiError, datingApi } from "../../src/api/datingClient";
+import { datingApi } from "../../src/api/datingClient";
+import { navigateAfterAuthentication } from "../../src/auth/postAuthNavigation";
+import { getFirebaseVerificationErrorMessage } from "../../src/auth/emailVerification";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 
@@ -56,27 +58,13 @@ const completeAuthentication = async (
     const response = await datingApi.signInWithFirebase(idToken);
     if (response.success && response.data) {
       const userId = response.data.user.id;
-      let hasProfile = false;
-
-      if (!response.data.isNewUser) {
-        try {
-          await datingApi.getUserProfile(userId, false, false);
-          hasProfile = true;
-        } catch (error) {
-          if (!(error instanceof DatingApiError) || error.status !== 404) {
-            throw error;
-          }
-        }
+      const email = response.data.user.email ?? firebaseAuth.currentAuth?.currentUser?.email;
+      if (email && response.data.user.email_verified !== true) {
+        router.replace('/verify-email');
+        return;
       }
 
-      if (response.data.isNewUser || !hasProfile) {
-        router.replace({
-          pathname: "/create-profile",
-          params: { userId },
-        });
-      } else {
-        router.replace("/(tabs)/swipe");
-      }
+      await navigateAfterAuthentication(router, userId);
     }
   } catch (error) {
     console.error("Failed to register with backend:", error);
@@ -92,7 +80,7 @@ export default function SignInScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const isExpoGo = Constants.appOwnership === AppOwnership.Expo;
   const redirectUri = AuthSession.makeRedirectUri({ scheme: "mewdy" });
-  const [googleRequest, googleResponse, promptGoogle] =
+  const [googleRequest, googleResponse] =
     AuthSession.useAuthRequest(
       {
         clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
@@ -137,16 +125,44 @@ export default function SignInScreen() {
     }
     setIsLoading(true);
     try {
-      const authentication = isCreateMode
-        ? firebaseAuth.createAccount(email.trim(), password)
-        : firebaseAuth.signInWithEmail(email.trim(), password);
+      if (isCreateMode) {
+        await withTimeout(
+          firebaseAuth.createAccount(email.trim(), password),
+          "Máy chủ không phản hồi. Vui lòng kiểm tra kết nối mạng và thử lại.",
+        );
+
+        let verificationEmailError: unknown = null;
+        try {
+          await firebaseAuth.sendVerificationEmail();
+        } catch (error) {
+          verificationEmailError = error;
+        }
+
+        await completeAuthentication(router);
+        if (verificationEmailError) {
+          Alert.alert(
+            'Chưa gửi được email xác minh',
+            getFirebaseVerificationErrorMessage(verificationEmailError),
+          );
+        }
+        return;
+      }
+
       await withTimeout(
-        authentication,
+        firebaseAuth.signInWithEmail(email.trim(), password),
         "Máy chủ không phản hồi. Vui lòng kiểm tra kết nối mạng và thử lại.",
       );
       await completeAuthentication(router);
     } catch (error) {
-      Alert.alert("Xác thực thất bại", getErrorMessage(error));
+      const currentEmail = firebaseAuth.currentAuth?.currentUser?.email?.toLowerCase();
+      if (isCreateMode && currentEmail === email.trim().toLowerCase()) {
+        Alert.alert(
+          'Tài khoản Firebase đã sẵn sàng',
+          'Chưa thể đồng bộ tài khoản với Mewdy. Hãy chuyển sang “Đăng nhập bằng email” và thử lại; không cần tạo tài khoản lần nữa.',
+        );
+      } else {
+        Alert.alert("Xác thực thất bại", getErrorMessage(error));
+      }
     } finally {
       setIsLoading(false);
     }

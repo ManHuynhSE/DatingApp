@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { AppState, type AppStateStatus } from 'react-native';
+import { router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { firebaseAuth } from '../src/auth/firebase';
+import { refreshEmailVerificationStatus } from '../src/auth/emailVerification';
 import { datingApi } from '../src/api/datingClient';
 import type { UserProfile } from '../src/data/mockData';
 import { useAuthStore } from '../src/store/authStore';
@@ -22,6 +24,10 @@ function calculateAge(birthDate: string) {
 export default function RootLayout() {
   const setSession = useAuthStore((state) => state.setSession);
   const setAuthReady = useAuthStore((state) => state.setAuthReady);
+  const isAuthReady = useAuthStore((state) => state.isAuthReady);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+  const segments = useSegments();
   const setCoordinates = useLocationStore((state) => state.setCoordinates);
   const mode = useThemeStore((state) => state.mode);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
@@ -29,6 +35,36 @@ export default function RootLayout() {
   useEffect(() => {
     void hydrateTheme();
   }, [hydrateTheme]);
+
+  // Keep accounts with an unverified email on the verification screen, including
+  // attempts to open an app route directly or from a restored navigation state.
+  useEffect(() => {
+    if (!isAuthReady || !isAuthenticated || !user?.email || user.email_verified) return;
+    if (segments[0] !== 'verify-email') router.replace('/verify-email');
+  }, [isAuthReady, isAuthenticated, segments, user?.email, user?.email_verified]);
+
+  // Firebase's hosted action handler verifies the email. Reload on resume so the
+  // current device and PostgreSQL pick up verification completed in a browser/device.
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        const currentUser = useAuthStore.getState().user;
+        if (currentUser?.id && currentUser.email && !currentUser.email_verified) {
+          try {
+            const isVerified = await refreshEmailVerificationStatus();
+            useAuthStore.getState().updateUser({ email_verified: isVerified });
+          } catch {
+            // Silently ignore background refresh errors
+          }
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -52,6 +88,8 @@ export default function RootLayout() {
         let hasProfile = false;
         const user: UserProfile = {
           id: backendUser.id,
+          email: backendUser.email ?? (firebaseUser.email ?? undefined),
+          email_verified: backendUser.email_verified ?? false,
           name: backendUser.email?.split('@')[0] || firebaseUser.displayName || '',
           age: 0,
           verified: false,
@@ -94,6 +132,12 @@ export default function RootLayout() {
           user.relationship_intention = profile.relationship_intention ?? null;
           user.relationshipGoal = profile.relationship_intention ?? '';
           user.profileCompletion = 100;
+          if (profile.users?.email) {
+            user.email = profile.users.email;
+          }
+          if (typeof profile.users?.email_verified === 'boolean') {
+            user.email_verified = profile.users.email_verified;
+          }
         } catch {
           // A user may sign in before creating a profile; keep the real backend user id.
         }
@@ -140,6 +184,7 @@ export default function RootLayout() {
           <Stack.Screen name="edit-profile" options={{ presentation: 'card' }} />
           <Stack.Screen name="profile-picker" options={{ presentation: 'card' }} />
           <Stack.Screen name="settings" options={{ presentation: 'card' }} />
+          <Stack.Screen name="verify-email" options={{ presentation: 'card', gestureEnabled: false }} />
           <Stack.Screen name="verify-phone" options={{ presentation: 'card' }} />
           <Stack.Screen name="create-profile" options={{ presentation: 'card' }} />
           <Stack.Screen name="likes-review" options={{ presentation: 'card' }} />

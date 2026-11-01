@@ -46,6 +46,7 @@ import { useDiscoveryStore } from "@/store/discoveryStore";
 import { useThemeStore } from "@/store/themeStore";
 import { HOBBY_EMOJIS } from "@/data/hobbies";
 import { useAuthStore } from "@/store/authStore";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import {
   datingApi,
   DatingApiError,
@@ -1456,6 +1457,7 @@ export default function SwipeScreen() {
           </Text>
         </Animated.View>
       ) : null}
+      <EmailVerificationBanner />
       <View style={styles.cardContainer}>{renderCard()}</View>
     </SafeAreaView>
   );
