@@ -35,7 +35,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, darkColors, spacing, borderRadius, typography } from '@/theme';
+import { colors, darkColors, spacing, borderRadius, typography, getGenderBadgeColor } from '@/theme';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useDiscoveryStore } from '@/store/discoveryStore';
@@ -250,7 +250,18 @@ const DiscoveryCardContent = React.memo(function DiscoveryCardContent({
       {/* Tags: Pronouns, Relationship Intention, Distance, Location */}
       <View style={styles.tagsRow}>
         {profile.pronouns ? (
-          <View style={styles.pronounsChip}>
+          <View
+            style={[
+              styles.pronounsChip,
+              {
+                backgroundColor: getGenderBadgeColor(
+                  profile.gender,
+                  profile.pronouns,
+                  colors.primary,
+                ),
+              },
+            ]}
+          >
             <Text style={styles.pronounsText}>
               {profile.pronouns}
             </Text>

@@ -39,6 +39,7 @@ import {
   spacing,
   borderRadius,
   resolveThemeStyles,
+  getGenderBadgeColor,
 } from "@/theme";
 import { discoveryProfiles } from "@/data/mockData";
 import { useDiscoveryStore } from "@/store/discoveryStore";
@@ -228,7 +229,18 @@ const CardContent = React.memo(function CardContent({
       </View>
 
       <View style={styles.tagsRow}>
-        <View style={styles.pronounsChip}>
+        <View
+          style={[
+            styles.pronounsChip,
+            {
+              backgroundColor: getGenderBadgeColor(
+                profile.gender,
+                profile.pronouns,
+                colors.primary,
+              ),
+            },
+          ]}
+        >
           <Text style={styles.pronounsText}>{profile.pronouns}</Text>
         </View>
         {profile.distanceKm !== null && profile.distanceKm !== undefined ? (

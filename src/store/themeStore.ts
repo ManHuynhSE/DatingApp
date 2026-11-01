@@ -22,11 +22,13 @@ export const useThemeStore = create<ThemeState>((set) => ({
     set((state) => {
       const mode = state.mode === 'light' ? 'dark' : 'light';
       applyPalette(mode);
-      void AsyncStorage.setItem('heartsync-theme', mode);
+      void AsyncStorage.setItem('mewdy-theme', mode);
       return { mode };
     }),
   hydrate: async () => {
-    const storedMode = await AsyncStorage.getItem('heartsync-theme');
+    const storedMode =
+      (await AsyncStorage.getItem('mewdy-theme')) ||
+      (await AsyncStorage.getItem('heartsync-theme'));
     if (storedMode === 'dark' || storedMode === 'light') {
       applyPalette(storedMode);
       set({ mode: storedMode });
