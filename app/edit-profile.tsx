@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -149,6 +149,9 @@ export default function EditProfileScreen({
     type: string;
     field?: string;
   } | null>(null);
+  const lastPickerRef = useRef<{ type: string; field?: string }>({
+    type: "detail",
+  });
 
   if (!current) return null;
 
@@ -178,6 +181,7 @@ export default function EditProfileScreen({
   };
 
   const openPicker = (type: string, field?: string) => {
+    lastPickerRef.current = { type, field };
     setActivePicker({ type, field });
   };
 
@@ -677,8 +681,8 @@ export default function EditProfileScreen({
 
       <ProfilePickerModal
         visible={activePicker !== null}
-        type={activePicker?.type ?? "detail"}
-        field={activePicker?.field}
+        type={lastPickerRef.current.type}
+        field={lastPickerRef.current.field}
         onClose={closePicker}
       />
     </SafeAreaView>

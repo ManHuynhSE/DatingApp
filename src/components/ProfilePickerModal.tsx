@@ -312,6 +312,19 @@ function ProfilePickerSheetContent({
   const [photoLoadAttempt, setPhotoLoadAttempt] = useState(0);
   const isPickingRef = useRef(false);
   const isSavingRef = useRef(false);
+  const suppressModalCloseRef = useRef(false);
+  const suppressModalCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    return () => {
+      if (suppressModalCloseTimeoutRef.current) {
+        clearTimeout(suppressModalCloseTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const [tempLanguages, setTempLanguages] = useState<string[]>(
     () => initialData?.languages ?? draft?.languages ?? user?.languages ?? [],
   );
@@ -418,12 +431,19 @@ function ProfilePickerSheetContent({
   useEffect(() => {
     const wasVisible = prevVisibleRef.current;
     prevVisibleRef.current = visible;
-    if (!visible) return;
-    isPickingRef.current = false;
-    isSavingRef.current = false;
+    if (!visible) {
+      suppressModalCloseRef.current = false;
+      if (suppressModalCloseTimeoutRef.current) {
+        clearTimeout(suppressModalCloseTimeoutRef.current);
+        suppressModalCloseTimeoutRef.current = null;
+      }
+      return;
+    }
 
     // Resync local states from store/props when opening
     if (!wasVisible) {
+      isPickingRef.current = false;
+      isSavingRef.current = false;
       const currentIntention =
         initialData?.relationship_intention ??
         draft?.relationship_intention ??
@@ -578,6 +598,13 @@ function ProfilePickerSheetContent({
 
   // ─── CANCEL HANDLER: Discards temporary state ──────────────────────────────
   const handleCancel = () => {
+    if (
+      isPickingRef.current ||
+      isSavingRef.current ||
+      suppressModalCloseRef.current
+    ) {
+      return;
+    }
     animateClose(handleFinishModal);
   };
 
@@ -986,6 +1013,7 @@ function ProfilePickerSheetContent({
     if (selectionLimit <= 0) return;
 
     isPickingRef.current = true;
+    suppressModalCloseRef.current = true;
     setPhotoPicking(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -1047,6 +1075,13 @@ function ProfilePickerSheetContent({
     } finally {
       isPickingRef.current = false;
       setPhotoPicking(false);
+      if (suppressModalCloseTimeoutRef.current) {
+        clearTimeout(suppressModalCloseTimeoutRef.current);
+      }
+      suppressModalCloseTimeoutRef.current = setTimeout(() => {
+        suppressModalCloseRef.current = false;
+        suppressModalCloseTimeoutRef.current = null;
+      }, 750);
     }
   };
 
@@ -1102,7 +1137,15 @@ function ProfilePickerSheetContent({
         // (on some ROMs) when the app returns from the image-picker Activity.
         // Block the close entirely while we are picking or saving so the
         // modal doesn't disappear mid-selection.
-        if (isPickingRef.current || isSavingRef.current || photosSaving || photoPicking) return;
+        if (
+          isPickingRef.current ||
+          isSavingRef.current ||
+          photosSaving ||
+          photoPicking
+        ) {
+          return;
+        }
+        if (type === "photos" && suppressModalCloseRef.current) return;
         handleCancel();
       }}
     >
