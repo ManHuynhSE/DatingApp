@@ -81,10 +81,7 @@ export default function CreateProfileScreen() {
   const [interestedIn, setInterestedIn] = useState<
     "male" | "female" | "everyone"
   >("everyone");
-  const [languages, setLanguages] = useState<string[]>([
-    "Vietnamese",
-    "English",
-  ]);
+  const [languages, setLanguages] = useState<string[]>([]);
   const [relationshipIntention, setRelationshipIntention] = useState<
     string | null
   >(null);
@@ -234,6 +231,7 @@ export default function CreateProfileScreen() {
         updateUser({
           id: userId,
           name: name.trim().slice(0, 50),
+          birthDate: birthDate,
           age: ageNum,
           verified: false,
           pronouns: gender === "female" ? "She/Her" : gender === "male" ? "He/Him" : gender,

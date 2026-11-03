@@ -1225,23 +1225,21 @@ export default function SwipeScreen() {
       <View style={styles.headerLeft}>
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => router.push("/(tabs)/profile")}
-          accessibilityLabel="Open profile"
+          onPress={() => router.push("/daily-reading")}
+          accessibilityLabel="Mở năng lượng hôm nay"
         >
-          <Ionicons
-            name="person-circle-outline"
-            size={25}
-            color={theme.headerIcon ?? theme.textPrimary}
-          />
+          <Ionicons name="sparkles-outline" size={22} color="#8B5CF6" />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        style={styles.headerButton}
-        onPress={() => router.push("/filters")}
-        accessibilityLabel="Open filters"
-      >
-        <Ionicons name="options-outline" size={22} color={theme.primary} />
-      </TouchableOpacity>
+      <View style={styles.headerRight}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push("/filters")}
+          accessibilityLabel="Open filters"
+        >
+          <Ionicons name="options-outline" size={22} color={theme.primary} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -1457,6 +1455,11 @@ const baseStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   headerButton: {
     padding: spacing.xs,
