@@ -9,6 +9,7 @@ export interface Hobby {
 export interface UserProfile {
   id: string;
   name: string;
+  birthDate?: string;
   email?: string;
   email_verified?: boolean;
   age: number;

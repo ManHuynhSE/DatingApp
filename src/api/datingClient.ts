@@ -22,15 +22,20 @@ const AUTH_API_BASE_URL = Platform.OS === 'web'
   : process.env.EXPO_PUBLIC_AUTH_API_URL || NATIVE_DATING_API_BASE_URL.replace(/\/api\/?$/, '');
 
 const REQUEST_TIMEOUT_MS = 15_000;
+const AI_REQUEST_TIMEOUT_MS = 60_000;
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}) {
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new DatingApiError(408, `Dating server did not respond within ${REQUEST_TIMEOUT_MS / 1000} seconds`);
+      throw new DatingApiError(408, `Dating server did not respond within ${timeoutMs / 1000} seconds`);
     }
     throw error;
   } finally {
@@ -419,7 +424,11 @@ export class DatingApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const url = `${DATING_API_BASE_URL.replace(/\/+$/, '')}${path}`;
   const idToken = await firebaseAuth.getIdToken().catch(() => null);
   const isFormData =
@@ -431,7 +440,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       ...options.headers,
     },
-  });
+  }, timeoutMs);
 
   const text = await response.text();
   let body: unknown = null;
@@ -497,6 +506,16 @@ async function nativeMultipartRequest<T>(path: string, body: FormData): Promise<
 
 export const datingApi = {
   health: () => request<{ success: boolean; message: string }>('/health'),
+
+  aiChat: (message: string) =>
+    request<unknown>(
+      '/ai/chat',
+      {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      },
+      AI_REQUEST_TIMEOUT_MS,
+    ),
 
   getMyPhotos: () =>
     request<{ success: boolean; data: DatingPhoto[] }>('/users/me/photos'),
@@ -776,9 +795,18 @@ export const datingApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
     }).then(async (res) => {
-      const body = await res.json();
+      const text = await res.text();
+      let body: Partial<AuthResponse> & { message?: string } | null = null;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        throw new DatingApiError(
+          res.status,
+          `Máy chủ đăng nhập trả về dữ liệu không hợp lệ (${res.status}). Vui lòng kiểm tra backend hoặc proxy.`,
+        );
+      }
       if (!res.ok) {
-        throw new DatingApiError(res.status, body.message || 'Firebase sign-in failed');
+        throw new DatingApiError(res.status, body?.message || 'Firebase sign-in failed');
       }
       return body as AuthResponse;
     });

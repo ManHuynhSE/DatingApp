@@ -33,7 +33,11 @@ import {
   type Hobby,
 } from "@/api/datingClient";
 import ProfilePickerModal from "../src/components/ProfilePickerModal";
-import { getHobbyEmoji, normalizeHobbiesToVietnamese } from "../src/data/hobbies";
+import {
+  getHobbyEmoji,
+  getVietnameseHobbyName,
+  normalizeHobbiesToVietnamese,
+} from "../src/data/hobbies";
 
 const hobbiesCatalog = require("../assets/hobbies_list.json") as Hobby[];
 
@@ -87,6 +91,7 @@ export default function EditProfileScreen({
         const profileHobbies = normalizeHobbiesToVietnamese(profile.hobbies ?? []);
         const updatedFields: Partial<typeof user> = {
           name: profile.display_name,
+          birthDate: profile.birth_date,
           occupation: profile.job_title ?? "",
           city: profile.city ?? undefined,
           ward: profile.ward ?? undefined,

@@ -115,6 +115,7 @@ export default function RootLayout() {
           hasProfile = true;
           const photos = [...(profile.users?.photos ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position);
           user.name = profile.display_name;
+          user.birthDate = profile.birth_date;
           user.age = calculateAge(profile.birth_date);
           user.verified = profile.is_verified;
           user.pronouns = profile.gender === 'female' ? 'She/Her' : profile.gender === 'male' ? 'He/Him' : profile.gender;
@@ -189,6 +190,8 @@ export default function RootLayout() {
           <Stack.Screen name="verify-phone" options={{ presentation: 'card' }} />
           <Stack.Screen name="create-profile" options={{ presentation: 'card' }} />
           <Stack.Screen name="likes-review" options={{ presentation: 'card' }} />
+          <Stack.Screen name="daily-reading" options={{ presentation: 'card' }} />
+          <Stack.Screen name="daily-reading-history" options={{ presentation: 'card' }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

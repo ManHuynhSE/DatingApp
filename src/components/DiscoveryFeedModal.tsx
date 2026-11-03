@@ -15,7 +15,10 @@ import {
   Pressable,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 import {
   Gesture,
   GestureDetector,
@@ -207,13 +210,15 @@ export default function DiscoveryFeedModal({
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <DiscoveryFeedContent
-          key={`${topic.type}-${topic.id}`}
-          topic={topic}
-          onClose={onClose}
-        />
-      </GestureHandlerRootView>
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <DiscoveryFeedContent
+            key={`${topic.type}-${topic.id}`}
+            topic={topic}
+            onClose={onClose}
+          />
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
