@@ -5,7 +5,7 @@
     "scheme": "mewdy",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/mewdy_icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -15,10 +15,8 @@
       "package": "com.gooner.mewdy",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#F9445A",
+        "foregroundImage": "./assets/mewdy_icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
