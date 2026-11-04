@@ -211,10 +211,14 @@ export default function DailyReadingScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => router.back()} accessibilityLabel="Quay lại">
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+            Năng lượng hôm nay
+          </Text>
+        </View>
+        <Pressable onPress={() => router.back()} accessibilityLabel="Quay lại" style={styles.backButton}>
           <Ionicons name="chevron-back" size={26} color={theme.textPrimary} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Năng lượng hôm nay</Text>
         <View style={styles.headerActions}>
           <Pressable onPress={() => router.push('/daily-reading-history')} accessibilityLabel="Mở lịch sử">
             <Ionicons name="book-outline" size={22} color={theme.textPrimary} />
@@ -244,15 +248,7 @@ export default function DailyReadingScreen() {
         </View>
       ) : reading ? (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <LinearGradient colors={['#30245C', '#171A38']} style={styles.hero}>
-            <Ionicons name="moon" size={30} color="#F8D56B" />
-            <Text style={styles.heroEyebrow}>{reading.zodiac.element}</Text>
-            <Text style={styles.heroTitle}>{reading.zodiac.name}</Text>
-            <Text style={styles.heroSummary}>{reading.zodiac.summary}</Text>
-            <View style={styles.scorePill}>
-              <Text style={styles.scoreText}>Năng lượng {reading.zodiac.energyScore}/100</Text>
-            </View>
-          </LinearGradient>
+          <ZodiacHeroCard reading={reading} />
 
           <TarotFlipCard reading={reading} theme={theme} />
 
@@ -349,6 +345,99 @@ function CosmicLoading() {
   );
 }
 
+function ZodiacHeroCard({ reading }: { reading: StoredDailyReading }) {
+  const elementMeta = useMemo(() => {
+    const el = (reading.zodiac.element || '').toLowerCase();
+    if (el.includes('lửa')) return { icon: 'flame' as const, color: '#FB923C', label: 'Nguyên tố Lửa' };
+    if (el.includes('nước')) return { icon: 'water' as const, color: '#60A5FA', label: 'Nguyên tố Nước' };
+    if (el.includes('khí')) return { icon: 'cloudy-night' as const, color: '#C084FC', label: 'Nguyên tố Khí' };
+    if (el.includes('đất')) return { icon: 'leaf' as const, color: '#4ADE80', label: 'Nguyên tố Đất' };
+    return { icon: 'sparkles' as const, color: '#F5D082', label: `Nguyên tố ${reading.zodiac.element}` };
+  }, [reading.zodiac.element]);
+
+  const energyVibe = useMemo(() => {
+    const score = reading.zodiac.energyScore;
+    if (score >= 80) return '✦ Năng lượng rạng rỡ, thu hút duyên lành';
+    if (score >= 60) return '✦ Trực giác nhạy bén, tâm thái hài hòa';
+    return '✦ Nên dành thời gian tĩnh lặng để tái tạo năng lượng';
+  }, [reading.zodiac.energyScore]);
+
+  return (
+    <LinearGradient
+      colors={['#54122C', '#340B1C', '#1B040F']}
+      start={{ x: 0.1, y: 0 }}
+      end={{ x: 0.9, y: 1 }}
+      style={styles.hero}
+    >
+      <View style={styles.heroBadgeRow}>
+        <View style={styles.heroElementBadge}>
+          <Ionicons name={elementMeta.icon} size={13} color={elementMeta.color} />
+          <Text style={styles.heroElementText}>{elementMeta.label}</Text>
+        </View>
+        <View style={styles.heroDateBadge}>
+          <Ionicons name="sparkles" size={12} color="#F5D082" />
+          <Text style={styles.heroDateText}>{reading.date}</Text>
+        </View>
+      </View>
+
+      <View style={styles.heroTitleWrap}>
+        <Ionicons name="moon" size={26} color="#F5D082" />
+        <Text style={styles.heroTitle}>{reading.zodiac.name}</Text>
+      </View>
+
+      <Text style={styles.heroSummary}>{reading.zodiac.summary}</Text>
+
+      <View style={styles.heroEnergyCard}>
+        <View style={styles.heroEnergyHeader}>
+          <View style={styles.heroEnergyTitleRow}>
+            <Ionicons name="flash" size={14} color="#F5D082" />
+            <Text style={styles.heroEnergyTitle}>CHỈ SỐ NĂNG LƯỢNG HÔM NAY</Text>
+          </View>
+          <View style={styles.heroEnergyScoreRow}>
+            <Text style={styles.heroEnergyNumber}>{reading.zodiac.energyScore}</Text>
+            <Text style={styles.heroEnergyMax}>/100</Text>
+          </View>
+        </View>
+
+        <View style={styles.heroEnergyTrack}>
+          <LinearGradient
+            colors={['#F59E0B', '#F43F5E', '#EC4899']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[
+              styles.heroEnergyBar,
+              { width: `${Math.min(100, Math.max(8, reading.zodiac.energyScore))}%` },
+            ]}
+          />
+        </View>
+
+        <Text style={styles.heroEnergyVibe}>{energyVibe}</Text>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function TarotHeartSymbol({ size = 28 }: { size?: number }) {
+  const outerSize = size;
+  const innerSize = Math.max(12, Math.round(size * 0.74));
+  return (
+    <View style={{ width: outerSize, height: outerSize, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons
+        name="heart"
+        size={outerSize}
+        color="#F5D082"
+        style={{ position: 'absolute' }}
+      />
+      <Ionicons
+        name="heart"
+        size={innerSize}
+        color="#E84570"
+        style={{ position: 'absolute' }}
+      />
+    </View>
+  );
+}
+
 function TarotFlipCard({
   reading,
   theme,
@@ -361,22 +450,30 @@ function TarotFlipCard({
   return (
     <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={styles.cardHeading}>
-        <Ionicons name="layers-outline" size={22} color="#8B5CF6" />
+        <Ionicons name="sparkles" size={20} color="#E84570" />
         <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Lá bài Tarot hôm nay</Text>
       </View>
-      <View style={styles.tarotChoices}>
-        {[0, 1, 2].map((index) => (
-          <TarotChoiceCard
-            key={index}
-            index={index}
-            selectedIndex={selectedIndex}
-            reading={reading}
-            onSelect={() => setSelectedIndex(index)}
-          />
-        ))}
+
+      <View style={styles.tarotStageContainer}>
+        <View style={styles.tarotGlowHalo} pointerEvents="none" />
+
+        <View style={styles.tarotChoices}>
+          {[0, 1, 2].map((index) => (
+            <TarotChoiceCard
+              key={index}
+              index={index}
+              selectedIndex={selectedIndex}
+              reading={reading}
+              onSelect={() => setSelectedIndex(index)}
+            />
+          ))}
+        </View>
       </View>
+
       {selectedIndex === null ? (
-        <Text style={[styles.tarotFlipHint, { color: theme.textTertiary }]}>Chọn một lá bài để nhận thông điệp</Text>
+        <Text style={[styles.tarotFlipHint, { color: theme.textSecondary }]}>
+          ✨ Chạm vào một lá bài để nhận thông điệp vũ trụ
+        </Text>
       ) : null}
     </View>
   );
@@ -393,71 +490,182 @@ function TarotChoiceCard({
   reading: StoredDailyReading;
   onSelect: () => void;
 }) {
-  const progress = useDerivedValue(
-    () => withTiming(selectedIndex === null ? 0 : 1, { duration: 720, easing: Easing.out(Easing.cubic) }),
-    [selectedIndex],
-  );
-  const reveal = useDerivedValue(
-    () => withTiming(selectedIndex === index ? 1 : 0, { duration: 720, easing: Easing.inOut(Easing.ease) }),
-    [selectedIndex, index],
-  );
-  const cardStyle = useAnimatedStyle(() => {
-    const isSelected = selectedIndex === index;
+  const isSelected = selectedIndex === index;
+  const isAnySelected = selectedIndex !== null;
+
+  const progress = useDerivedValue(() => {
+    return withTiming(isAnySelected ? 1 : 0, {
+      duration: 380,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [isAnySelected]);
+
+  const flipProgress = useDerivedValue(() => {
+    if (!isSelected) return 0;
+    return withDelay(
+      140,
+      withTiming(1, {
+        duration: 720,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      }),
+    );
+  }, [isSelected]);
+
+  const cardContainerStyle = useAnimatedStyle(() => {
+    const restingRotation = (index - 1) * 5;
+    const restingY = index === 1 ? 0 : 4;
+    const targetCenterX = (1 - index) * 96;
+
+    if (isSelected) {
+      return {
+        zIndex: 10,
+        opacity: 1,
+        transform: [
+          { translateX: interpolate(progress.value, [0, 1], [0, targetCenterX], Extrapolation.CLAMP) },
+          { translateY: interpolate(progress.value, [0, 1], [restingY, -6], Extrapolation.CLAMP) },
+          { rotate: `${interpolate(progress.value, [0, 1], [restingRotation, 0], Extrapolation.CLAMP)}deg` },
+          { scale: interpolate(flipProgress.value, [0, 0.5, 1], [1, 1.05, 1], Extrapolation.CLAMP) },
+        ],
+      };
+    }
+
+    if (isAnySelected) {
+      return {
+        zIndex: 1,
+        opacity: interpolate(progress.value, [0, 0.7], [1, 0], Extrapolation.CLAMP),
+        transform: [
+          { translateX: 0 },
+          { translateY: interpolate(progress.value, [0, 1], [restingY, 32], Extrapolation.CLAMP) },
+          { rotate: `${restingRotation}deg` },
+          { scale: interpolate(progress.value, [0, 1], [1, 0.85], Extrapolation.CLAMP) },
+        ],
+      };
+    }
+
     return {
-      opacity: interpolate(
-        progress.value,
-        [0, 1],
-        [1, isSelected ? 1 : 0],
-        Extrapolation.CLAMP,
-      ),
-      zIndex: isSelected ? 5 : 1,
+      zIndex: index === 1 ? 3 : 2,
+      opacity: 1,
       transform: [
-        { translateX: interpolate(progress.value, [0, 1], [0, 104 - index * 100], Extrapolation.CLAMP) },
-        { translateY: interpolate(progress.value, [0, 1], [0, isSelected ? -14 : 20], Extrapolation.CLAMP) },
-        { scale: interpolate(progress.value, [0, 1], [1, isSelected ? 1.04 : 0.7], Extrapolation.CLAMP) },
-        { rotate: `${interpolate(progress.value, [0, 1], [(index - 1) * 3, 0], Extrapolation.CLAMP)}deg` },
+        { translateX: 0 },
+        { translateY: restingY },
+        { rotate: `${restingRotation}deg` },
+        { scale: 1 },
       ],
     };
   });
-  const faceSizeStyle = useAnimatedStyle(() => {
-    const width = interpolate(progress.value, [0, 1], [92, 230], Extrapolation.CLAMP);
+
+  const backFaceStyle = useAnimatedStyle(() => {
+    if (!isSelected) {
+      return {
+        opacity: 1,
+        transform: [{ perspective: 1200 }, { rotateY: '0deg' }],
+      };
+    }
+    const rotateY = interpolate(flipProgress.value, [0, 1], [0, 180]);
+    const opacity = interpolate(flipProgress.value, [0, 0.49, 0.5, 1], [1, 1, 0, 0]);
     return {
-      width,
-      left: (230 - width) / 2,
+      opacity,
+      transform: [{ perspective: 1200 }, { rotateY: `${rotateY}deg` }],
     };
   });
-  const backStyle = useAnimatedStyle(() => ({
-    opacity: 1 - reveal.value,
-    transform: [{ perspective: 900 }, { rotateY: `${interpolate(reveal.value, [0, 1], [0, 90])}deg` }],
-  }));
-  const resultStyle = useAnimatedStyle(() => ({
-    opacity: reveal.value,
-    transform: [{ perspective: 900 }, { rotateY: `${interpolate(reveal.value, [0, 1], [-90, 0])}deg` }],
-  }));
+
+  const frontFaceStyle = useAnimatedStyle(() => {
+    if (!isSelected) {
+      return {
+        opacity: 0,
+        transform: [{ perspective: 1200 }, { rotateY: '180deg' }],
+      };
+    }
+    const rotateY = interpolate(flipProgress.value, [0, 1], [180, 360]);
+    const opacity = interpolate(flipProgress.value, [0, 0.49, 0.5, 1], [0, 0, 1, 1]);
+    return {
+      opacity,
+      transform: [{ perspective: 1200 }, { rotateY: `${rotateY}deg` }],
+    };
+  });
+
+  const baseLeft = -64 + index * 96;
 
   return (
-    <Animated.View style={[styles.tarotChoiceWrap, { left: index * 100 - 69 }, cardStyle]}>
-      <Pressable onPress={selectedIndex === null ? onSelect : undefined} disabled={selectedIndex !== null} accessibilityLabel={`Chọn lá Tarot ${index + 1}`}>
+    <Animated.View
+      style={[
+        styles.tarotChoiceWrap,
+        { left: baseLeft },
+        cardContainerStyle,
+      ]}
+      pointerEvents={isAnySelected && !isSelected ? 'none' : 'auto'}
+    >
+      <Pressable
+        onPress={selectedIndex === null ? onSelect : undefined}
+        disabled={selectedIndex !== null}
+        accessibilityLabel={`Chọn lá Tarot ${index + 1}`}
+        style={styles.tarotPressable}
+      >
         <View style={styles.tarotChoiceStage}>
-          <Animated.View style={[styles.tarotChoiceFace, styles.tarotChoiceBack, faceSizeStyle, backStyle]}>
-            <View style={styles.tarotChoicePattern}>
-              <Ionicons name="sparkles" size={27} color="#F8D56B" />
-              <Text style={styles.tarotChoiceNumber}>{index + 1}</Text>
-            </View>
+          {/* Card Back Face (Identical design across all 3 cards) */}
+          <Animated.View style={[styles.tarotFaceAbsolute, backFaceStyle]}>
+            <LinearGradient
+              colors={['#611531', '#3C0B1D', '#20050F']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.tarotBackCard}
+            >
+              <View style={styles.tarotBackInnerBorder}>
+                <TarotHeartSymbol size={28} />
+              </View>
+            </LinearGradient>
           </Animated.View>
-          <Animated.View style={[styles.tarotChoiceFace, styles.tarotChoiceResult, faceSizeStyle, resultStyle]}>
-            <Ionicons name="sparkles" size={20} color="#5B21B6" />
-            <Text style={styles.tarotResultName}>{reading.tarot.name}</Text>
-            <Text style={styles.tarotResultOrientation}>
-              {reading.tarot.orientation === 'reversed' ? 'Ngược' : 'Xuôi'}
-            </Text>
-            <Text style={styles.tarotResultMessage}>{reading.tarot.message}</Text>
+
+          {/* Card Front Face (Revealed Tarot Card) */}
+          <Animated.View style={[styles.tarotFaceAbsolute, frontFaceStyle]}>
+            <LinearGradient
+              colors={['#420C21', '#260614', '#15030B']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.tarotFrontCard}
+            >
+              <View style={styles.tarotFrontInnerBorder}>
+                <View style={styles.tarotFrontHeader}>
+                  <Ionicons name="sparkles" size={15} color="#F5D082" />
+                  <View style={styles.tarotOrientationBadge}>
+                    <Text style={styles.tarotOrientationText}>
+                      {reading.tarot.orientation === 'reversed' ? '↺ Chiều Ngược' : '✦ Chiều Xuôi'}
+                    </Text>
+                  </View>
+                  <Ionicons name="sparkles" size={15} color="#F5D082" />
+                </View>
+
+                <Text style={styles.tarotFrontName} numberOfLines={2}>
+                  {reading.tarot.name}
+                </Text>
+
+                <View style={styles.tarotDivider}>
+                  <View style={styles.tarotDividerLine} />
+                  <Ionicons name="star" size={10} color="#F5D082" />
+                  <View style={styles.tarotDividerLine} />
+                </View>
+
+                <ScrollView style={styles.tarotMessageScroll} showsVerticalScrollIndicator={false}>
+                  {reading.tarot.meaning ? (
+                    <Text style={styles.tarotFrontMeaning}>{reading.tarot.meaning}</Text>
+                  ) : null}
+                  <Text style={styles.tarotFrontMessage}>
+                    &ldquo;{reading.tarot.message}&rdquo;
+                  </Text>
+                </ScrollView>
+
+                <View style={styles.tarotFrontFooter}>
+                  <TarotHeartSymbol size={18} />
+                </View>
+              </View>
+            </LinearGradient>
           </Animated.View>
         </View>
       </Pressable>
     </Animated.View>
   );
 }
+
 
 function ConstellationLine({
   length,
@@ -567,7 +775,7 @@ function ReadingCard({
   return (
     <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={styles.cardHeading}>
-        <Ionicons name={icon} size={22} color="#8B5CF6" />
+        <Ionicons name={icon} size={22} color="#E84570" />
         <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{title}</Text>
       </View>
       <Text style={[styles.body, { color: theme.textSecondary }]}>{text}</Text>
@@ -582,10 +790,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: StyleSheet.hairlineWidth,
+    position: 'relative',
   },
-  headerTitle: { ...typography.bodyBold, flex: 1, textAlign: 'center' },
-  headerActions: { width: 62, flexDirection: 'row', justifyContent: 'space-between' },
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 72,
+  },
+  headerTitle: { ...typography.bodyBold, textAlign: 'center' },
+  backButton: {
+    minWidth: 40,
+    height: 40,
+    justifyContent: 'center',
+  },
+  headerActions: { width: 62, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   constellation: {
     width: 320,
@@ -644,94 +869,290 @@ const styles = StyleSheet.create({
   retryButton: { backgroundColor: '#8B5CF6', borderRadius: borderRadius.full, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, marginTop: spacing.xl },
   retryText: { ...typography.bodyBold, color: colors.white },
   content: { padding: spacing.base, gap: spacing.md, paddingBottom: spacing.xxxl },
-  hero: { borderRadius: borderRadius.xl, padding: spacing.xl, alignItems: 'center' },
-  heroEyebrow: { ...typography.captionBold, color: '#C4B5FD', marginTop: spacing.sm, textTransform: 'uppercase' },
-  heroTitle: { ...typography.h1, color: colors.white, marginTop: spacing.xs },
-  heroSummary: { ...typography.body, color: '#E5E7EB', textAlign: 'center', lineHeight: 23, marginTop: spacing.md },
-  scorePill: { backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.lg },
-  scoreText: { ...typography.captionBold, color: '#F8D56B' },
+  hero: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(230, 198, 122, 0.3)',
+    shadowColor: '#E84570',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 8,
+    gap: spacing.md,
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+  },
+  heroElementBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 208, 130, 0.3)',
+  },
+  heroElementText: {
+    ...typography.captionBold,
+    color: '#F5D082',
+    letterSpacing: 0.4,
+  },
+  heroDateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: borderRadius.full,
+  },
+  heroDateText: {
+    ...typography.caption,
+    color: '#FDE8E8',
+  },
+  heroTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  heroTitle: {
+    ...typography.h1,
+    color: colors.white,
+    textShadowColor: 'rgba(245, 208, 130, 0.4)',
+    textShadowRadius: 10,
+  },
+  heroSummary: {
+    ...typography.body,
+    color: '#FCE7F3',
+    textAlign: 'center',
+    lineHeight: 23,
+    paddingHorizontal: spacing.sm,
+  },
+  heroEnergyCard: {
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 208, 130, 0.2)',
+    marginTop: spacing.xs,
+    gap: spacing.sm,
+  },
+  heroEnergyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroEnergyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroEnergyTitle: {
+    ...typography.captionBold,
+    color: '#F5D082',
+    letterSpacing: 0.8,
+  },
+  heroEnergyScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  heroEnergyNumber: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#F8D56B',
+  },
+  heroEnergyMax: {
+    fontSize: 13,
+    color: '#FDE8E8',
+    marginLeft: 2,
+  },
+  heroEnergyTrack: {
+    height: 7,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  heroEnergyBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  heroEnergyVibe: {
+    ...typography.caption,
+    color: '#FCE7F3',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 2,
+  },
   sectionCard: { borderRadius: borderRadius.lg, borderWidth: 1, padding: spacing.lg },
   cardHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
   cardTitle: { ...typography.bodyBold },
+  tarotStageContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: spacing.sm,
+  },
+  tarotGlowHalo: {
+    position: 'absolute',
+    width: 260,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(232, 67, 112, 0.08)',
+  },
   tarotChoices: {
-    height: 250,
+    height: 340,
     width: 300,
     alignSelf: 'center',
     position: 'relative',
     justifyContent: 'center',
   },
-  tarotChoiceWrap: { position: 'absolute', width: 230, alignItems: 'center' },
-  tarotChoiceStage: { width: 230, height: 216, position: 'relative' },
-  tarotChoiceFace: {
+  tarotChoiceWrap: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
-    borderRadius: borderRadius.lg,
+    width: 236,
+    top: 5,
+    alignItems: 'center',
+  },
+  tarotPressable: {
+    width: 236,
+    height: 330,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.sm,
+  },
+  tarotChoiceStage: {
+    width: 236,
+    height: 330,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tarotFaceAbsolute: {
+    position: 'absolute',
     backfaceVisibility: 'hidden',
-  },
-  tarotChoiceBack: {
-    backgroundColor: '#30245C',
-    borderWidth: 1,
-    borderColor: 'rgba(248,213,107,0.55)',
-    shadowColor: '#30245C',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  tarotChoicePattern: {
-    width: 62,
-    height: 132,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(248,213,107,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
   },
-  tarotChoiceNumber: { ...typography.captionBold, color: '#DDD6FE' },
-  tarotChoiceResult: {
-    backgroundColor: '#F8D56B',
+  tarotBackCard: {
+    width: 96,
+    height: 154,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#EAB308',
+    borderColor: '#4A0F24',
+    padding: 7,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#E84570',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  tarotResultName: {
-    ...typography.h3,
-    color: '#241744',
+  tarotBackInnerBorder: {
+    flex: 1,
+    width: '100%',
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderColor: 'rgba(245, 208, 130, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tarotFrontCard: {
+    width: 236,
+    height: 330,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: '#E2BA69',
+    padding: 8,
+    shadowColor: '#E84570',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  tarotFrontInnerBorder: {
+    flex: 1,
+    width: '100%',
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 208, 130, 0.45)',
+    padding: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tarotFrontHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  tarotOrientationBadge: {
+    backgroundColor: 'rgba(245, 208, 130, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 208, 130, 0.4)',
+  },
+  tarotOrientationText: {
+    ...typography.captionBold,
+    color: '#F5D082',
+    letterSpacing: 0.5,
+  },
+  tarotFrontName: {
+    ...typography.h2,
+    color: '#FFF',
     textAlign: 'center',
     marginTop: spacing.xs,
+    textShadowColor: 'rgba(245, 208, 130, 0.5)',
+    textShadowRadius: 8,
   },
-  tarotResultOrientation: { ...typography.captionBold, color: '#5B21B6', marginTop: 2 },
-  tarotResultMessage: {
+  tarotDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '80%',
+    marginVertical: spacing.xs,
+  },
+  tarotDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(245, 208, 130, 0.3)',
+  },
+  tarotMessageScroll: {
+    flex: 1,
+    width: '100%',
+    marginVertical: spacing.xs,
+  },
+  tarotFrontMeaning: {
+    ...typography.caption,
+    color: '#FDE8E8',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: spacing.xs,
+  },
+  tarotFrontMessage: {
     ...typography.bodySmall,
-    color: '#3B276B',
+    color: '#FFF',
     textAlign: 'center',
     lineHeight: 20,
+    fontWeight: '600',
+  },
+  tarotFrontFooter: {
+    marginTop: spacing.xs,
+  },
+  tarotFlipHint: {
+    ...typography.caption,
+    textAlign: 'center',
     marginTop: spacing.sm,
   },
-  tarotFace: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backfaceVisibility: 'hidden',
-  },
-  tarotFront: {
-    backgroundColor: '#30245C',
-    borderWidth: 1,
-    borderColor: 'rgba(248,213,107,0.42)',
-  },
-  tarotBack: { backgroundColor: '#F8D56B' },
-  tarotBackLabel: { ...typography.h2, color: colors.white, letterSpacing: 4, marginTop: spacing.sm },
-  tarotName: { ...typography.h2, color: '#241744', textAlign: 'center' },
-  tarotTapHint: { ...typography.caption, color: '#DDD6FE', marginTop: spacing.md },
-  tarotOrientation: { ...typography.captionBold, color: '#5B21B6', marginTop: spacing.xs, marginBottom: spacing.md },
-  tarotMeaning: { ...typography.body, color: '#3B276B', lineHeight: 22, textAlign: 'center' },
-  tarotMessage: { ...typography.bodyBold, color: '#241744', lineHeight: 23, textAlign: 'center', marginTop: spacing.md },
-  tarotFlipHint: { ...typography.caption, textAlign: 'center', marginTop: spacing.sm },
   body: { ...typography.body, lineHeight: 23 },
   quote: { ...typography.bodyBold, lineHeight: 24, marginTop: spacing.lg },
   reflection: { borderRadius: borderRadius.lg, padding: spacing.lg },

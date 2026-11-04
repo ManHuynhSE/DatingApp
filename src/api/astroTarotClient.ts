@@ -140,6 +140,9 @@ export async function fetchDailyReading(
   payload: DailyReadingRequest,
 ): Promise<DailyReading> {
   const zodiac = getZodiacName(payload.birthDate);
+  if (!zodiac) {
+    throw new Error('Ngày sinh không hợp lệ để xác định cung hoàng đạo');
+  }
   const element = getElement(zodiac);
   const prompt = [
     'Bạn là chuyên gia nội dung chiêm tinh và Tarot bằng tiếng Việt.',

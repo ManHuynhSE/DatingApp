@@ -25,15 +25,35 @@ import ProfilePickerModal from '../src/components/ProfilePickerModal';
 type GenderOption = 'Female' | 'Male';
 
 const POPULAR_LANGUAGES = [
-  'Vietnamese',
-  'English',
-  'Japanese',
-  'Korean',
-  'Chinese',
-  'French',
-  'Spanish',
-  'German',
+  'Tiếng Việt',
+  'Tiếng Anh',
+  'Tiếng Nhật',
+  'Tiếng Hàn',
+  'Tiếng Trung',
+  'Tiếng Pháp',
+  'Tiếng Tây Ban Nha',
+  'Tiếng Đức',
 ];
+
+const LANGUAGE_NAME_MAP: Record<string, string> = {
+  vietnamese: 'Tiếng Việt',
+  english: 'Tiếng Anh',
+  japanese: 'Tiếng Nhật',
+  korean: 'Tiếng Hàn',
+  chinese: 'Tiếng Trung',
+  french: 'Tiếng Pháp',
+  spanish: 'Tiếng Tây Ban Nha',
+  german: 'Tiếng Đức',
+  russian: 'Tiếng Nga',
+  italian: 'Tiếng Ý',
+  thai: 'Tiếng Thái',
+  portuguese: 'Tiếng Bồ Đào Nha',
+};
+
+const normalizeLanguageName = (lang: string) => {
+  const key = lang.trim().toLowerCase();
+  return LANGUAGE_NAME_MAP[key] || lang.trim();
+};
 
 export default function FiltersScreen() {
   const router = useRouter();
@@ -57,8 +77,8 @@ export default function FiltersScreen() {
   const [showExtraProfiles, setShowExtraProfiles] = useState(
     currentFilters.fallbackDistance > currentFilters.distance,
   );
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(
-    currentFilters.languages,
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() =>
+    currentFilters.languages.map(normalizeLanguageName),
   );
   const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -91,7 +111,7 @@ export default function FiltersScreen() {
           setDistance(String(pref.max_distance_km));
         }
         if (Array.isArray(pref.interested_languages)) {
-          setSelectedLanguages(pref.interested_languages);
+          setSelectedLanguages(pref.interested_languages.map(normalizeLanguageName));
         }
       })
       .catch(() => {
@@ -527,7 +547,7 @@ export default function FiltersScreen() {
         visible={isLanguageModalVisible}
         type="languages"
         initialData={{ languages: selectedLanguages }}
-        onSelectLanguages={(langs) => setSelectedLanguages(langs)}
+        onSelectLanguages={(langs) => setSelectedLanguages(langs.map(normalizeLanguageName))}
         onClose={() => setIsLanguageModalVisible(false)}
       />
     </SafeAreaView>
@@ -578,8 +598,8 @@ const createStyles = (theme: typeof colors) =>
       justifyContent: 'center',
     },
     headerTitle: {
-      fontSize: typography.h2.fontSize,
-      fontWeight: typography.h2.fontWeight,
+      fontSize: 18,
+      fontWeight: '700',
       color: theme.textPrimary,
       textAlign: 'center',
     },
