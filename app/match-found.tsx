@@ -10,8 +10,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
@@ -37,14 +38,16 @@ const CONFETTI_DOTS = [
 
 export default function MatchFoundScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     matchedUserId?: string | string[];
     matchedName?: string | string[];
   }>();
   const [message, setMessage] = useState('');
-  const [matchedName, setMatchedName] = useState(
-    Array.isArray(params.matchedName) ? params.matchedName[0] : params.matchedName ?? 'đối phương',
-  );
+  const initialMatchedName = Array.isArray(params.matchedName)
+    ? params.matchedName[0]
+    : params.matchedName ?? 'đối phương';
+  const [matchedName, setMatchedName] = useState(initialMatchedName);
   const [matchedPhoto, setMatchedPhoto] = useState('');
   const [userPhoto, setUserPhoto] = useState('');
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -53,12 +56,6 @@ export default function MatchFoundScreen() {
     : params.matchedUserId;
 
   useEffect(() => {
-    const routeMatchedName = Array.isArray(params.matchedName)
-      ? params.matchedName[0]
-      : params.matchedName;
-    setMatchedName(routeMatchedName || 'đối phương');
-    setMatchedPhoto('');
-    setUserPhoto('');
     if (!currentUserId || !matchedUserId) return;
     let active = true;
 
@@ -83,7 +80,7 @@ export default function MatchFoundScreen() {
         const photos = [...(profile.users?.photos ?? [])].sort(
           (a, b) => Number(b.is_primary) - Number(a.is_primary) || a.position - b.position,
         );
-        setMatchedName(profile.display_name || 'đối phương');
+        setMatchedName(profile.display_name || initialMatchedName);
         setMatchedPhoto(photos[0]?.url ?? '');
       } else {
         setMatchedPhoto('');
@@ -94,7 +91,7 @@ export default function MatchFoundScreen() {
     return () => {
       active = false;
     };
-  }, [currentUserId, matchedUserId, params.matchedName]);
+  }, [currentUserId, matchedUserId, initialMatchedName]);
 
   const handleSend = () => {
     if (message.trim()) {
@@ -103,17 +100,21 @@ export default function MatchFoundScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, spacing.base) }]}>
+      {/* Header - cố định trên cùng, nằm ngoài KeyboardAvoidingView để không bao giờ bị bàn phím đẩy lên */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.headerBtn}
+          accessibilityLabel="Đóng"
         >
           <Ionicons name="close" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity style={styles.headerBtn} onPress={() => Alert.alert('Tùy chọn tương hợp', 'Bạn có thể ẩn hoặc báo cáo người này tại đây.')}>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => Alert.alert('Tùy chọn tương hợp', 'Bạn có thể ẩn hoặc báo cáo người này tại đây.')}
+        >
           <Ionicons
             name="ellipsis-horizontal"
             size={24}
@@ -126,10 +127,11 @@ export default function MatchFoundScreen() {
       {CONFETTI_DOTS.map((dot, i) => (
         <View
           key={i}
+          pointerEvents="none"
           style={[
             styles.confettiDot,
             {
-              top: dot.top,
+              top: dot.top + insets.top,
               left: dot.left,
               width: dot.size,
               height: dot.size,
@@ -144,114 +146,121 @@ export default function MatchFoundScreen() {
         />
       ))}
 
-      {/* Content */}
+      {/* KeyboardAvoidingView bọc ScrollView */}
       <KeyboardAvoidingView
-        style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 50 : 0}
       >
-        {/* Title */}
-        <Text style={styles.matchTitle}>Tương hợp mới!</Text>
-
-        {/* Photos */}
-        <View style={styles.photosContainer}>
-          {/* Match's photo */}
-          <View style={[styles.photoWrapper, styles.leftPhoto]}>
-            <View
-              style={[
-                styles.photoBackground,
-                { backgroundColor: '#EDE9FE' },
-              ]}
-            >
-              {matchedPhoto ? (
-                <Image
-                  source={{ uri: matchedPhoto }}
-                  style={styles.matchPhoto}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={[styles.matchPhoto, styles.emptyMatchPhoto]} />
-              )}
-            </View>
-          </View>
-
-          {/* Heart icon in center */}
-          <View style={styles.heartContainer}>
-            <View style={styles.heartCircle}>
-              <Ionicons name="heart" size={24} color={colors.secondary} />
-            </View>
-          </View>
-
-          {/* User's photo */}
-          <View style={[styles.photoWrapper, styles.rightPhoto]}>
-            <View
-              style={[
-                styles.photoBackground,
-                { backgroundColor: '#FEF3C7' },
-              ]}
-            >
-              {userPhoto ? (
-                <Image
-                  source={{ uri: userPhoto }}
-                  style={styles.matchPhoto}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={[styles.matchPhoto, styles.emptyMatchPhoto]} />
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* Description */}
-        <Text style={styles.description}>
-          Bạn và {matchedName} đều đã thích nhau! Hãy gửi tin nhắn ngay để bắt đầu trò chuyện nhé.
-        </Text>
-
-        {/* Conversation starters banner */}
-        <TouchableOpacity
-          style={styles.startersBanner}
-          activeOpacity={0.8}
-          onPress={() => setMessage('Bạn thường thích làm gì nhất vào ngày Chủ nhật?')}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
         >
-          <Ionicons name="chatbubbles" size={20} color={colors.white} />
-          <Text style={styles.startersText}>
-            Chưa biết nói gì? Nhấn vào đây để thử câu gợi ý làm quen!
-          </Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.white} />
-        </TouchableOpacity>
+          {/* Title */}
+          <Text style={styles.matchTitle}>Tương hợp mới!</Text>
 
-        {/* Message input */}
-        <View style={styles.inputContainer}>
+          {/* Photos */}
+          <View style={styles.photosContainer}>
+            {/* Match's photo */}
+            <View style={[styles.photoWrapper, styles.leftPhoto]}>
+              <View
+                style={[
+                  styles.photoBackground,
+                  { backgroundColor: '#EDE9FE' },
+                ]}
+              >
+                {matchedPhoto ? (
+                  <Image
+                    source={{ uri: matchedPhoto }}
+                    style={styles.matchPhoto}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.matchPhoto, styles.emptyMatchPhoto]} />
+                )}
+              </View>
+            </View>
+
+            {/* Heart icon in center */}
+            <View style={styles.heartContainer}>
+              <View style={styles.heartCircle}>
+                <Ionicons name="heart" size={24} color={colors.secondary} />
+              </View>
+            </View>
+
+            {/* User's photo */}
+            <View style={[styles.photoWrapper, styles.rightPhoto]}>
+              <View
+                style={[
+                  styles.photoBackground,
+                  { backgroundColor: '#FEF3C7' },
+                ]}
+              >
+                {userPhoto ? (
+                  <Image
+                    source={{ uri: userPhoto }}
+                    style={styles.matchPhoto}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.matchPhoto, styles.emptyMatchPhoto]} />
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Description */}
+          <Text style={styles.description}>
+            Bạn và {matchedName} đều đã thích nhau! Hãy gửi tin nhắn ngay để bắt đầu trò chuyện nhé.
+          </Text>
+
+          {/* Conversation starters banner */}
           <TouchableOpacity
-            style={styles.lightbulbBtn}
-            onPress={() => setMessage('Chuyến đi đáng nhớ nhất của bạn từ trước tới nay là ở đâu thế?')}
+            style={styles.startersBanner}
+            activeOpacity={0.8}
+            onPress={() => setMessage('Bạn thường thích làm gì nhất vào ngày Chủ nhật?')}
           >
-            <Ionicons name="bulb-outline" size={22} color={colors.primary} />
+            <Ionicons name="chatbubbles" size={20} color={colors.white} />
+            <Text style={styles.startersText}>
+              Chưa biết nói gì? Nhấn vào đây để thử câu gợi ý làm quen!
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.white} />
           </TouchableOpacity>
-          <TextInput
-            style={styles.messageInput}
-            value={message}
-            onChangeText={setMessage}
-            placeholder="Nhập tin nhắn..."
-            placeholderTextColor={colors.textTertiary}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              message.trim() ? styles.sendBtnActive : {},
-            ]}
-            onPress={handleSend}
-          >
-            <Ionicons
-              name="send"
-              size={18}
-              color={message.trim() ? colors.white : colors.textTertiary}
+
+          {/* Message input */}
+          <View style={styles.inputContainer}>
+            <TouchableOpacity
+              style={styles.lightbulbBtn}
+              onPress={() => setMessage('Chuyến đi đáng nhớ nhất của bạn từ trước tới nay là ở đâu thế?')}
+            >
+              <Ionicons name="bulb-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.messageInput}
+              value={message}
+              onChangeText={setMessage}
+              placeholder="Nhập tin nhắn..."
+              placeholderTextColor={colors.textTertiary}
             />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[
+                styles.sendBtn,
+                message.trim() ? styles.sendBtnActive : {},
+              ]}
+              onPress={handleSend}
+            >
+              <Ionicons
+                name="send"
+                size={18}
+                color={message.trim() ? colors.white : colors.textTertiary}
+              />
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -264,8 +273,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    zIndex: 10,
+    height: 50,
+    zIndex: 20,
   },
   headerBtn: {
     padding: spacing.xs,
@@ -274,11 +283,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 1,
   },
-  content: {
+  keyboardContainer: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     justifyContent: 'center',
+    paddingBottom: spacing.lg,
   },
   matchTitle: {
     fontSize: 32,

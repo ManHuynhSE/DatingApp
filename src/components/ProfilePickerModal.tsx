@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
@@ -292,12 +293,20 @@ function ProfilePickerSheetContent({
     type === "detail" && (field === "exercise" || field === "lifestyle");
   const isFreeTextField =
     type === "detail" && (field === "occupation" || field === "height");
+  const insets = useSafeAreaInsets();
+
+  const currentSheetHeight = useMemo(() => {
+    if (isFreeTextField) {
+      return Math.min(260 + insets.bottom, SCREEN_HEIGHT * 0.42);
+    }
+    return SHEET_HEIGHT;
+  }, [isFreeTextField, insets.bottom]);
 
   const details = draft?.details ?? user?.details;
 
   // Animation values
   const backdropOpacity = useSharedValue(0);
-  const sheetTranslateY = useSharedValue(SHEET_HEIGHT);
+  const sheetTranslateY = useSharedValue(currentSheetHeight);
 
   // ─── Local Temporary State (Cancelled on Cancel, Saved on Done) ───────────
   const [tempOccupation, setTempOccupation] = useState(
@@ -592,11 +601,11 @@ function ProfilePickerSheetContent({
       // Snap off-screen instantly — animateClose() already ran its outro.
       // Use cancelAnimation first to avoid fighting any in-progress spring.
       backdropOpacity.set(0);
-      sheetTranslateY.set(SHEET_HEIGHT);
+      sheetTranslateY.set(currentSheetHeight);
       return;
     }
     // Ensure we start from the bottom before animating up.
-    sheetTranslateY.set(SHEET_HEIGHT);
+    sheetTranslateY.set(currentSheetHeight);
     backdropOpacity.set(withTiming(0.5, { duration: 250 }));
     sheetTranslateY.set(
       withSpring(0, {
@@ -605,7 +614,7 @@ function ProfilePickerSheetContent({
         mass: 0.85,
       }),
     );
-  }, [visible, backdropOpacity, sheetTranslateY]);
+  }, [visible, currentSheetHeight, backdropOpacity, sheetTranslateY]);
 
   const animatedBackdropStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
@@ -619,7 +628,7 @@ function ProfilePickerSheetContent({
     backdropOpacity.set(withTiming(0, { duration: 180 }));
     sheetTranslateY.set(
       withTiming(
-        SHEET_HEIGHT,
+        currentSheetHeight,
         { duration: 220, easing: Easing.in(Easing.cubic) },
         (finished) => {
           if (finished) {
@@ -1213,14 +1222,20 @@ function ProfilePickerSheetContent({
 
         {/* Bottom Sheet Animated Panel */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? (isFreeTextField ? "padding" : undefined) : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
           style={styles.sheetContainer}
           pointerEvents="box-none"
         >
           <Animated.View
             style={[
               styles.bottomSheet,
-              { backgroundColor: theme.background },
+              {
+                backgroundColor: theme.background,
+                height: currentSheetHeight,
+                maxHeight: SCREEN_HEIGHT - insets.top - 10,
+                paddingBottom: isFreeTextField ? Math.max(insets.bottom, spacing.xs) : 0,
+              },
               animatedSheetStyle,
             ]}
           >
