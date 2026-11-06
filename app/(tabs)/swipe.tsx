@@ -46,6 +46,7 @@ import { useThemeStore } from "@/store/themeStore";
 import { getHobbyEmoji, getVietnameseHobbyName } from "@/data/hobbies";
 import { useAuthStore } from "@/store/authStore";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
+import { LazyCardImage } from "@/components/ui/LazyCardImage";
 import {
   datingApi,
   DatingApiError,
@@ -59,6 +60,7 @@ const SWIPE_THRESHOLD = Math.min(Math.max(SCREEN_WIDTH * 0.25, 90), 140);
 interface ProfileCard {
   id: string; // row profile id
   userId: string; // candidate user uuid (for impressions, swipes, detail)
+  sessionId?: string;
   name: string;
   age: number;
   pronouns: string;
@@ -93,7 +95,10 @@ const calculateAge = (birthDate: string) => {
   return age;
 };
 
-const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
+const mapDatingProfile = (
+  profile: RecommendationProfile,
+  sessionId?: string,
+): ProfileCard => {
   const photos = profile.users?.photos ?? [];
   const sortedPhotos = [...photos].sort((a, b) => {
     if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
@@ -140,6 +145,7 @@ const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
   return {
     id: profile.id,
     userId: profile.user_id,
+    sessionId,
     name: profile.display_name,
     age: calculateAge(profile.birth_date),
     pronouns:
@@ -265,19 +271,13 @@ const CardContent = React.memo(function CardContent({
 
   return (
     <>
-      {/* Card Hero Photo */}
+      {/* Card Hero Photo with Progressive Lazy Loading */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        {profile.image ? (
-          <Image
-            source={{ uri: profile.image }}
-            style={styles.cardImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-            <Ionicons name="person-outline" size={72} color="rgba(255,255,255,0.7)" />
-          </View>
-        )}
+        <LazyCardImage
+          uri={profile.image}
+          style={styles.cardImage}
+          placeholderColor="#1A1B22"
+        />
       </View>
 
       {/* Profile Details Container */}
@@ -765,6 +765,17 @@ export default function SwipeScreen() {
   const loadingMoreRecommendationsRef = useRef(false);
   const recordedImpressionKeysRef = useRef(new Set<string>());
 
+  // Auto-preload new recommendation session state & refs
+  const PRELOAD_SESSION_REMAINING_THRESHOLD = 4;
+  const preloadedSessionRef = useRef<{
+    sessionId: string;
+    nextCursor: string | null;
+    profiles: ProfileCard[];
+  } | null>(null);
+  const isPreloadingSessionRef = useRef(false);
+  const hasExhaustedAllSessionsRef = useRef(false);
+  const [isPreloadingNextSession, setIsPreloadingNextSession] = useState(false);
+
   const activeIndexSV = useSharedValue(0);
   const swipeProgress = useSharedValue(0);
   const feedbackOpacity = useSharedValue(0);
@@ -804,6 +815,10 @@ export default function SwipeScreen() {
     setRecommendationSessionId(null);
     nextRecommendationCursorRef.current = null;
     recordedImpressionKeysRef.current = new Set();
+    preloadedSessionRef.current = null;
+    isPreloadingSessionRef.current = false;
+    hasExhaustedAllSessionsRef.current = false;
+    setIsPreloadingNextSession(false);
 
     if (!userId) {
       setRemoteProfiles([]);
@@ -815,8 +830,9 @@ export default function SwipeScreen() {
       const response = await datingApi.getRecommendations(userId, { limit: 20 });
       const currentFilters = useDiscoveryStore.getState().filters;
       const seen = new Set<string>();
+      const sessionSnapshotId = response.pagination.sessionId ?? undefined;
       const candidateList = response.data
-        .map(mapDatingProfile)
+        .map((p) => mapDatingProfile(p, sessionSnapshotId))
         .filter((cand) => {
           if (cand.userId === userId) return false;
           if (seen.has(cand.userId)) return false;
@@ -857,13 +873,14 @@ export default function SwipeScreen() {
         cursor,
       });
 
+      const sessionSnapshotId = response.pagination.sessionId ?? undefined;
       setRemoteProfiles((current) => {
         const existingUserIds = new Set(
           current?.map((profile) => profile.userId) ?? [],
         );
         const currentFilters = useDiscoveryStore.getState().filters;
         const nextCandidates = response.data
-          .map(mapDatingProfile)
+          .map((profile) => mapDatingProfile(profile, sessionSnapshotId))
           .filter(
             (profile) =>
               profile.userId !== userId &&
@@ -1020,6 +1037,112 @@ export default function SwipeScreen() {
     remoteProfiles,
   ]);
 
+  // Auto preload 1 new recommendation session snapshot when current session is nearly exhausted
+  const preloadNextRecommendationSession = useCallback(async () => {
+    if (
+      !userId ||
+      isPreloadingSessionRef.current ||
+      preloadedSessionRef.current !== null ||
+      hasExhaustedAllSessionsRef.current
+    ) {
+      return;
+    }
+
+    isPreloadingSessionRef.current = true;
+    setIsPreloadingNextSession(true);
+
+    try {
+      // First request without cursor creates a new ranking session snapshot
+      const response = await datingApi.getRecommendations(userId, { limit: 20 });
+      const currentFilters = useDiscoveryStore.getState().filters;
+      const existingUserIds = new Set(
+        remoteProfiles?.map((profile) => profile.userId) ?? [],
+      );
+      const likedSet = new Set(useDiscoveryStore.getState().likedProfiles);
+      const passedSet = new Set(useDiscoveryStore.getState().passedProfiles);
+      const seen = new Set<string>();
+
+      const newSessionId = response.pagination.sessionId ?? undefined;
+      const candidateList = response.data
+        .map((p) => mapDatingProfile(p, newSessionId))
+        .filter((cand) => {
+          if (cand.userId === userId) return false;
+          if (existingUserIds.has(cand.userId)) return false;
+          if (likedSet.has(cand.userId) || passedSet.has(cand.userId)) return false;
+          if (seen.has(cand.userId)) return false;
+          if (currentFilters.gender === 'women' && cand.gender !== 'female') return false;
+          if (currentFilters.gender === 'men' && cand.gender !== 'male') return false;
+          seen.add(cand.userId);
+          return true;
+        });
+
+      if (candidateList.length > 0 && response.pagination.sessionId) {
+        preloadedSessionRef.current = {
+          sessionId: response.pagination.sessionId,
+          nextCursor: response.pagination.nextCursor,
+          profiles: candidateList,
+        };
+        // Lazy prefetch first image of preloaded session
+        if (candidateList[0]?.image && candidateList[0].image.startsWith('http')) {
+          void Image.prefetch(candidateList[0].image);
+        }
+      } else {
+        hasExhaustedAllSessionsRef.current = true;
+      }
+    } catch (err) {
+      console.warn('Preload next recommendation session failed:', err);
+    } finally {
+      isPreloadingSessionRef.current = false;
+      setIsPreloadingNextSession(false);
+    }
+  }, [remoteProfiles, userId]);
+
+  // Seamless handover: attach preloaded session into active deck
+  const attachPreloadedSession = useCallback(() => {
+    const preloaded = preloadedSessionRef.current;
+    if (!preloaded || preloaded.profiles.length === 0) return false;
+
+    preloadedSessionRef.current = null;
+    nextRecommendationCursorRef.current = preloaded.nextCursor;
+    if (preloaded.sessionId) {
+      setRecommendationSessionId(preloaded.sessionId);
+    }
+    setRemoteProfiles((current) => [...(current ?? []), ...preloaded.profiles]);
+    return true;
+  }, []);
+
+  // Trigger preload when current session cursor has ended and remaining cards are low
+  useEffect(() => {
+    if (
+      remoteProfiles !== null &&
+      candidateProfiles.length > 0 &&
+      nextRecommendationCursorRef.current === null &&
+      candidateProfiles.length - currentIndex <= PRELOAD_SESSION_REMAINING_THRESHOLD &&
+      !isPreloadingSessionRef.current &&
+      preloadedSessionRef.current === null &&
+      !hasExhaustedAllSessionsRef.current
+    ) {
+      void preloadNextRecommendationSession();
+    }
+  }, [
+    candidateProfiles.length,
+    currentIndex,
+    preloadNextRecommendationSession,
+    remoteProfiles,
+  ]);
+
+  // Handover preloaded cards as user approaches the end
+  useEffect(() => {
+    if (
+      remoteProfiles !== null &&
+      candidateProfiles.length > 0 &&
+      currentIndex >= candidateProfiles.length - 2 &&
+      preloadedSessionRef.current !== null
+    ) {
+      attachPreloadedSession();
+    }
+  }, [attachPreloadedSession, candidateProfiles.length, currentIndex, remoteProfiles]);
+
   const currentProfile = candidateProfiles[currentIndex];
   const nextProfile = candidateProfiles[currentIndex + 1];
   const isLastCard = currentIndex >= candidateProfiles.length;
@@ -1031,9 +1154,10 @@ export default function SwipeScreen() {
   // - Body: { sessionId, candidateUserIds: [candidateUserId] }
   // - Candidate user UUID from profile.user_id, not profile.id
   // - Only sent after card is rendered, screen is focused, app is active, with 700ms debounce
+  const activeSessionId = currentProfile?.sessionId || recommendationSessionId;
   const visibleProfileKey =
-    recommendationSessionId && currentProfile
-      ? `${recommendationSessionId}:${currentProfile.userId}`
+    activeSessionId && currentProfile
+      ? `${activeSessionId}:${currentProfile.userId}`
       : null;
 
   const markCurrentProfileLaidOut = useCallback(() => {
@@ -1047,14 +1171,14 @@ export default function SwipeScreen() {
       !isScreenFocused ||
       !isAppActive ||
       !userId ||
-      !recommendationSessionId ||
+      !activeSessionId ||
       !currentProfile ||
       laidOutProfileKey !== visibleProfileKey
     ) {
       return undefined;
     }
 
-    const key = `${recommendationSessionId}:${currentProfile.userId}`;
+    const key = `${activeSessionId}:${currentProfile.userId}`;
     if (recordedImpressionKeysRef.current.has(key)) return undefined;
 
     const timer = setTimeout(() => {
@@ -1066,7 +1190,7 @@ export default function SwipeScreen() {
       }
       recordedImpressionKeysRef.current.add(key);
       datingApi
-        .recordRecommendationImpressions(userId, recommendationSessionId, [
+        .recordRecommendationImpressions(userId, activeSessionId, [
           currentProfile.userId,
         ])
         .catch(() => {
@@ -1076,12 +1200,12 @@ export default function SwipeScreen() {
 
     return () => clearTimeout(timer);
   }, [
+    activeSessionId,
     currentProfile,
     isAppActive,
     isLoadingProfiles,
     isScreenFocused,
     laidOutProfileKey,
-    recommendationSessionId,
     remoteProfiles,
     userId,
     visibleProfileKey,
@@ -1301,6 +1425,25 @@ export default function SwipeScreen() {
     }
 
     if (!currentProfile || isLastCard || candidateProfiles.length === 0) {
+      // If a preloaded session is waiting, attach it immediately
+      if (preloadedSessionRef.current && preloadedSessionRef.current.profiles.length > 0) {
+        attachPreloadedSession();
+        return null;
+      }
+
+      // If preloading next session in flight, display loading feedback
+      if (isPreloadingNextSession) {
+        return (
+          <View style={styles.emptyCard}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={styles.emptyTitle}>Đang tải thêm gợi ý cho bạn...</Text>
+            <Text style={styles.emptySubtitle}>
+              Đang chuẩn bị phiên gợi ý mới phù hợp với bạn
+            </Text>
+          </View>
+        );
+      }
+
       return (
         <View style={styles.emptyCard}>
           <Ionicons

@@ -49,6 +49,7 @@ import {
   type RecommendationProfile,
 } from '@/api/datingClient';
 import { getHobbyEmoji, getVietnameseHobbyName } from '@/data/hobbies';
+import { LazyCardImage } from '@/components/ui/LazyCardImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = Math.min(Math.max(SCREEN_WIDTH * 0.25, 90), 140);
@@ -76,6 +77,7 @@ export interface DiscoveryFeedModalProps {
 interface ProfileCard {
   id: string;
   userId: string;
+  sessionId?: string;
   name: string;
   age: number;
   pronouns: string;
@@ -112,7 +114,10 @@ const calculateAge = (birthDate: string): number => {
   return isNaN(age) || age < 18 ? 22 : age;
 };
 
-const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
+const mapDatingProfile = (
+  profile: RecommendationProfile,
+  sessionId?: string,
+): ProfileCard => {
   const photos = profile.users?.photos ?? [];
   const sortedPhotos = [...photos].sort((a, b) => {
     if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
@@ -160,6 +165,7 @@ const mapDatingProfile = (profile: RecommendationProfile): ProfileCard => {
   return {
     id: profile.id,
     userId: profile.user_id,
+    sessionId,
     name: profile.display_name,
     age: calculateAge(profile.birth_date),
     pronouns:
@@ -341,12 +347,12 @@ const DiscoveryCardContent = React.memo(function DiscoveryCardContent({
 
   return (
     <>
-      {/* Card Hero Photo */}
+      {/* Card Hero Photo with Progressive Lazy Loading */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <Image
-          source={{ uri: profile.image }}
+        <LazyCardImage
+          uri={profile.image}
           style={styles.cardImage}
-          resizeMode="cover"
+          placeholderColor="#18181B"
         />
       </View>
 
@@ -818,6 +824,17 @@ function DiscoveryFeedContent({
   const recordedImpressionsRef = useRef<Set<string>>(new Set());
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Auto-preload new recommendation session state & refs
+  const PRELOAD_SESSION_REMAINING_THRESHOLD = 4;
+  const preloadedSessionRef = useRef<{
+    sessionId: string;
+    nextCursor: string | null;
+    profiles: ProfileCard[];
+  } | null>(null);
+  const isPreloadingSessionRef = useRef(false);
+  const hasExhaustedAllSessionsRef = useRef(false);
+  const [isPreloadingNextSession, setIsPreloadingNextSession] = useState(false);
+
   // Swipe Animation Shared Values
   const activeIndexSV = useSharedValue(0);
   const swipeProgress = useSharedValue(0);
@@ -841,6 +858,10 @@ function DiscoveryFeedContent({
     sessionIdRef.current = '';
     nextCursorRef.current = null;
     recordedImpressionsRef.current = new Set();
+    preloadedSessionRef.current = null;
+    isPreloadingSessionRef.current = false;
+    hasExhaustedAllSessionsRef.current = false;
+    setIsPreloadingNextSession(false);
 
     try {
       let res;
@@ -852,8 +873,9 @@ function DiscoveryFeedContent({
 
       if (res && res.success) {
         const seen = new Set<string>();
+        const resSessionId = res.pagination?.sessionId || '';
         const candidateList = (res.data || [])
-          .map(mapDatingProfile)
+          .map((p) => mapDatingProfile(p, resSessionId))
           .filter((cand) => {
             if (cand.userId === userId) return false;
             if (seen.has(cand.userId)) return false;
@@ -862,7 +884,7 @@ function DiscoveryFeedContent({
           });
 
         setProfiles(candidateList);
-        sessionIdRef.current = res.pagination?.sessionId || '';
+        sessionIdRef.current = resSessionId;
         nextCursorRef.current = res.pagination?.nextCursor || null;
       } else {
         setProfiles([]);
@@ -884,6 +906,9 @@ function DiscoveryFeedContent({
     sessionIdRef.current = '';
     nextCursorRef.current = null;
     recordedImpressionsRef.current = new Set();
+    preloadedSessionRef.current = null;
+    isPreloadingSessionRef.current = false;
+    hasExhaustedAllSessionsRef.current = false;
 
     let fetchPromise;
     if (topic.type === 'group' && topic.slug) {
@@ -899,8 +924,9 @@ function DiscoveryFeedContent({
         if (!active) return;
         if (res && res.success) {
           const seen = new Set<string>();
+          const resSessionId = res.pagination?.sessionId || '';
           const candidateList = (res.data || [])
-            .map(mapDatingProfile)
+            .map((p) => mapDatingProfile(p, resSessionId))
             .filter((cand) => {
               if (cand.userId === userId) return false;
               if (seen.has(cand.userId)) return false;
@@ -909,7 +935,7 @@ function DiscoveryFeedContent({
             });
 
           setProfiles(candidateList);
-          sessionIdRef.current = res.pagination?.sessionId || '';
+          sessionIdRef.current = resSessionId;
           nextCursorRef.current = res.pagination?.nextCursor || null;
         } else {
           setProfiles([]);
@@ -954,15 +980,19 @@ function DiscoveryFeedContent({
       }
 
       if (res && res.success) {
+        const resSessionId = res.pagination?.sessionId || '';
         setProfiles((current: ProfileCard[]) => {
           const existingUserIds = new Set(current.map((p: ProfileCard) => p.userId));
           const nextCandidates = (res.data || [])
-            .map(mapDatingProfile)
+            .map((p: RecommendationProfile) => mapDatingProfile(p, resSessionId))
             .filter(
               (p: ProfileCard) => p.userId !== userId && !existingUserIds.has(p.userId)
             );
           return [...current, ...nextCandidates];
         });
+        if (resSessionId) {
+          sessionIdRef.current = resSessionId;
+        }
         nextCursorRef.current = res.pagination?.nextCursor || null;
       }
     } catch (err) {
@@ -986,6 +1016,109 @@ function DiscoveryFeedContent({
     }
   }, [currentIndex, loadMoreRecommendations, profiles.length]);
 
+  // Auto preload 1 new recommendation session snapshot when current session is nearly exhausted
+  const preloadNextRecommendationSession = useCallback(async () => {
+    if (
+      !userId ||
+      isPreloadingSessionRef.current ||
+      preloadedSessionRef.current !== null ||
+      hasExhaustedAllSessionsRef.current
+    ) {
+      return;
+    }
+
+    isPreloadingSessionRef.current = true;
+    setIsPreloadingNextSession(true);
+
+    try {
+      let res;
+      if (topic.type === 'group' && topic.slug) {
+        res = await datingApi.getGroupRecommendations(topic.slug, { limit: 20 });
+      } else if (topic.type === 'intention' && topic.value) {
+        res = await datingApi.getIntentionRecommendations(topic.value, { limit: 20 });
+      }
+
+      if (res && res.success && res.pagination?.sessionId) {
+        const existingUserIds = new Set(profiles.map((p) => p.userId));
+        const likedSet = new Set(useDiscoveryStore.getState().likedProfiles);
+        const passedSet = new Set(useDiscoveryStore.getState().passedProfiles);
+        const seen = new Set<string>();
+
+        const newSessionId = res.pagination.sessionId;
+        const candidateList = (res.data || [])
+          .map((p) => mapDatingProfile(p, newSessionId))
+          .filter((cand) => {
+            if (cand.userId === userId) return false;
+            if (existingUserIds.has(cand.userId)) return false;
+            if (likedSet.has(cand.userId) || passedSet.has(cand.userId)) return false;
+            if (seen.has(cand.userId)) return false;
+            seen.add(cand.userId);
+            return true;
+          });
+
+        if (candidateList.length > 0) {
+          preloadedSessionRef.current = {
+            sessionId: newSessionId,
+            nextCursor: res.pagination.nextCursor || null,
+            profiles: candidateList,
+          };
+          // Lazy prefetch first image of preloaded session
+          if (candidateList[0]?.image && candidateList[0].image.startsWith('http')) {
+            void Image.prefetch(candidateList[0].image);
+          }
+        } else {
+          hasExhaustedAllSessionsRef.current = true;
+        }
+      } else {
+        hasExhaustedAllSessionsRef.current = true;
+      }
+    } catch (err) {
+      console.warn('Discovery preload next session error:', err);
+    } finally {
+      isPreloadingSessionRef.current = false;
+      setIsPreloadingNextSession(false);
+    }
+  }, [profiles, topic, userId]);
+
+  // Seamless handover: attach preloaded session into active deck
+  const attachPreloadedSession = useCallback(() => {
+    const preloaded = preloadedSessionRef.current;
+    if (!preloaded || preloaded.profiles.length === 0) return false;
+
+    preloadedSessionRef.current = null;
+    nextCursorRef.current = preloaded.nextCursor;
+    if (preloaded.sessionId) {
+      sessionIdRef.current = preloaded.sessionId;
+    }
+    setProfiles((current) => [...current, ...preloaded.profiles]);
+    return true;
+  }, []);
+
+  // Trigger preload when current session cursor has ended and remaining cards are low
+  useEffect(() => {
+    if (
+      profiles.length > 0 &&
+      nextCursorRef.current === null &&
+      profiles.length - currentIndex <= PRELOAD_SESSION_REMAINING_THRESHOLD &&
+      !isPreloadingSessionRef.current &&
+      preloadedSessionRef.current === null &&
+      !hasExhaustedAllSessionsRef.current
+    ) {
+      void preloadNextRecommendationSession();
+    }
+  }, [currentIndex, preloadNextRecommendationSession, profiles.length]);
+
+  // Handover preloaded cards as user approaches the end
+  useEffect(() => {
+    if (
+      profiles.length > 0 &&
+      currentIndex >= profiles.length - 2 &&
+      preloadedSessionRef.current !== null
+    ) {
+      attachPreloadedSession();
+    }
+  }, [attachPreloadedSession, currentIndex, profiles.length]);
+
   // Pre-load upcoming card images
   useEffect(() => {
     if (profiles.length > 0) {
@@ -1006,9 +1139,10 @@ function DiscoveryFeedContent({
 
 
   // Visibility Impression recording (Identical to swipe.tsx with 700ms debounce)
+  const activeSessionId = currentProfile?.sessionId || sessionIdRef.current;
   const visibleProfileKey =
-    sessionIdRef.current && currentProfile
-      ? `${sessionIdRef.current}:${currentProfile.userId}`
+    activeSessionId && currentProfile
+      ? `${activeSessionId}:${currentProfile.userId}`
       : null;
 
   const markCurrentProfileLaidOut = useCallback(() => {
@@ -1020,12 +1154,12 @@ function DiscoveryFeedContent({
       loading ||
       !currentProfile ||
       laidOutProfileKey !== visibleProfileKey ||
-      !sessionIdRef.current
+      !activeSessionId
     ) {
       return undefined;
     }
 
-    const key = `${sessionIdRef.current}:${currentProfile.userId}`;
+    const key = `${activeSessionId}:${currentProfile.userId}`;
     if (recordedImpressionsRef.current.has(key)) return undefined;
 
     const timer = setTimeout(() => {
@@ -1036,7 +1170,7 @@ function DiscoveryFeedContent({
         datingApi
           .recordGroupRecommendationImpressions(
             topic.slug,
-            sessionIdRef.current,
+            activeSessionId,
             [currentProfile.userId]
           )
           .catch(() => {
@@ -1045,7 +1179,7 @@ function DiscoveryFeedContent({
       } else if (topic.type === 'intention') {
         datingApi
           .recordIntentionRecommendationImpressions(
-            sessionIdRef.current,
+            activeSessionId,
             [currentProfile.userId]
           )
           .catch(() => {
@@ -1055,7 +1189,7 @@ function DiscoveryFeedContent({
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [currentProfile, laidOutProfileKey, loading, topic, visibleProfileKey]);
+  }, [activeSessionId, currentProfile, laidOutProfileKey, loading, topic, visibleProfileKey]);
 
   useEffect(() => {
     return () => {
@@ -1200,6 +1334,27 @@ function DiscoveryFeedContent({
     }
 
     if (!currentProfile || isLastCard || profiles.length === 0) {
+      // If a preloaded session is waiting, attach it immediately
+      if (preloadedSessionRef.current && preloadedSessionRef.current.profiles.length > 0) {
+        attachPreloadedSession();
+        return null;
+      }
+
+      // If preloading next session in flight, display loading feedback
+      if (isPreloadingNextSession) {
+        return (
+          <View style={[styles.emptyCard, { backgroundColor: theme.surface }]}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.emptyTitle, { color: theme.textPrimary }]}>
+              Đang chuẩn bị thêm hồ sơ...
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+              Tìm kiếm thêm người phù hợp trong {topic.name}
+            </Text>
+          </View>
+        );
+      }
+
       return (
         <View style={[styles.emptyCard, { backgroundColor: theme.surface }]}>
           <Ionicons name="sparkles-outline" size={64} color={theme.primary} />
