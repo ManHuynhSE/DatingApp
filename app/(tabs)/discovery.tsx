@@ -9,6 +9,7 @@ import {
   Dimensions,
   RefreshControl,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,9 +21,11 @@ import {
   DiscoveryGroup,
   DiscoveryIntention,
 } from '@/api/datingClient';
-import DiscoveryFeedModal, {
-  DiscoveryFeedTopic,
-} from '@/components/DiscoveryFeedModal';
+import type { DiscoveryFeedTopic } from '@/components/DiscoveryFeedModal';
+
+const LazyDiscoveryFeedModal = React.lazy(
+  () => import('@/components/DiscoveryFeedModal'),
+);
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_GAP = spacing.md;
@@ -592,17 +595,57 @@ export default function DiscoveryScreen() {
         )}
       </ScrollView>
 
-      {/* Discovery Feed Modal */}
-      <DiscoveryFeedModal
-        visible={feedModalVisible}
-        onClose={() => setFeedModalVisible(false)}
-        topic={selectedTopic}
-      />
+      {/* Lazy-Loaded Discovery Feed Modal */}
+      {feedModalVisible && selectedTopic ? (
+        <React.Suspense
+          fallback={
+            <Modal
+              visible={feedModalVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setFeedModalVisible(false)}
+            >
+              <View
+                style={[
+                  styles.modalLoadingFallback,
+                  { backgroundColor: mode === 'dark' ? '#101114' : colors.background },
+                ]}
+              >
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text
+                  style={[
+                    styles.modalLoadingText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Đang mở {selectedTopic.name}...
+                </Text>
+              </View>
+            </Modal>
+          }
+        >
+          <LazyDiscoveryFeedModal
+            visible={feedModalVisible}
+            onClose={() => setFeedModalVisible(false)}
+            topic={selectedTopic}
+          />
+        </React.Suspense>
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  modalLoadingFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalLoadingText: {
+    fontSize: 14,
+    marginTop: 12,
+    fontWeight: '500',
+  },
   container: {
     flex: 1,
   },
